@@ -1,0 +1,16 @@
+node_modules
+apps/web/.svelte-kit
+apps/web/build
+.git
+.gitignore
+.guild
+.env
+.env.*
+*.log
+.DS_Store
+apps/web/.vscode
+.zed
+README.md
+Dockerfile
+docker-compose.yml
+.dockerignore

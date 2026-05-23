@@ -1,0 +1,22 @@
+{
+	"name": "kata-monorepo",
+	"private": true,
+	"version": "0.0.1",
+	"packageManager": "pnpm@10.11.1",
+	"engines": {
+		"node": ">=24",
+		"pnpm": ">=10"
+	},
+	"scripts": {
+		"dev": "pnpm --filter @kata/web dev",
+		"build": "pnpm --filter @kata/web build",
+		"preview": "pnpm --filter @kata/web preview",
+		"start": "pnpm --filter @kata/web start",
+		"check": "pnpm --filter @kata/web check",
+		"check:watch": "pnpm --filter @kata/web check:watch",
+		"dev:api": "pnpm --filter @kata/api dev",
+		"build:api": "pnpm --filter @kata/api build",
+		"start:api": "pnpm --filter @kata/api start",
+		"check:api": "pnpm --filter @kata/api check"
+	}
+}
