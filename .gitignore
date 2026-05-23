@@ -1,4 +1,5 @@
 node_modules
+.guild
 
 # SvelteKit / Vite output
 apps/web/.svelte-kit
