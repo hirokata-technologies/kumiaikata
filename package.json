@@ -2,6 +2,7 @@
 	"name": "kata-monorepo",
 	"private": true,
 	"version": "0.0.1",
+	"type": "module",
 	"packageManager": "pnpm@10.11.1",
 	"engines": {
 		"node": ">=24",
@@ -17,6 +18,14 @@
 		"dev:api": "pnpm --filter @kata/api dev",
 		"build:api": "pnpm --filter @kata/api build",
 		"start:api": "pnpm --filter @kata/api start",
-		"check:api": "pnpm --filter @kata/api check"
+		"check:api": "pnpm --filter @kata/api check",
+		"lint": "pnpm --filter @kata/web lint && pnpm --filter @kata/api lint",
+		"lint:web": "pnpm --filter @kata/web lint",
+		"lint:api": "pnpm --filter @kata/api lint"
+	},
+	"devDependencies": {
+		"eslint": "^10.4.0",
+		"globals": "^17.6.0",
+		"typescript-eslint": "^8.59.4"
 	}
 }
