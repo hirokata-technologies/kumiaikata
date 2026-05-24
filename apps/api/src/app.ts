@@ -30,6 +30,14 @@ app.use(
 	}),
 );
 
+// ── Root: redirect auth errors to the web app ─────────────────────────────────
+app.get("/", (c) => {
+	const error = c.req.query("error");
+	const url = new URL("https://kata.hirokata.dev/login");
+	if (error) url.searchParams.set("error", error);
+	return c.redirect(url.toString());
+});
+
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get("/healthz", async (c) => {
 	try {
