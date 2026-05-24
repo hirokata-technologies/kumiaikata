@@ -1,5 +1,4 @@
-import { ObjectId, type OptionalId } from "mongodb";
-import type { Column } from "../db/schemas/index.js";
+import { ObjectId } from "mongodb";
 import {
 	columns as columnsColl,
 	cards as cardsColl,
@@ -52,12 +51,13 @@ export async function createColumn(
 
 	const now = new Date();
 	const insert = await columnsColl().insertOne({
+		_id: new ObjectId(),
 		boardId,
 		title,
 		position,
 		createdAt: now,
 		updatedAt: now,
-	} as OptionalId<Column>);
+	});
 	const doc = await columnsColl().findOne({ _id: insert.insertedId });
 	if (!doc) throw new AppError("INTERNAL_ERROR", "Column was created but could not be fetched.");
 	const summary = toSummary(doc);

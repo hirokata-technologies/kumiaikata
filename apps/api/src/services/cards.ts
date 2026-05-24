@@ -1,5 +1,4 @@
-import { ObjectId, type OptionalId } from "mongodb";
-import type { Card } from "../db/schemas/index.js";
+import { ObjectId } from "mongodb";
 import {
 	cards as cardsColl,
 	columns as columnsColl,
@@ -134,6 +133,7 @@ export async function createCard({
 
 	const now = new Date();
 	const insert = await cardsColl().insertOne({
+		_id: new ObjectId(),
 		boardId,
 		columnId: column._id,
 		title,
@@ -147,7 +147,7 @@ export async function createCard({
 		checklists: [],
 		createdAt: now,
 		updatedAt: now,
-	} as OptionalId<Card>);
+	});
 
 	const card = await cardsColl().findOne({ _id: insert.insertedId });
 	if (!card) throw new AppError("INTERNAL_ERROR", "Card was created but could not be fetched.");
@@ -195,10 +195,8 @@ export async function getCard(
 		await cardsColl().updateOne(
 			{ _id: cardObjId },
 			{
-				$pull: {
-					attachmentIds: {
-						$in: missingIds.map((id) => new ObjectId(id)),
-					},
+				$pullAll: {
+					attachmentIds: missingIds.map((id) => new ObjectId(id)),
 				},
 			},
 		);
