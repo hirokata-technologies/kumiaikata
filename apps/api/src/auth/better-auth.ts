@@ -10,6 +10,12 @@ export const auth = betterAuth({
 	database: mongodbAdapter(db),
 	secret: env.BETTER_AUTH_SECRET,
 	baseURL: env.BETTER_AUTH_URL,
+	trustedOrigins: env.ALLOWED_ORIGINS,
+	advanced: {
+		ipAddress: {
+			ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
+		},
+	},
 	socialProviders: {
 		google: {
 			clientId: env.GOOGLE_CLIENT_ID,
