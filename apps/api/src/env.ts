@@ -26,6 +26,11 @@ const schema = z.object({
 		.string()
 		.default("26214400")
 		.transform((s) => Number(s)),
+	S3_ENDPOINT: z.string().url().optional(),
+	S3_REGION: z.string().default("auto"),
+	S3_BUCKET: z.string().optional(),
+	S3_ACCESS_KEY_ID: z.string().optional(),
+	S3_SECRET_ACCESS_KEY: z.string().optional(),
 });
 
 function parseEnv(): z.infer<typeof schema> {
