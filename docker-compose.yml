@@ -1,12 +1,40 @@
 services:
-  app:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: kata-api:local
+    ports:
+      - "${API_PORT:-8787}:8787"
+    environment:
+      NODE_ENV: production
+      PORT: "8787"
+      MONGODB_URI: "${MONGODB_URI}"
+      BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET}"
+      BETTER_AUTH_URL: "${BETTER_AUTH_URL}"
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
+      ALLOWED_DOMAINS: "${ALLOWED_DOMAINS}"
+      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS}"
+      ATTACHMENTS_DIR: "/data/attachments"
+      MAX_ATTACHMENT_BYTES: "${MAX_ATTACHMENT_BYTES:-26214400}"
+    volumes:
+      - attachments:/data/attachments
+    restart: unless-stopped
+
+  web:
     build:
       context: .
       dockerfile: Dockerfile
-    image: kata-app:local
+    image: kata-web:local
     ports:
       - "${PORT:-3000}:3000"
     environment:
-      PORT: "${PORT:-3000}"
       NODE_ENV: production
+      PORT: "${PORT:-3000}"
     restart: unless-stopped
+    depends_on:
+      - api
+
+volumes:
+  attachments:
