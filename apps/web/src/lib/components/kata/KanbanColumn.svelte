@@ -13,7 +13,6 @@
 		onCardOpen,
 		onCardDrop,
 		onAddCard,
-		onRenameCol
 	}: {
 		column: KataColumn;
 		density: string;
@@ -24,17 +23,13 @@
 		onCardOpen: (id: string) => void;
 		onCardDrop: (toColId: string) => void;
 		onAddCard: (colId: string, title: string) => void;
-		onRenameCol: (colId: string, title: string) => void;
 	} = $props();
 
 	let over = $state(false);
 	let drafting = $state(false);
-	let editing = $state(false);
 	let draft = $state('');
-	let draftName = $state('');
 
 	let sectionRef: HTMLElement;
-	let renameInputRef: HTMLInputElement | null = $state(null);
 	let draftTextareaRef: HTMLTextAreaElement | null = $state(null);
 
 	function startDrafting() {
@@ -56,23 +51,6 @@
 	function cancelDraft() {
 		drafting = false;
 		draft = '';
-	}
-
-	function startEditing() {
-		editing = true;
-		draftName = column.title; // eslint-disable-line
-		setTimeout(() => {
-			renameInputRef?.focus();
-			renameInputRef?.select();
-		}, 0);
-	}
-
-	function commitRename() {
-		const t = draftName.trim();
-		if (t && t !== column.title) {
-			onRenameCol(column.id, t);
-		}
-		editing = false;
 	}
 
 	function handleDragOver(e: DragEvent) {
@@ -102,23 +80,7 @@
 >
 	<div class="kcol-head">
 		<div class="kcol-head-l">
-			{#if editing}
-				<input
-					class="kcol-rename"
-					type="text"
-					bind:value={draftName}
-					bind:this={renameInputRef}
-					onblur={commitRename}
-					onkeydown={(e) => {
-						if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
-						if (e.key === 'Escape') { editing = false; }
-					}}
-				/>
-			{:else}
-				<button class="kcol-title" onclick={startEditing} type="button">
-					{column.title}
-				</button>
-			{/if}
+			<span class="kcol-title">{column.title}</span>
 			<span class="kcol-count">{column.cards.length}</span>
 		</div>
 		<button class="kcol-add" onclick={startDrafting} aria-label="Add card">
@@ -228,30 +190,6 @@
 		font-size: 18px;
 		color: var(--fg-1);
 		letter-spacing: -0.01em;
-		cursor: text;
-		border-radius: 4px;
-		padding: 1px 3px;
-		margin-left: -3px;
-		background: transparent;
-		border: none;
-		text-align: left;
-	}
-
-	.kcol-title:hover {
-		background: rgba(20, 19, 15, 0.04);
-	}
-
-	.kcol-rename {
-		font-family: var(--font-display);
-		font-weight: 500;
-		font-size: 18px;
-		color: var(--fg-1);
-		background: var(--paper-0);
-		border: 1px solid var(--line-3);
-		border-radius: 6px;
-		padding: 1px 4px;
-		width: 100%;
-		outline: none;
 	}
 
 	.kcol-count {

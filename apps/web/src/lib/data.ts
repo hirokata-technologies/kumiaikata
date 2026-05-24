@@ -107,7 +107,7 @@ export const SEED_COLUMNS: KataColumn[] = [
 		],
 	},
 	{
-		id: 'todo', title: 'To do',
+		id: 'priorities', title: 'Priorities',
 		cards: [
 			{ id: 'c10', title: 'Renew passport before May 14', desc: 'Need new photos. Form DS-82 (renewal by mail eligible).', labels: ['errand','finance'], assignee: 'me', due: '2026-05-14' },
 			{ id: 'c11', title: 'Schedule dental cleaning', desc: '', labels: ['health'], assignee: 'me', due: '2026-05-29' },
@@ -116,7 +116,7 @@ export const SEED_COLUMNS: KataColumn[] = [
 		],
 	},
 	{
-		id: 'doing', title: 'In progress',
+		id: 'in-progress', title: 'In Progress',
 		cards: [
 			{ id: 'c20', title: 'Tax docs — gather 1099s and brokerage statements', desc: 'Have Fidelity, still need Wealthfront and the freelance 1099-NEC from Q3 contract.', labels: ['finance'], assignee: 'me', due: '2026-05-22' },
 			{ id: 'c21', title: 'Sketchbook study #14 — kettle on the stove', desc: 'Stuck on the reflection on the copper. Try a softer pencil pass tomorrow morning.', labels: ['creative','learning'], assignee: 'me' },
