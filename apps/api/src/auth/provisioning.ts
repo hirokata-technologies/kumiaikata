@@ -1,4 +1,5 @@
-import { ObjectId } from "mongodb";
+import { ObjectId, type OptionalId } from "mongodb";
+import type { Board } from "../db/schemas/index.js";
 import { withTransaction } from "../db/connection.js";
 import {
 	boards as boardsColl,
@@ -34,7 +35,7 @@ export async function provisionUser(user: {
 					ownerId: user.id as unknown as ObjectId,
 					createdAt: new Date(),
 					updatedAt: new Date(),
-				} as any,
+				} as OptionalId<Board>,
 				{ session },
 			);
 
@@ -75,7 +76,7 @@ export async function provisionUser(user: {
 						teamId: teamResult._id,
 						createdAt: new Date(),
 						updatedAt: new Date(),
-					} as any,
+					} as OptionalId<Board>,
 					{ session },
 				);
 				await teamsColl().updateOne(

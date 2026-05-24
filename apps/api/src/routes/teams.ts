@@ -58,7 +58,7 @@ r.get("/:teamId/members", async (c) => {
 	const userIdStrings = rows.map((row) => String(row.userId));
 	const userDocs = await usersColl()
 		.find(
-			{ _id: { $in: userIdStrings } as any },
+			{ _id: { $in: userIdStrings } },
 			{ projection: { email: 1 } },
 		)
 		.toArray();
