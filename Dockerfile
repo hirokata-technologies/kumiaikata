@@ -28,6 +28,10 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 
 # 3. Copy source and build
 COPY . .
+# PUBLIC_API_URL must be known at build time for Vite/rolldown to generate the env virtual module.
+# The placeholder is overridden at runtime by the container's actual environment variable.
+ARG PUBLIC_API_URL=http://placeholder
+ENV PUBLIC_API_URL=$PUBLIC_API_URL
 RUN pnpm --filter @kata/web build
 
 # ── runtime: minimal image ───────────────────────────────────────────────────
