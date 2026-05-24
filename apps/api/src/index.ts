@@ -4,12 +4,15 @@ import { env } from "./env.js";
 import { connectDB, disconnect } from "./db/connection.js";
 import { ensureIndexes } from "./db/indexes.js";
 import { cleanStaleTempFiles } from "./storage/disk.js";
+import { storage, DiskStorage } from "./storage/index.js";
 
 async function main(): Promise<void> {
 	await connectDB();
 	await ensureIndexes();
 
-	void cleanStaleTempFiles(env.ATTACHMENTS_DIR, 60 * 60 * 1000);
+	if (storage instanceof DiskStorage) {
+		void cleanStaleTempFiles(env.ATTACHMENTS_DIR, 60 * 60 * 1000);
+	}
 
 	serve({ fetch: app.fetch, port: env.PORT }, (info) => {
 		console.log(`kata/api listening on http://localhost:${info.port.toString()}`);
