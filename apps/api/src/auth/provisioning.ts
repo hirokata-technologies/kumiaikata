@@ -1,5 +1,4 @@
-import { ObjectId, type OptionalId } from "mongodb";
-import type { Board } from "../db/schemas/index.js";
+import { ObjectId } from "mongodb";
 import { withTransaction } from "../db/connection.js";
 import {
 	boards as boardsColl,
@@ -30,12 +29,13 @@ export async function provisionUser(user: {
 			// All queries against ownerId/userId MUST use the raw string, not new ObjectId(user.id).
 			const personalBoardInsert = await boardsColl().insertOne(
 				{
+					_id: new ObjectId(),
 					kind: "personal",
 					title: boardTitle,
 					ownerId: user.id as unknown as ObjectId,
 					createdAt: new Date(),
 					updatedAt: new Date(),
-				} as OptionalId<Board>,
+				},
 				{ session },
 			);
 
@@ -71,12 +71,13 @@ export async function provisionUser(user: {
 			if (!teamResult.teamBoardId) {
 				const teamBoardInsert = await boardsColl().insertOne(
 					{
+						_id: new ObjectId(),
 						kind: "team",
 						title: `${domain} Board`,
 						teamId: teamResult._id,
 						createdAt: new Date(),
 						updatedAt: new Date(),
-					} as OptionalId<Board>,
+					},
 					{ session },
 				);
 				await teamsColl().updateOne(
