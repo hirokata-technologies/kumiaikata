@@ -1,4 +1,4 @@
-import type { LabelId, AvatarId, LabelDef, AvatarDef, KataCard, KataColumn } from './types.js';
+import type { LabelId, AvatarId, LabelDef, AvatarDef, KataColumn } from './types.js';
 
 export const LABELS: Record<LabelId, LabelDef> = {
 	home:     { name: 'Home',     fg: '#3F6B4A', bg: 'rgba(63,107,74,0.10)' },
@@ -64,6 +64,22 @@ export function formatDue(iso: string | undefined): DueInfo | null {
 		tone = 'later';
 	}
 	return { label, tone, diff };
+}
+
+export function getPresetDate(preset: string): string {
+	const today = new Date();
+	const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+	if (preset === 'today') return iso(today);
+	if (preset === 'tomorrow') { const d = new Date(today); d.setDate(d.getDate() + 1); return iso(d); }
+	if (preset === 'weekend') {
+		const dow = today.getDay();
+		const daysToSat = (6 - dow + 7) % 7 || 6;
+		const d = new Date(today);
+		d.setDate(d.getDate() + daysToSat);
+		return iso(d);
+	}
+	if (preset === 'nextweek') { const d = new Date(today); d.setDate(d.getDate() + 7); return iso(d); }
+	return '';
 }
 
 export function parseDueFromText(text: string): string | null {
