@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Sparkles, X, Trash2 } from 'lucide-svelte';
 	import type { BoardState, KataCard, KataColumn, LabelId, AvatarId } from '$lib/types.js';
-	import { LABELS, AVATARS, deepCloneColumns } from '$lib/data.js';
+	import { LABELS, AVATARS, deepCloneColumns, getPresetDate } from '$lib/data.js';
 	import LabelChip from './LabelChip.svelte';
 	import AvatarChip from './AvatarChip.svelte';
 	import DueBadge from './DueBadge.svelte';
@@ -89,27 +89,6 @@
 
 	function setAssignee(avatarId: AvatarId) {
 		updateCard({ assignee: avatarId });
-	}
-
-	// Date presets
-	function getPresetDate(preset: string): string {
-		const today = new Date();
-		const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-		if (preset === 'today') return iso(today);
-		if (preset === 'tomorrow') { const d = new Date(today); d.setDate(d.getDate() + 1); return iso(d); }
-		if (preset === 'weekend') {
-			const dow = today.getDay();
-			const daysToSat = (6 - dow + 7) % 7 || 6;
-			const d = new Date(today);
-			d.setDate(d.getDate() + daysToSat);
-			return iso(d);
-		}
-		if (preset === 'nextweek') {
-			const d = new Date(today);
-			d.setDate(d.getDate() + 7);
-			return iso(d);
-		}
-		return '';
 	}
 
 	function isPresetActive(preset: string): boolean {
