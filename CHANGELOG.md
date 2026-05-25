@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- REQ-001: Migrate from MongoDB to PostgreSQL
+- REQ-002: Disable Bot Exploration in kata-web
 - REQ-003: Migrate apps/api from Mongoose to Native MongoDB Driver
 - REQ-002: Kanban Board Management API
 - REQ-001: Dependency Updates and Node 24

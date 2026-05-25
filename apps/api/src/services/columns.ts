@@ -1,8 +1,7 @@
-import { ObjectId } from "mongodb";
-import {
-	columns as columnsColl,
-	cards as cardsColl,
-} from "../db/schemas/index.js";
+import { eq, and, desc, count } from "drizzle-orm";
+import { db } from "../db/client.js";
+import { columns, cards } from "../db/schema/index.js";
+import { newId } from "../db/ids.js";
 import { AppError } from "../http/error.js";
 import { appendAfter, reorderToMatch } from "../ordering/fractional.js";
 import { eventBus } from "../events/bus.js";
@@ -19,52 +18,52 @@ export interface ColumnSummary {
 }
 
 function toSummary(col: {
-	_id: unknown;
-	boardId: unknown;
+	id: string;
+	boardId: string;
 	title: string;
 	position: string;
-	createdAt?: Date;
-	updatedAt?: Date;
+	createdAt: Date;
+	updatedAt: Date;
 }): ColumnSummary {
 	return {
-		id: String(col._id),
-		boardId: String(col.boardId),
+		id: col.id,
+		boardId: col.boardId,
 		title: col.title,
 		position: col.position,
-		createdAt: col.createdAt ?? new Date(),
-		updatedAt: col.updatedAt ?? new Date(),
+		createdAt: col.createdAt,
+		updatedAt: col.updatedAt,
 	};
 }
 
 // ── createColumn ──────────────────────────────────────────────────────────────
 
 export async function createColumn(
-	boardId: ObjectId,
+	boardId: string,
 	title: string,
 ): Promise<ColumnSummary> {
-	const lastColumn = await columnsColl()
-		.find({ boardId })
-		.sort({ position: -1 })
-		.limit(1)
-		.next();
+	const [lastColumn] = await db.select({ position: columns.position })
+		.from(columns)
+		.where(eq(columns.boardId, boardId))
+		.orderBy(desc(columns.position))
+		.limit(1);
 	const position = appendAfter(lastColumn?.position ?? null);
 
 	const now = new Date();
-	const insert = await columnsColl().insertOne({
-		_id: new ObjectId(),
+	const [col] = await db.insert(columns).values({
+		id: newId(),
 		boardId,
 		title,
 		position,
 		createdAt: now,
 		updatedAt: now,
-	});
-	const doc = await columnsColl().findOne({ _id: insert.insertedId });
-	if (!doc) throw new AppError("INTERNAL_ERROR", "Column was created but could not be fetched.");
-	const summary = toSummary(doc);
+	}).returning();
+
+	if (!col) throw new AppError("INTERNAL_ERROR", "Column was created but could not be fetched.");
+	const summary = toSummary(col);
 
 	eventBus.emit({
 		type: "column.created",
-		boardId: String(boardId),
+		boardId,
 		payload: summary,
 	});
 
@@ -74,15 +73,14 @@ export async function createColumn(
 // ── renameColumn ──────────────────────────────────────────────────────────────
 
 export async function renameColumn(
-	boardId: ObjectId,
+	boardId: string,
 	columnId: string,
 	title: string,
 ): Promise<ColumnSummary> {
-	const col = await columnsColl().findOneAndUpdate(
-		{ _id: new ObjectId(columnId), boardId },
-		{ $set: { title, updatedAt: new Date() } },
-		{ returnDocument: "after" },
-	);
+	const [col] = await db.update(columns)
+		.set({ title, updatedAt: new Date() })
+		.where(and(eq(columns.id, columnId), eq(columns.boardId, boardId)))
+		.returning();
 
 	if (!col) {
 		throw new AppError("NOT_FOUND", "Column not found.");
@@ -92,7 +90,7 @@ export async function renameColumn(
 
 	eventBus.emit({
 		type: "column.updated",
-		boardId: String(boardId),
+		boardId,
 		payload: summary,
 	});
 
@@ -102,31 +100,26 @@ export async function renameColumn(
 // ── deleteColumn ──────────────────────────────────────────────────────────────
 
 export async function deleteColumn(
-	boardId: ObjectId,
+	boardId: string,
 	columnId: string,
 ): Promise<void> {
-	const columnObjId = new ObjectId(columnId);
-	const cardCount = await cardsColl().countDocuments({
-		columnId: columnObjId,
-	});
+	const [{ value: cardCount } = { value: 0 }] = await db.select({ value: count() })
+		.from(cards)
+		.where(eq(cards.columnId, columnId));
 	if (cardCount > 0) {
-		throw new AppError(
-			"CONFLICT",
-			"Column must be empty before deletion.",
-		);
+		throw new AppError("CONFLICT", "Column must be empty before deletion.");
 	}
 
-	const result = await columnsColl().deleteOne({
-		_id: columnObjId,
-		boardId,
-	});
-	if (result.deletedCount === 0) {
+	const deleted = await db.delete(columns)
+		.where(and(eq(columns.id, columnId), eq(columns.boardId, boardId)))
+		.returning({ id: columns.id });
+	if (deleted.length === 0) {
 		throw new AppError("NOT_FOUND", "Column not found.");
 	}
 
 	eventBus.emit({
 		type: "column.deleted",
-		boardId: String(boardId),
+		boardId,
 		payload: { id: columnId },
 	});
 }
@@ -134,13 +127,13 @@ export async function deleteColumn(
 // ── reorderColumns ────────────────────────────────────────────────────────────
 
 export async function reorderColumns(
-	boardId: ObjectId,
+	boardId: string,
 	desiredIds: string[],
 ): Promise<{ orderedIds: string[] }> {
-	const currentColumns = await columnsColl()
-		.find({ boardId })
-		.sort({ position: 1 })
-		.toArray();
+	const currentColumns = await db.select()
+		.from(columns)
+		.where(eq(columns.boardId, boardId))
+		.orderBy(desc(columns.position));
 
 	if (currentColumns.length !== desiredIds.length) {
 		throw new AppError(
@@ -149,7 +142,7 @@ export async function reorderColumns(
 		);
 	}
 
-	const currentIds = new Set(currentColumns.map((c) => String(c._id)));
+	const currentIds = new Set(currentColumns.map((c) => c.id));
 	for (const id of desiredIds) {
 		if (!currentIds.has(id)) {
 			throw new AppError(
@@ -161,26 +154,25 @@ export async function reorderColumns(
 
 	const updates = reorderToMatch(
 		currentColumns.map((c) => ({
-			_id: String(c._id),
+			_id: c.id,
 			position: c.position,
 		})),
 		desiredIds,
 	);
 
 	if (updates.length > 0) {
-		await columnsColl().bulkWrite(
-			updates.map((u) => ({
-				updateOne: {
-					filter: { _id: new ObjectId(u.id) },
-					update: { $set: { position: u.position } },
-				},
-			})),
-		);
+		await db.transaction(async (tx) => {
+			for (const u of updates) {
+				await tx.update(columns)
+					.set({ position: u.position })
+					.where(eq(columns.id, u.id));
+			}
+		});
 	}
 
 	eventBus.emit({
 		type: "columns.reordered",
-		boardId: String(boardId),
+		boardId,
 		payload: { orderedIds: desiredIds },
 	});
 

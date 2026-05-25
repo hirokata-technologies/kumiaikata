@@ -1,11 +1,14 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { ObjectId } from "mongodb";
+import { eq, and } from "drizzle-orm";
+import { db } from "../db/client.js";
+import { newId } from "../db/ids.js";
 import { requireSession, loadBoardAccess } from "../auth/middleware.js";
-import { zValidator, validateObjectId } from "../http/validate.js";
+import { zValidator, validateId } from "../http/validate.js";
 import { ok, created, noContent } from "../http/responders.js";
 import type { AppVariables } from "../http/types.js";
-import { cards } from "../db/schemas/index.js";
+import { cards } from "../db/schema/index.js";
+import type { Checklist, ChecklistItem } from "../db/schema/cards.js";
 import { AppError } from "../http/error.js";
 import { eventBus } from "../events/bus.js";
 
@@ -19,33 +22,46 @@ r.post(
 	zValidator("json", z.object({ title: z.string().min(1).max(200) })),
 	async (c) => {
 		const board = c.get("board");
-		const cardId = new ObjectId(validateObjectId(c.req.param("cardId"), "cardId"));
+		const cardId = validateId(c.req.param("cardId"), "cardId");
 
-		const checklist = {
-			_id: new ObjectId(),
+		const checklist: Checklist = {
+			id: newId(),
 			title: c.req.valid("json").title,
-			items: [] as [],
+			items: [],
 		};
 
-		const result = await cards().updateOne(
-			{ _id: cardId, boardId: board._id },
-			{ $push: { checklists: checklist } },
-		);
+		await db.transaction(async (tx) => {
+			const [card] = await tx
+				.select({ checklists: cards.checklists })
+				.from(cards)
+				.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
+				.limit(1)
+				.for("update");
+			if (!card) {
+				throw new AppError("NOT_FOUND", "Card not found.");
+			}
 
-		if (result.matchedCount === 0) {
-			throw new AppError("NOT_FOUND", "Card not found.");
-		}
+			const next = [...(card.checklists ?? []), checklist];
+			const rows = await tx
+				.update(cards)
+				.set({ checklists: next })
+				.where(eq(cards.id, cardId))
+				.returning({ id: cards.id });
+			if (rows.length === 0) {
+				throw new AppError("NOT_FOUND", "Card not found.");
+			}
+		});
 
 		const payload = {
-			id: String(checklist._id),
+			id: checklist.id,
 			title: checklist.title,
 			items: [],
 		};
 
 		eventBus.emit({
 			type: "card.checklist.created",
-			boardId: String(board._id),
-			payload: { cardId: String(cardId), checklist: payload },
+			boardId: board.id,
+			payload: { cardId, checklist: payload },
 		});
 
 		return created(c, payload);
@@ -55,30 +71,40 @@ r.post(
 // DELETE /api/boards/:boardId/cards/:cardId/checklists/:checklistId
 r.delete("/:checklistId", async (c) => {
 	const board = c.get("board");
-	const cardId = new ObjectId(validateObjectId(c.req.param("cardId"), "cardId"));
-	const checklistObjId = new ObjectId(validateObjectId(c.req.param("checklistId"), "checklistId"));
+	const cardId = validateId(c.req.param("cardId"), "cardId");
+	const checklistId = validateId(c.req.param("checklistId"), "checklistId");
 
-	const card = await cards().findOne(
-		{ _id: cardId, boardId: board._id },
-		{ projection: { checklists: { $elemMatch: { _id: checklistObjId } } } },
-	);
-	if (!card) {
-		throw new AppError("NOT_FOUND", "Card not found.");
-	}
+	await db.transaction(async (tx) => {
+		const [card] = await tx
+			.select({ checklists: cards.checklists })
+			.from(cards)
+			.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
+			.limit(1)
+			.for("update");
+		if (!card) {
+			throw new AppError("NOT_FOUND", "Card not found.");
+		}
 
-	if (!card.checklists || card.checklists.length === 0) {
-		throw new AppError("NOT_FOUND", "Checklist not found.");
-	}
+		const exists = (card.checklists ?? []).some((cl) => cl.id === checklistId);
+		if (!exists) {
+			throw new AppError("NOT_FOUND", "Checklist not found.");
+		}
 
-	await cards().updateOne(
-		{ _id: cardId },
-		{ $pull: { checklists: { _id: checklistObjId } } },
-	);
+		const next = (card.checklists ?? []).filter((cl) => cl.id !== checklistId);
+		const rows = await tx
+			.update(cards)
+			.set({ checklists: next })
+			.where(eq(cards.id, cardId))
+			.returning({ id: cards.id });
+		if (rows.length === 0) {
+			throw new AppError("NOT_FOUND", "Card not found.");
+		}
+	});
 
 	eventBus.emit({
 		type: "card.checklist.deleted",
-		boardId: String(board._id),
-		payload: { cardId: String(cardId), checklistId: String(checklistObjId) },
+		boardId: board.id,
+		payload: { cardId, checklistId },
 	});
 
 	return noContent(c);
@@ -90,50 +116,55 @@ r.post(
 	zValidator("json", z.object({ text: z.string().min(1).max(1000) })),
 	async (c) => {
 		const board = c.get("board");
-		const cardId = new ObjectId(validateObjectId(c.req.param("cardId"), "cardId"));
-		const checklistObjId = new ObjectId(validateObjectId(c.req.param("checklistId"), "checklistId"));
-
+		const cardId = validateId(c.req.param("cardId"), "cardId");
+		const checklistId = validateId(c.req.param("checklistId"), "checklistId");
 		const { text } = c.req.valid("json");
-		const newItemId = new ObjectId();
 
-		const updated = await cards().findOneAndUpdate(
-			{ _id: cardId, boardId: board._id, "checklists._id": checklistObjId },
-			{
-				$push: {
-					"checklists.$.items": {
-						_id: newItemId,
-						text,
-						checked: false,
-					},
-				},
-			},
-			{
-				returnDocument: "after",
-				projection: { checklists: { $elemMatch: { _id: checklistObjId } } },
-			},
-		);
+		const newItem: ChecklistItem = {
+			id: newId(),
+			text,
+			checked: false,
+		};
 
-		if (!updated) {
-			throw new AppError("NOT_FOUND", "Card or checklist not found.");
-		}
+		await db.transaction(async (tx) => {
+			const [card] = await tx
+				.select({ checklists: cards.checklists })
+				.from(cards)
+				.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
+				.limit(1)
+				.for("update");
+			if (!card) {
+				throw new AppError("NOT_FOUND", "Card or checklist not found.");
+			}
 
-		const checklist = updated.checklists?.[0];
-		const item = checklist?.items.find((i) => String(i._id) === String(newItemId));
+			const clIdx = (card.checklists ?? []).findIndex((cl) => cl.id === checklistId);
+			if (clIdx === -1) {
+				throw new AppError("NOT_FOUND", "Card or checklist not found.");
+			}
 
-		if (!item) {
-			throw new AppError("NOT_FOUND", "Checklist item not found.");
-		}
+			const next: Checklist[] = card.checklists!.map((cl, i) =>
+				i === clIdx ? { ...cl, items: [...(cl.items ?? []), newItem] } : cl,
+			);
+			const rows = await tx
+				.update(cards)
+				.set({ checklists: next })
+				.where(eq(cards.id, cardId))
+				.returning({ id: cards.id });
+			if (rows.length === 0) {
+				throw new AppError("NOT_FOUND", "Card not found.");
+			}
+		});
 
 		const payload = {
-			id: String(item._id),
-			text: item.text,
-			checked: item.checked,
+			id: newItem.id,
+			text: newItem.text,
+			checked: newItem.checked,
 		};
 
 		eventBus.emit({
 			type: "card.checklist.updated",
-			boardId: String(board._id),
-			payload: { cardId: String(cardId), checklistId: String(checklistObjId), item: payload },
+			boardId: board.id,
+			payload: { cardId, checklistId, item: payload },
 		});
 
 		return created(c, payload);
@@ -152,51 +183,75 @@ r.patch(
 	),
 	async (c) => {
 		const board = c.get("board");
-		const cardId = new ObjectId(validateObjectId(c.req.param("cardId"), "cardId"));
-		const checklistObjId = new ObjectId(validateObjectId(c.req.param("checklistId"), "checklistId"));
-		const itemObjId = new ObjectId(validateObjectId(c.req.param("itemId"), "itemId"));
-
+		const cardId = validateId(c.req.param("cardId"), "cardId");
+		const checklistId = validateId(c.req.param("checklistId"), "checklistId");
+		const itemId = validateId(c.req.param("itemId"), "itemId");
 		const input = c.req.valid("json");
 
-		const updated = await cards().findOneAndUpdate(
-			{ _id: cardId, boardId: board._id },
-			{
-				$set: {
-					...(input.text !== undefined && { "checklists.$[c].items.$[i].text": input.text }),
-					...(input.checked !== undefined && { "checklists.$[c].items.$[i].checked": input.checked }),
-				},
-			},
-			{
-				arrayFilters: [{ "c._id": checklistObjId }, { "i._id": itemObjId }],
-				returnDocument: "after",
-				projection: { checklists: { $elemMatch: { _id: checklistObjId } } },
-			},
-		);
+		let updatedItem: ChecklistItem | undefined;
 
-		if (!updated) {
-			throw new AppError("NOT_FOUND", "Card not found.");
-		}
+		await db.transaction(async (tx) => {
+			const [card] = await tx
+				.select({ checklists: cards.checklists })
+				.from(cards)
+				.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
+				.limit(1)
+				.for("update");
+			if (!card) {
+				throw new AppError("NOT_FOUND", "Card not found.");
+			}
 
-		const checklist = updated.checklists?.[0];
-		if (!checklist) {
-			throw new AppError("NOT_FOUND", "Checklist not found.");
-		}
+			const clIdx = (card.checklists ?? []).findIndex((cl) => cl.id === checklistId);
+			if (clIdx === -1) {
+				throw new AppError("NOT_FOUND", "Checklist not found.");
+			}
 
-		const item = checklist.items.find((i) => String(i._id) === String(itemObjId));
-		if (!item) {
-			throw new AppError("NOT_FOUND", "Checklist item not found.");
-		}
+			const checklist = card.checklists![clIdx];
+			if (!checklist) {
+				throw new AppError("NOT_FOUND", "Checklist not found.");
+			}
+			const items = checklist.items ?? [];
+			const itemIdx = items.findIndex((i) => i.id === itemId);
+			if (itemIdx === -1) {
+				throw new AppError("NOT_FOUND", "Checklist item not found.");
+			}
+
+			const item = items[itemIdx];
+			if (!item) {
+				throw new AppError("NOT_FOUND", "Checklist item not found.");
+			}
+			const patched: ChecklistItem = {
+				id: item.id,
+				text: input.text !== undefined ? input.text : item.text,
+				checked: input.checked !== undefined ? input.checked : item.checked,
+			};
+			updatedItem = patched;
+
+			const newItems = [...items];
+			newItems[itemIdx] = patched;
+			const next: Checklist[] = card.checklists!.map((cl, i) =>
+				i === clIdx ? { ...cl, items: newItems } : cl,
+			);
+			const rows = await tx
+				.update(cards)
+				.set({ checklists: next })
+				.where(eq(cards.id, cardId))
+				.returning({ id: cards.id });
+			if (rows.length === 0) {
+				throw new AppError("NOT_FOUND", "Card not found.");
+			}
+		});
 
 		const payload = {
-			id: String(item._id),
-			text: item.text,
-			checked: item.checked,
+			id: updatedItem!.id,
+			text: updatedItem!.text,
+			checked: updatedItem!.checked,
 		};
 
 		eventBus.emit({
 			type: "card.checklist.updated",
-			boardId: String(board._id),
-			payload: { cardId: String(cardId), checklistId: String(checklistObjId), item: payload },
+			boardId: board.id,
+			payload: { cardId, checklistId, item: payload },
 		});
 
 		return ok(c, payload);
@@ -206,51 +261,55 @@ r.patch(
 // DELETE /api/boards/:boardId/cards/:cardId/checklists/:checklistId/items/:itemId
 r.delete("/:checklistId/items/:itemId", async (c) => {
 	const board = c.get("board");
-	const cardId = new ObjectId(validateObjectId(c.req.param("cardId"), "cardId"));
-	const checklistObjId = new ObjectId(validateObjectId(c.req.param("checklistId"), "checklistId"));
-	const itemObjId = new ObjectId(validateObjectId(c.req.param("itemId"), "itemId"));
+	const cardId = validateId(c.req.param("cardId"), "cardId");
+	const checklistId = validateId(c.req.param("checklistId"), "checklistId");
+	const itemId = validateId(c.req.param("itemId"), "itemId");
 
-	// Two-step: check existence with distinct 404 messages, then pull.
-	const exists = await cards().findOne(
-		{
-			_id: cardId,
-			boardId: board._id,
-			"checklists._id": checklistObjId,
-			"checklists.items._id": itemObjId,
-		},
-		{ projection: { _id: 1 } },
-	);
+	await db.transaction(async (tx) => {
+		const [card] = await tx
+			.select({ checklists: cards.checklists })
+			.from(cards)
+			.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
+			.limit(1)
+			.for("update");
 
-	if (!exists) {
-		// Distinguish between card-not-found, checklist-not-found, item-not-found.
-		const card = await cards().findOne(
-			{ _id: cardId, boardId: board._id },
-			{ projection: { _id: 1 } },
-		);
 		if (!card) {
 			throw new AppError("NOT_FOUND", "Card not found.");
 		}
 
-		const checklistExists = await cards().findOne(
-			{ _id: cardId, "checklists._id": checklistObjId },
-			{ projection: { _id: 1 } },
-		);
-		if (!checklistExists) {
+		const clIdx = (card.checklists ?? []).findIndex((cl) => cl.id === checklistId);
+		if (clIdx === -1) {
 			throw new AppError("NOT_FOUND", "Checklist not found.");
 		}
 
-		throw new AppError("NOT_FOUND", "Checklist item not found.");
-	}
+		const checklist = card.checklists![clIdx];
+		if (!checklist) {
+			throw new AppError("NOT_FOUND", "Checklist not found.");
+		}
+		const items = checklist.items ?? [];
+		const itemIdx = items.findIndex((i) => i.id === itemId);
+		if (itemIdx === -1) {
+			throw new AppError("NOT_FOUND", "Checklist item not found.");
+		}
 
-	await cards().updateOne(
-		{ _id: cardId, "checklists._id": checklistObjId },
-		{ $pull: { "checklists.$.items": { _id: itemObjId } } },
-	);
+		const newItems = items.filter((i) => i.id !== itemId);
+		const next: Checklist[] = card.checklists!.map((cl, i) =>
+			i === clIdx ? { ...cl, items: newItems } : cl,
+		);
+		const rows = await tx
+			.update(cards)
+			.set({ checklists: next })
+			.where(eq(cards.id, cardId))
+			.returning({ id: cards.id });
+		if (rows.length === 0) {
+			throw new AppError("NOT_FOUND", "Card not found.");
+		}
+	});
 
 	eventBus.emit({
 		type: "card.checklist.updated",
-		boardId: String(board._id),
-		payload: { cardId: String(cardId), checklistId: String(checklistObjId), itemId: String(itemObjId) },
+		boardId: board.id,
+		payload: { cardId, checklistId, itemId },
 	});
 
 	return noContent(c);

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
 import { env } from "./env.js";
-import { getDb } from "./db/connection.js";
+import { pool } from "./db/client.js";
 import { errorHandler } from "./http/error.js";
 import authRouter from "./routes/auth.js";
 import boardsRouter from "./routes/boards.js";
@@ -41,7 +41,7 @@ app.get("/", (c) => {
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get("/healthz", async (c) => {
 	try {
-		await getDb().command({ ping: 1 });
+		await pool.query("select 1");
 		return c.json({ ok: true, db: true });
 	} catch {
 		return c.json({ ok: false, db: false }, 503);

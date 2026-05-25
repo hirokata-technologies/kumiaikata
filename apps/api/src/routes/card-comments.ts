@@ -1,11 +1,14 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { ObjectId } from "mongodb";
+import { eq, and } from "drizzle-orm";
+import { db } from "../db/client.js";
+import { newId } from "../db/ids.js";
 import { requireSession, loadBoardAccess } from "../auth/middleware.js";
-import { zValidator, validateObjectId } from "../http/validate.js";
+import { zValidator, validateId } from "../http/validate.js";
 import { ok, created, noContent } from "../http/responders.js";
 import type { AppVariables } from "../http/types.js";
-import { cards } from "../db/schemas/index.js";
+import { cards } from "../db/schema/index.js";
+import type { Comment } from "../db/schema/cards.js";
 import { AppError } from "../http/error.js";
 import { eventBus } from "../events/bus.js";
 
@@ -22,35 +25,49 @@ r.post(
 	async (c) => {
 		const board = c.get("board");
 		const user = c.get("user");
-		const cardId = new ObjectId(validateObjectId(c.req.param("cardId"), "cardId"));
+		const cardId = validateId(c.req.param("cardId"), "cardId");
+		const now = new Date();
 
-		const comment = {
-			_id: new ObjectId(),
-			authorId: user.id as unknown as ObjectId,
+		const comment: Comment = {
+			id: newId(),
+			authorId: user.id,
 			body: c.req.valid("json").body,
-			createdAt: new Date(),
+			createdAt: now.toISOString(),
 		};
 
-		const result = await cards().updateOne(
-			{ _id: cardId, boardId: board._id },
-			{ $push: { comments: comment } },
-		);
+		await db.transaction(async (tx) => {
+			const [card] = await tx
+				.select({ comments: cards.comments })
+				.from(cards)
+				.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
+				.limit(1)
+				.for("update");
+			if (!card) {
+				throw new AppError("NOT_FOUND", "Card not found.");
+			}
 
-		if (result.matchedCount === 0) {
-			throw new AppError("NOT_FOUND", "Card not found.");
-		}
+			const next = [...(card.comments ?? []), comment];
+			const rows = await tx
+				.update(cards)
+				.set({ comments: next, updatedAt: now })
+				.where(eq(cards.id, cardId))
+				.returning({ id: cards.id });
+			if (rows.length === 0) {
+				throw new AppError("NOT_FOUND", "Card not found.");
+			}
+		});
 
 		const payload = {
-			id: String(comment._id),
-			authorId: String(comment.authorId),
+			id: comment.id,
+			authorId: comment.authorId,
 			body: comment.body,
 			createdAt: comment.createdAt,
 		};
 
 		eventBus.emit({
 			type: "card.comment.created",
-			boardId: String(board._id),
-			payload: { cardId: String(cardId), comment: payload },
+			boardId: board.id,
+			payload: { cardId, comment: payload },
 		});
 
 		return created(c, payload);
@@ -64,60 +81,70 @@ r.patch(
 	async (c) => {
 		const board = c.get("board");
 		const user = c.get("user");
-		const cardId = new ObjectId(validateObjectId(c.req.param("cardId"), "cardId"));
-		const commentObjId = new ObjectId(validateObjectId(c.req.param("commentId"), "commentId"));
+		const cardId = validateId(c.req.param("cardId"), "cardId");
+		const commentId = validateId(c.req.param("commentId"), "commentId");
+		const now = new Date();
+		const newBody = c.req.valid("json").body;
 
-		// Check whether the card+comment exists at all so we can distinguish
-		// a 404 (card or comment missing) from a 403 (wrong author).
-		const exists = await cards().findOne(
-			{ _id: cardId, boardId: board._id, "comments._id": commentObjId },
-			{ projection: { _id: 1 } },
-		);
-		if (!exists) {
-			throw new AppError("NOT_FOUND", "Card or comment not found.");
-		}
+		let updatedComment: Comment | undefined;
 
-		const updatedAt = new Date();
-		const updated = await cards().findOneAndUpdate(
-			{
-				_id: cardId,
-				boardId: board._id,
-				"comments._id": commentObjId,
-				"comments.authorId": user.id,
-			},
-			{
-				$set: {
-					"comments.$.body": c.req.valid("json").body,
-					"comments.$.updatedAt": updatedAt,
-				},
-			},
-			{
-				returnDocument: "after",
-				projection: { comments: { $elemMatch: { _id: commentObjId } } },
-			},
-		);
+		await db.transaction(async (tx) => {
+			const [card] = await tx
+				.select({ comments: cards.comments })
+				.from(cards)
+				.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
+				.limit(1)
+				.for("update");
+			if (!card) {
+				throw new AppError("NOT_FOUND", "Card or comment not found.");
+			}
 
-		if (!updated) {
-			throw new AppError("FORBIDDEN", "Only the author may edit this comment.");
-		}
+			const idx = (card.comments ?? []).findIndex((c) => c.id === commentId);
+			if (idx === -1) {
+				throw new AppError("NOT_FOUND", "Card or comment not found.");
+			}
 
-		const comment = updated.comments?.[0];
-		if (!comment) {
-			throw new AppError("NOT_FOUND", "Comment not found.");
-		}
+			const comment = card.comments![idx];
+			if (!comment) {
+				throw new AppError("NOT_FOUND", "Card or comment not found.");
+			}
+			if (comment.authorId !== user.id) {
+				throw new AppError("FORBIDDEN", "Only the author may edit this comment.");
+			}
+
+			const updated: Comment = {
+				id: comment.id,
+				authorId: comment.authorId,
+				body: newBody,
+				createdAt: comment.createdAt,
+				updatedAt: now.toISOString(),
+			};
+			const next = [...card.comments!];
+			next[idx] = updated;
+			updatedComment = updated;
+
+			const rows = await tx
+				.update(cards)
+				.set({ comments: next, updatedAt: now })
+				.where(eq(cards.id, cardId))
+				.returning({ id: cards.id });
+			if (rows.length === 0) {
+				throw new AppError("NOT_FOUND", "Card not found.");
+			}
+		});
 
 		const payload = {
-			id: String(comment._id),
-			authorId: String(comment.authorId),
-			body: comment.body,
-			createdAt: comment.createdAt,
-			...(comment.updatedAt && { updatedAt: comment.updatedAt }),
+			id: updatedComment!.id,
+			authorId: updatedComment!.authorId,
+			body: updatedComment!.body,
+			createdAt: updatedComment!.createdAt,
+			...(updatedComment!.updatedAt && { updatedAt: updatedComment!.updatedAt }),
 		};
 
 		eventBus.emit({
 			type: "card.comment.updated",
-			boardId: String(board._id),
-			payload: { cardId: String(cardId), comment: payload },
+			boardId: board.id,
+			payload: { cardId, comment: payload },
 		});
 
 		return ok(c, payload);
@@ -129,42 +156,51 @@ r.delete("/:commentId", async (c) => {
 	const board = c.get("board");
 	const user = c.get("user");
 	const access = c.get("access");
-	const cardId = new ObjectId(validateObjectId(c.req.param("cardId"), "cardId"));
-	const commentObjId = new ObjectId(validateObjectId(c.req.param("commentId"), "commentId"));
+	const cardId = validateId(c.req.param("cardId"), "cardId");
+	const commentId = validateId(c.req.param("commentId"), "commentId");
 
-	const card = await cards().findOne(
-		{ _id: cardId, boardId: board._id },
-		{ projection: { comments: { $elemMatch: { _id: commentObjId } } } },
-	);
-	if (!card) {
-		throw new AppError("NOT_FOUND", "Card not found.");
-	}
+	await db.transaction(async (tx) => {
+		const [card] = await tx
+			.select({ comments: cards.comments })
+			.from(cards)
+			.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
+			.limit(1)
+			.for("update");
+		if (!card) {
+			throw new AppError("NOT_FOUND", "Card not found.");
+		}
 
-	const comment = card.comments?.[0];
-	if (!comment) {
-		throw new AppError("NOT_FOUND", "Comment not found.");
-	}
+		const comment = (card.comments ?? []).find((c) => c.id === commentId);
+		if (!comment) {
+			throw new AppError("NOT_FOUND", "Comment not found.");
+		}
 
-	const isAuthor = String(comment.authorId) === String(user.id);
-	const isAdmin =
-		access.kind === "team-admin" || access.kind === "personal-owner";
+		const isAuthor = comment.authorId === user.id;
+		const isAdmin =
+			access.kind === "team-admin" || access.kind === "personal-owner";
 
-	if (!isAuthor && !isAdmin) {
-		throw new AppError(
-			"FORBIDDEN",
-			"Only the comment author or a board admin may delete this comment.",
-		);
-	}
+		if (!isAuthor && !isAdmin) {
+			throw new AppError(
+				"FORBIDDEN",
+				"Only the comment author or a board admin may delete this comment.",
+			);
+		}
 
-	await cards().updateOne(
-		{ _id: cardId },
-		{ $pull: { comments: { _id: commentObjId } } },
-	);
+		const next = (card.comments ?? []).filter((c) => c.id !== commentId);
+		const rows = await tx
+			.update(cards)
+			.set({ comments: next })
+			.where(eq(cards.id, cardId))
+			.returning({ id: cards.id });
+		if (rows.length === 0) {
+			throw new AppError("NOT_FOUND", "Card not found.");
+		}
+	});
 
 	eventBus.emit({
 		type: "card.comment.deleted",
-		boardId: String(board._id),
-		payload: { cardId: String(cardId), commentId: String(commentObjId) },
+		boardId: board.id,
+		payload: { cardId, commentId },
 	});
 
 	return noContent(c);

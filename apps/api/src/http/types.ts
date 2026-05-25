@@ -3,8 +3,6 @@
  * These are populated by auth middleware (requireSession, loadBoardAccess).
  */
 
-import type { ObjectId } from "mongodb";
-
 export interface UserSession {
 	id: string;
 	email: string;
@@ -18,11 +16,11 @@ export type BoardAccess =
 
 /** Minimal board shape stored on the context by loadBoardAccess middleware. */
 export interface ContextBoard {
-	_id: ObjectId;
+	id: string;
 	kind: string;
 	title: string;
-	ownerId?: ObjectId;
-	teamId?: ObjectId;
+	ownerId?: string;
+	teamId?: string;
 }
 
 // Variables stored on the Hono context by middleware.

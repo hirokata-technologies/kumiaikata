@@ -1,9 +1,10 @@
-import { ObjectId } from "mongodb";
+import { eq, and } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import type { AppVariables, BoardAccess } from "../http/types.js";
-import { boards as boardsColl } from "../db/schemas/index.js";
+import { db } from "../db/client.js";
+import { boards, teamMembers } from "../db/schema/index.js";
 import { AppError } from "../http/error.js";
-import { validateObjectId } from "../http/validate.js";
+import { validateId } from "../http/validate.js";
 import { auth } from "./better-auth.js";
 
 // ── requireSession ────────────────────────────────────────────────────────────
@@ -35,22 +36,21 @@ export const requireSession = createMiddleware<{ Variables: AppVariables }>(
  * present only when the board is a team board and the given user is a member.
  */
 export interface BoardWithMembership {
-	_id: ObjectId;
+	id: string;
 	kind: string;
 	title: string;
-	ownerId?: ObjectId;
-	teamId?: ObjectId;
-	membership?: { role: string } | null;
+	ownerId: string | null;
+	teamId: string | null;
+	membership: { role: string } | null;
 }
 
 // ── fetchBoardWithMembership ──────────────────────────────────────────────────
 
 /**
- * Fetch a board and the requesting user's team membership in a single
- * aggregation pipeline. Using one round-trip ensures that the board existence
- * and team membership are read from the same consistent DB snapshot, which
- * eliminates the race condition where membership is revoked between two
- * separate queries.
+ * Fetch a board and the requesting user's team membership in one round-trip
+ * with a LEFT JOIN. This preserves the snapshot-consistency guarantee from
+ * the old MongoDB $lookup aggregation: board existence and membership are
+ * read from the same transaction snapshot.
  *
  * Returns `null` when no board with `boardId` exists.
  */
@@ -58,41 +58,39 @@ export async function fetchBoardWithMembership(
 	boardId: string,
 	userId: string,
 ): Promise<BoardWithMembership | null> {
-	if (!ObjectId.isValid(boardId)) return null;
-	const boardObjectId = new ObjectId(boardId);
+	if (!boardId) return null;
 
-	// Better Auth user IDs are strings (not ObjectId). The teamMembers.userId
-	// field stores these string IDs via type cast (see provisioning.ts).
-	// We pass the string directly so the $eq expression matches stored values.
-	const cursor = boardsColl().aggregate<BoardWithMembership>([
-		{ $match: { _id: boardObjectId } },
-		{
-			$lookup: {
-				from: "teammembers", // preserved Mongoose-default collection name
-				let: { teamId: "$teamId" },
-				pipeline: [
-					{
-						$match: {
-							$expr: {
-								$and: [
-									{ $eq: ["$teamId", "$$teamId"] },
-									{ $eq: ["$userId", userId] },
-								],
-							},
-						},
-					},
-					{ $project: { _id: 0, role: 1 } },
-					{ $limit: 1 },
-				],
-				as: "membershipArr",
-			},
-		},
-		{ $addFields: { membership: { $arrayElemAt: ["$membershipArr", 0] } } },
-		{ $project: { membershipArr: 0 } },
-	]);
+	const rows = await db
+		.select({
+			id: boards.id,
+			kind: boards.kind,
+			title: boards.title,
+			ownerId: boards.ownerId,
+			teamId: boards.teamId,
+			memberRole: teamMembers.role,
+		})
+		.from(boards)
+		.leftJoin(
+			teamMembers,
+			and(
+				eq(teamMembers.teamId, boards.teamId),
+				eq(teamMembers.userId, userId),
+			),
+		)
+		.where(eq(boards.id, boardId))
+		.limit(1);
 
-	const results = await cursor.toArray();
-	return results[0] ?? null;
+	const row = rows[0];
+	if (!row) return null;
+
+	return {
+		id: row.id,
+		kind: row.kind,
+		title: row.title,
+		ownerId: row.ownerId,
+		teamId: row.teamId,
+		membership: row.memberRole ? { role: row.memberRole } : null,
+	};
 }
 
 // ── deriveAccess ──────────────────────────────────────────────────────────────
@@ -109,14 +107,14 @@ export function deriveAccess(
 	board: BoardWithMembership,
 	user: { id: string },
 ): BoardAccess | null {
-	if (board.kind === "personal" && String(board.ownerId) === String(user.id)) {
-		return { kind: "personal-owner", boardId: String(board._id) };
+	if (board.kind === "personal" && board.ownerId === user.id) {
+		return { kind: "personal-owner", boardId: board.id };
 	}
-	if (board.kind === "team" && board.membership) {
+	if (board.kind === "team" && board.membership && board.teamId) {
 		return {
 			kind: board.membership.role === "admin" ? "team-admin" : "team-member",
-			boardId: String(board._id),
-			teamId: String(board.teamId),
+			boardId: board.id,
+			teamId: board.teamId,
 		};
 	}
 	return null;
@@ -129,12 +127,12 @@ export function deriveAccess(
  * `:boardId` in the route path. Must be used after `requireSession`.
  * Sets `c.get('board')` and `c.get('access')`.
  *
- * Board existence and team membership are checked in a single aggregation
- * pipeline to avoid any race between the two reads.
+ * Board existence and team membership are checked in a single LEFT JOIN query
+ * to avoid any race between the two reads.
  */
 export const loadBoardAccess = createMiddleware<{ Variables: AppVariables }>(
 	async (c, next) => {
-		const boardId = validateObjectId(c.req.param("boardId"), "boardId");
+		const boardId = validateId(c.req.param("boardId"), "boardId");
 		const user = c.get("user");
 
 		const board = await fetchBoardWithMembership(boardId, user.id);
@@ -149,11 +147,11 @@ export const loadBoardAccess = createMiddleware<{ Variables: AppVariables }>(
 		}
 
 		const boardCtx: import("../http/types.js").ContextBoard = {
-			_id: board._id,
+			id: board.id,
 			kind: board.kind,
-			title: board.title as string,
-			...(board.ownerId != null && { ownerId: board.ownerId }),
-			...(board.teamId != null && { teamId: board.teamId }),
+			title: board.title,
+			...(board.ownerId !== null && { ownerId: board.ownerId }),
+			...(board.teamId !== null && { teamId: board.teamId }),
 		};
 		c.set("board", boardCtx);
 		c.set("access", access);

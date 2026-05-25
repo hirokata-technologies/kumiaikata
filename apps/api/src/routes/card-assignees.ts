@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { ObjectId } from "mongodb";
+import { eq, and, sql } from "drizzle-orm";
+import { db } from "../db/client.js";
 import { requireSession, loadBoardAccess } from "../auth/middleware.js";
-import { zValidator, validateObjectId } from "../http/validate.js";
+import { zValidator, validateId } from "../http/validate.js";
 import { ok, noContent } from "../http/responders.js";
 import type { AppVariables } from "../http/types.js";
-import { cards, teamMembers } from "../db/schemas/index.js";
+import { cards, teamMembers } from "../db/schema/index.js";
 import { AppError } from "../http/error.js";
 import { eventBus } from "../events/bus.js";
 
@@ -19,15 +20,21 @@ r.post(
 	zValidator("json", z.object({ userId: z.string() })),
 	async (c) => {
 		const board = c.get("board");
-		const cardId = new ObjectId(validateObjectId(c.req.param("cardId"), "cardId"));
+		const cardId = validateId(c.req.param("cardId"), "cardId");
 		const { userId } = c.req.valid("json");
 
 		// Validate assignee belongs to the board's team or is the personal board owner.
 		if (board.kind === "team") {
-			const isMember = await teamMembers().findOne(
-				{ teamId: board.teamId!, userId: userId as unknown as ObjectId },
-				{ projection: { _id: 1 } },
-			);
+			const [isMember] = await db
+				.select({ id: teamMembers.id })
+				.from(teamMembers)
+				.where(
+					and(
+						eq(teamMembers.teamId, board.teamId!),
+						eq(teamMembers.userId, userId),
+					),
+				)
+				.limit(1);
 			if (!isMember) {
 				throw new AppError(
 					"VALIDATION_ERROR",
@@ -36,7 +43,7 @@ r.post(
 			}
 		} else {
 			// Personal board: only the owner may be assigned.
-			if (String(board.ownerId) !== userId) {
+			if (board.ownerId !== userId) {
 				throw new AppError(
 					"VALIDATION_ERROR",
 					"Only the board owner may be assigned on a personal board.",
@@ -44,44 +51,49 @@ r.post(
 			}
 		}
 
-		const result = await cards().updateOne(
-			{ _id: cardId, boardId: board._id },
-			{ $addToSet: { assigneeIds: userId as unknown as ObjectId } },
-		);
+		// Idempotent add: append only if the user isn't already in the array.
+		const result = await db
+			.update(cards)
+			.set({
+				assigneeIds: sql`CASE WHEN ${userId} = ANY(${cards.assigneeIds}) THEN ${cards.assigneeIds} ELSE array_append(${cards.assigneeIds}, ${userId}) END`,
+			})
+			.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
+			.returning({ id: cards.id });
 
-		if (result.matchedCount === 0) {
+		if (result.length === 0) {
 			throw new AppError("NOT_FOUND", "Card not found.");
 		}
 
 		eventBus.emit({
 			type: "card.assignee.added",
-			boardId: String(board._id),
-			payload: { cardId: String(cardId), userId },
+			boardId: board.id,
+			payload: { cardId, userId },
 		});
 
-		return ok(c, { cardId: String(cardId), userId });
+		return ok(c, { cardId, userId });
 	},
 );
 
 // DELETE /api/boards/:boardId/cards/:cardId/assignees/:userId
 r.delete("/:userId", async (c) => {
 	const board = c.get("board");
-	const cardId = new ObjectId(validateObjectId(c.req.param("cardId"), "cardId"));
+	const cardId = validateId(c.req.param("cardId"), "cardId");
 	const userId = c.req.param("userId");
 
-	const result = await cards().updateOne(
-		{ _id: cardId, boardId: board._id },
-		{ $pull: { assigneeIds: userId as unknown as ObjectId } },
-	);
+	const result = await db
+		.update(cards)
+		.set({ assigneeIds: sql`array_remove(${cards.assigneeIds}, ${userId})` })
+		.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
+		.returning({ id: cards.id });
 
-	if (result.matchedCount === 0) {
+	if (result.length === 0) {
 		throw new AppError("NOT_FOUND", "Card not found.");
 	}
 
 	eventBus.emit({
 		type: "card.assignee.removed",
-		boardId: String(board._id),
-		payload: { cardId: String(cardId), userId },
+		boardId: board.id,
+		payload: { cardId, userId },
 	});
 
 	return noContent(c);

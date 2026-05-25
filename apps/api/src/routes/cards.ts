@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireSession, loadBoardAccess } from "../auth/middleware.js";
-import { zValidator, validateObjectId } from "../http/validate.js";
+import { zValidator, validateId } from "../http/validate.js";
 import { ok, created, noContent } from "../http/responders.js";
 import type { AppVariables, ContextBoard } from "../http/types.js";
 import {
@@ -23,9 +23,9 @@ r.post(
 	zValidator("json", z.object({ title: z.string().min(1).max(500) })),
 	async (c) => {
 		const board = c.get("board") as ContextBoard;
-		const columnId = validateObjectId(c.req.param("columnId"), "columnId");
+		const columnId = validateId(c.req.param("columnId"), "columnId");
 		const card = await createCard({
-			boardId: board._id,
+			boardId: board.id,
 			columnId,
 			title: c.req.valid("json").title,
 		});
@@ -42,9 +42,9 @@ r.patch(
 	),
 	async (c) => {
 		const board = c.get("board") as ContextBoard;
-		const columnId = validateObjectId(c.req.param("columnId"), "columnId");
+		const columnId = validateId(c.req.param("columnId"), "columnId");
 		const result = await reorderCardsInColumn(
-			board._id,
+			board.id,
 			columnId,
 			c.req.valid("json").orderedIds,
 		);
@@ -55,8 +55,8 @@ r.patch(
 // GET /api/boards/:boardId/cards/:cardId
 r.get("/cards/:cardId", async (c) => {
 	const board = c.get("board") as ContextBoard;
-	const cardId = validateObjectId(c.req.param("cardId"), "cardId");
-	const card = await getCard(board._id, cardId);
+	const cardId = validateId(c.req.param("cardId"), "cardId");
+	const card = await getCard(board.id, cardId);
 	return ok(c, card);
 });
 
@@ -72,13 +72,12 @@ r.patch(
 	),
 	async (c) => {
 		const board = c.get("board") as ContextBoard;
-		const cardId = validateObjectId(c.req.param("cardId"), "cardId");
+		const cardId = validateId(c.req.param("cardId"), "cardId");
 		const { targetColumnId, position } = c.req.valid("json");
-		const targetColId = validateObjectId(targetColumnId, "targetColumnId");
 		const card = await moveCard(
-			board._id,
+			board.id,
 			cardId,
-			targetColId,
+			targetColumnId,
 			position,
 		);
 		return ok(c, card);
@@ -98,9 +97,9 @@ r.patch(
 	),
 	async (c) => {
 		const board = c.get("board") as ContextBoard;
-		const cardId = validateObjectId(c.req.param("cardId"), "cardId");
+		const cardId = validateId(c.req.param("cardId"), "cardId");
 		const card = await updateCard(
-			board._id,
+			board.id,
 			cardId,
 			c.req.valid("json"),
 		);
@@ -111,8 +110,8 @@ r.patch(
 // DELETE /api/boards/:boardId/cards/:cardId
 r.delete("/cards/:cardId", async (c) => {
 	const board = c.get("board") as ContextBoard;
-	const cardId = validateObjectId(c.req.param("cardId"), "cardId");
-	await deleteCard(board._id, cardId);
+	const cardId = validateId(c.req.param("cardId"), "cardId");
+	await deleteCard(board.id, cardId);
 	return noContent(c);
 });
 

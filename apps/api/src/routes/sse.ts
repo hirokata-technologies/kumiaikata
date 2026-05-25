@@ -12,7 +12,7 @@ r.get(
 	requireSession,
 	loadBoardAccess,
 	async (c) => {
-		const boardId = String(c.get("board")._id);
+		const boardId = c.get("board").id;
 		return streamSSE(c, async (stream) => {
 			const queue: string[] = [];
 			let resolveNext: (() => void) | null = null;
