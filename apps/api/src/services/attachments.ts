@@ -1,10 +1,8 @@
 import { Readable } from "node:stream";
-import { ObjectId } from "mongodb";
-import { withTransaction } from "../db/connection.js";
-import {
-	attachments as attachmentsColl,
-	cards as cardsColl,
-} from "../db/schemas/index.js";
+import { eq, and, sql } from "drizzle-orm";
+import { db } from "../db/client.js";
+import { newId } from "../db/ids.js";
+import { attachments, cards } from "../db/schema/index.js";
 import { AppError } from "../http/error.js";
 import { storage } from "../storage/index.js";
 import { eventBus } from "../events/bus.js";
@@ -70,21 +68,25 @@ export async function uploadAttachment({
 	file,
 	user,
 }: {
-	boardId: ObjectId;
+	boardId: string;
 	cardId: string;
 	file: File;
 	user: UserSession;
 }): Promise<AttachmentResponse> {
 	// Verify the card exists and belongs to the board.
-	const cardObjId = new ObjectId(cardId);
-	const card = await cardsColl().findOne({ _id: cardObjId, boardId });
+	const [card] = await db
+		.select()
+		.from(cards)
+		.where(and(eq(cards.id, cardId), eq(cards.boardId, boardId)))
+		.limit(1);
 	if (!card) {
 		throw new AppError("NOT_FOUND", "Card not found.");
 	}
 
-	const attachmentId = new ObjectId();
+	const attachmentId = newId();
 	const ext = MIME_TO_EXT[file.type] ?? ".bin";
-	const storageKey = `${String(boardId)}/${String(attachmentId)}${ext}`;
+	const storageKey = `${boardId}/${attachmentId}${ext}`;
+	const now = new Date();
 
 	// Write to storage first. If this fails, we do NOT create the DB row.
 	const nodeStream = Readable.fromWeb(
@@ -93,41 +95,39 @@ export async function uploadAttachment({
 	await storage.put(storageKey, nodeStream, file.size, file.type);
 
 	// Storage write succeeded — persist the DB record inside a transaction.
-	await withTransaction(async (session) => {
-		await attachmentsColl().insertOne(
-			{
-				_id: attachmentId,
-				cardId: card._id,
-				boardId,
-				filename: file.name,
-				mimeType: file.type,
-				sizeBytes: file.size,
-				storageKey,
-				uploadedBy: user.id as unknown as ObjectId,
-				createdAt: new Date(),
-			},
-			{ session },
-		);
-		await cardsColl().updateOne(
-			{ _id: card._id },
-			{ $push: { attachmentIds: attachmentId } },
-			{ session },
-		);
+	await db.transaction(async (tx) => {
+		await tx.insert(attachments).values({
+			id: attachmentId,
+			cardId: card.id,
+			boardId,
+			filename: file.name,
+			mimeType: file.type,
+			sizeBytes: file.size,
+			storageKey,
+			uploadedBy: user.id,
+			createdAt: now,
+		});
+		await tx
+			.update(cards)
+			.set({
+				attachmentIds: sql`array_append(${cards.attachmentIds}, ${attachmentId})`,
+			})
+			.where(eq(cards.id, card.id));
 	});
 
 	const response: AttachmentResponse = {
-		id: String(attachmentId),
+		id: attachmentId,
 		filename: file.name,
 		mimeType: file.type,
 		sizeBytes: file.size,
-		url: `/api/attachments/${String(attachmentId)}`,
-		uploadedBy: String(user.id),
-		createdAt: new Date(),
+		url: `/api/attachments/${attachmentId}`,
+		uploadedBy: user.id,
+		createdAt: now,
 	};
 
 	eventBus.emit({
 		type: "card.attachment.added",
-		boardId: String(boardId),
+		boardId,
 		payload: response,
 	});
 
@@ -137,13 +137,16 @@ export async function uploadAttachment({
 // ── deleteAttachment ───────────────────────────────────────────────────────────
 
 export async function deleteAttachment(
-	boardId: ObjectId,
+	boardId: string,
 	cardId: string,
 	attachmentId: string,
 ): Promise<void> {
 	// Find attachment scoped to boardId.
-	const attObjId = new ObjectId(attachmentId);
-	const att = await attachmentsColl().findOne({ _id: attObjId, boardId });
+	const [att] = await db
+		.select()
+		.from(attachments)
+		.where(and(eq(attachments.id, attachmentId), eq(attachments.boardId, boardId)))
+		.limit(1);
 	if (!att) {
 		throw new AppError("NOT_FOUND", "Attachment not found.");
 	}
@@ -151,13 +154,14 @@ export async function deleteAttachment(
 	const storageKey = att.storageKey;
 
 	// Atomically remove the attachment row and pull its ID from the card.
-	await withTransaction(async (session) => {
-		await cardsColl().updateOne(
-			{ _id: new ObjectId(cardId), boardId },
-			{ $pull: { attachmentIds: att._id } },
-			{ session },
-		);
-		await attachmentsColl().deleteOne({ _id: att._id }, { session });
+	await db.transaction(async (tx) => {
+		await tx
+			.update(cards)
+			.set({
+				attachmentIds: sql`array_remove(${cards.attachmentIds}, ${attachmentId})`,
+			})
+			.where(and(eq(cards.id, cardId), eq(cards.boardId, boardId)));
+		await tx.delete(attachments).where(eq(attachments.id, att.id));
 	});
 
 	// Delete the stored file after the transaction commits.
@@ -173,7 +177,7 @@ export async function deleteAttachment(
 
 	eventBus.emit({
 		type: "card.attachment.removed",
-		boardId: String(boardId),
+		boardId,
 		payload: { id: attachmentId, cardId },
 	});
 }
@@ -192,16 +196,20 @@ export async function streamAttachment(
 	};
 	stream: Readable;
 }> {
-	const att = await attachmentsColl().findOne({ _id: new ObjectId(attachmentId) });
+	const [att] = await db
+		.select()
+		.from(attachments)
+		.where(eq(attachments.id, attachmentId))
+		.limit(1);
 	if (!att) {
 		throw new AppError("NOT_FOUND", "Attachment not found.");
 	}
 
 	// Verify the user has access to the board this attachment belongs to.
 	// fetchBoardWithMembership resolves board existence and team membership in
-	// a single aggregation pipeline, preventing a race where membership is
-	// revoked between two separate queries.
-	const board = await fetchBoardWithMembership(String(att.boardId), user.id);
+	// a single round-trip, preventing a race where membership is revoked
+	// between two separate queries.
+	const board = await fetchBoardWithMembership(att.boardId, user.id);
 	if (!board) {
 		throw new AppError("NOT_FOUND", "Attachment's board not found.");
 	}

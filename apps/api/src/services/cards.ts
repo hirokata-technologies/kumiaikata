@@ -1,10 +1,7 @@
-import { ObjectId } from "mongodb";
-import {
-	cards as cardsColl,
-	columns as columnsColl,
-	attachments as attachmentsColl,
-} from "../db/schemas/index.js";
-import { withTransaction } from "../db/connection.js";
+import { eq, and, desc, asc, inArray, ne } from "drizzle-orm";
+import { db } from "../db/client.js";
+import { cards, columns, attachments } from "../db/schema/index.js";
+import { newId } from "../db/ids.js";
 import { AppError } from "../http/error.js";
 import {
 	appendAfter,
@@ -72,34 +69,34 @@ export interface CardDetail extends CardSummary {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function toSummary(card: {
-	_id: unknown;
-	boardId: unknown;
-	columnId: unknown;
+	id: string;
+	boardId: string;
+	columnId: string;
 	title: string;
 	position: string;
-	dueDate?: Date | null | undefined;
-	labelIds?: unknown[];
-	assigneeIds?: unknown[];
-	attachmentIds?: unknown[];
-	comments?: unknown[];
-	checklists?: unknown[];
-	createdAt?: Date;
-	updatedAt?: Date;
+	dueDate?: Date | null;
+	labelIds?: string[] | null;
+	assigneeIds?: string[] | null;
+	attachmentIds?: string[] | null;
+	comments?: unknown[] | null;
+	checklists?: unknown[] | null;
+	createdAt: Date;
+	updatedAt: Date;
 }): CardSummary {
 	return {
-		id: String(card._id),
-		boardId: String(card.boardId),
-		columnId: String(card.columnId),
+		id: card.id,
+		boardId: card.boardId,
+		columnId: card.columnId,
 		title: card.title,
 		position: card.position,
 		dueDate: card.dueDate ?? null,
-		labelIds: (card.labelIds ?? []).map(String),
-		assigneeIds: (card.assigneeIds ?? []).map(String),
-		attachmentIds: (card.attachmentIds ?? []).map(String),
+		labelIds: card.labelIds ?? [],
+		assigneeIds: card.assigneeIds ?? [],
+		attachmentIds: card.attachmentIds ?? [],
 		commentsCount: (card.comments ?? []).length,
 		checklistsCount: (card.checklists ?? []).length,
-		createdAt: card.createdAt ?? new Date(),
-		updatedAt: card.updatedAt ?? new Date(),
+		createdAt: card.createdAt,
+		updatedAt: card.updatedAt,
 	};
 }
 
@@ -110,32 +107,32 @@ export async function createCard({
 	columnId,
 	title,
 }: {
-	boardId: ObjectId;
+	boardId: string;
 	columnId: string;
 	title: string;
 }): Promise<CardSummary> {
 	// Verify the column exists and belongs to the board.
-	const column = await columnsColl().findOne({
-		_id: new ObjectId(columnId),
-		boardId,
-	});
+	const [column] = await db.select()
+		.from(columns)
+		.where(and(eq(columns.id, columnId), eq(columns.boardId, boardId)))
+		.limit(1);
 	if (!column) {
 		throw new AppError("NOT_FOUND", "Column not found.");
 	}
 
 	// Find the last card in the column to compute the new position.
-	const lastCard = await cardsColl()
-		.find({ columnId: column._id })
-		.sort({ position: -1 })
-		.limit(1)
-		.next();
+	const [lastCard] = await db.select({ position: cards.position })
+		.from(cards)
+		.where(eq(cards.columnId, column.id))
+		.orderBy(desc(cards.position))
+		.limit(1);
 	const position = appendAfter(lastCard?.position ?? null);
 
 	const now = new Date();
-	const insert = await cardsColl().insertOne({
-		_id: new ObjectId(),
+	const [card] = await db.insert(cards).values({
+		id: newId(),
 		boardId,
-		columnId: column._id,
+		columnId: column.id,
 		title,
 		position,
 		description: null,
@@ -147,15 +144,14 @@ export async function createCard({
 		checklists: [],
 		createdAt: now,
 		updatedAt: now,
-	});
+	}).returning();
 
-	const card = await cardsColl().findOne({ _id: insert.insertedId });
 	if (!card) throw new AppError("INTERNAL_ERROR", "Card was created but could not be fetched.");
 	const summary = toSummary(card);
 
 	eventBus.emit({
 		type: "card.created",
-		boardId: String(boardId),
+		boardId,
 		payload: summary,
 	});
 
@@ -165,69 +161,82 @@ export async function createCard({
 // ── getCard ───────────────────────────────────────────────────────────────────
 
 export async function getCard(
-	boardId: ObjectId,
+	boardId: string,
 	cardId: string,
 ): Promise<CardDetail> {
-	const cardObjId = new ObjectId(cardId);
-	const card = await cardsColl().findOne({ _id: cardObjId, boardId });
-	if (!card) {
-		throw new AppError("NOT_FOUND", "Card not found.");
-	}
+	// Run the stale-ID cleanup inside a transaction with a row lock so that
+	// concurrent callers serialize on this card and cannot produce a lost update
+	// on attachment_ids.
+	const card = await db.transaction(async (tx) => {
+		const [row] = await tx.select()
+			.from(cards)
+			.where(and(eq(cards.id, cardId), eq(cards.boardId, boardId)))
+			.for("update")
+			.limit(1);
+		if (!row) {
+			throw new AppError("NOT_FOUND", "Card not found.");
+		}
 
-	const attachments =
+		if (row.attachmentIds && row.attachmentIds.length > 0) {
+			const attachmentRows = await tx.select({ id: attachments.id })
+				.from(attachments)
+				.where(inArray(attachments.id, row.attachmentIds));
+
+			if (attachmentRows.length < row.attachmentIds.length) {
+				const resolvedIds = new Set(attachmentRows.map((a) => a.id));
+				const missingIds = row.attachmentIds.filter((id) => !resolvedIds.has(id));
+
+				console.warn(
+					`[getCard] Card ${cardId} has ${missingIds.length} stale attachmentId(s); removing: ${missingIds.join(", ")}`,
+				);
+
+				const filteredIds = row.attachmentIds.filter((id) => resolvedIds.has(id));
+				const [updated] = await tx.update(cards)
+					.set({ attachmentIds: filteredIds })
+					.where(eq(cards.id, cardId))
+					.returning();
+				if (updated) return updated;
+			}
+		}
+
+		return row;
+	});
+
+	// Fetch full attachment metadata outside the transaction — this is a
+	// read-only query and does not need to participate in the lock.
+	const attachmentRows =
 		card.attachmentIds && card.attachmentIds.length > 0
-			? await attachmentsColl()
-					.find({ _id: { $in: card.attachmentIds } })
-					.toArray()
+			? await db.select()
+					.from(attachments)
+					.where(inArray(attachments.id, card.attachmentIds))
 			: [];
-
-	// Detect stale attachment IDs (attachment deleted out-of-band).
-	if (attachments.length < (card.attachmentIds?.length ?? 0)) {
-		const resolvedIds = new Set(attachments.map((a) => String(a._id)));
-		const missingIds = (card.attachmentIds ?? [])
-			.map(String)
-			.filter((id) => !resolvedIds.has(id));
-
-		console.warn(
-			`[getCard] Card ${cardId} has ${missingIds.length} stale attachmentId(s); removing: ${missingIds.join(", ")}`,
-		);
-
-		await cardsColl().updateOne(
-			{ _id: cardObjId },
-			{
-				$pullAll: {
-					attachmentIds: missingIds.map((id) => new ObjectId(id)),
-				},
-			},
-		);
-	}
 
 	return {
 		...toSummary(card),
 		description: card.description ?? null,
 		comments: (card.comments ?? []).map((c) => ({
-			id: String(c._id),
-			authorId: String(c.authorId),
+			id: c.id,
+			authorId: c.authorId,
 			body: c.body,
-			createdAt: c.createdAt,
-			...(c.updatedAt ? { updatedAt: c.updatedAt } : {}),
+			createdAt: new Date(c.createdAt),
+			...(c.updatedAt ? { updatedAt: new Date(c.updatedAt) } : {}),
 		})),
 		checklists: (card.checklists ?? []).map((cl) => ({
-			id: String(cl._id),
+			id: cl.id,
 			title: cl.title,
 			items: (cl.items ?? []).map((item) => ({
-				id: String(item._id),
+				id: item.id,
 				text: item.text,
 				checked: item.checked,
 			})),
 		})),
-		attachments: attachments.map((a) => ({
-			id: String(a._id),
+		attachments: attachmentRows.map((a) => ({
+			id: a.id,
 			filename: a.filename,
 			mimeType: a.mimeType,
 			sizeBytes: a.sizeBytes,
 			storageKey: a.storageKey,
-			uploadedBy: String(a.uploadedBy),
+			uploadedBy: a.uploadedBy,
 			createdAt: a.createdAt,
 		})),
 	};
@@ -242,11 +251,16 @@ export interface UpdateCardInput {
 }
 
 export async function updateCard(
-	boardId: ObjectId,
+	boardId: string,
 	cardId: string,
 	input: UpdateCardInput,
 ): Promise<CardSummary> {
-	const patch: Record<string, unknown> = {};
+	const patch: Partial<{
+		title: string;
+		description: string | null;
+		dueDate: Date | null;
+		updatedAt: Date;
+	}> = { updatedAt: new Date() };
 
 	if (input.title !== undefined) patch.title = input.title;
 	if (input.description !== undefined) patch.description = input.description;
@@ -255,11 +269,10 @@ export async function updateCard(
 		patch.dueDate = input.dueDate === null ? null : new Date(input.dueDate);
 	}
 
-	const card = await cardsColl().findOneAndUpdate(
-		{ _id: new ObjectId(cardId), boardId },
-		{ $set: patch },
-		{ returnDocument: "after" },
-	);
+	const [card] = await db.update(cards)
+		.set(patch)
+		.where(and(eq(cards.id, cardId), eq(cards.boardId, boardId)))
+		.returning();
 
 	if (!card) {
 		throw new AppError("NOT_FOUND", "Card not found.");
@@ -269,7 +282,7 @@ export async function updateCard(
 
 	eventBus.emit({
 		type: "card.updated",
-		boardId: String(boardId),
+		boardId,
 		payload: summary,
 	});
 
@@ -279,56 +292,51 @@ export async function updateCard(
 // ── moveCard ──────────────────────────────────────────────────────────────────
 
 export async function moveCard(
-	boardId: ObjectId,
+	boardId: string,
 	cardId: string,
 	targetColumnId: string,
 	position: number,
 ): Promise<CardSummary> {
 	// Verify the card exists and belongs to the board.
-	const card = await cardsColl().findOne({
-		_id: new ObjectId(cardId),
-		boardId,
-	});
+	const [card] = await db.select()
+		.from(cards)
+		.where(and(eq(cards.id, cardId), eq(cards.boardId, boardId)))
+		.limit(1);
 	if (!card) {
 		throw new AppError("NOT_FOUND", "Card not found.");
 	}
 
 	// Verify the target column belongs to the board.
-	const targetColumn = await columnsColl().findOne({
-		_id: new ObjectId(targetColumnId),
-		boardId,
-	});
+	const [targetColumn] = await db.select()
+		.from(columns)
+		.where(and(eq(columns.id, targetColumnId), eq(columns.boardId, boardId)))
+		.limit(1);
 	if (!targetColumn) {
 		throw new AppError("NOT_FOUND", "Target column not found.");
 	}
 
 	// Fetch target column's cards sorted by position, excluding the moving card.
-	const targetCards = await cardsColl()
-		.find({
-			columnId: targetColumn._id,
-			_id: { $ne: card._id },
-		})
-		.sort({ position: 1 })
-		.toArray();
+	const targetCards = await db.select()
+		.from(cards)
+		.where(and(eq(cards.columnId, targetColumn.id), ne(cards.id, card.id)))
+		.orderBy(asc(cards.position));
 
 	// Clamp position to prevent out-of-range errors — appends if beyond length.
 	const clampedPosition = Math.min(position, targetCards.length);
 
 	const prev = clampedPosition > 0 ? targetCards[clampedPosition - 1] : null;
-	const next =
-		clampedPosition < targetCards.length ? targetCards[clampedPosition] : null;
+	const next = clampedPosition < targetCards.length ? targetCards[clampedPosition] : null;
 	const newPosition = insertBetween(
 		prev?.position ?? null,
 		next?.position ?? null,
 	);
 
-	const fromColumnId = String(card.columnId);
+	const fromColumnId = card.columnId;
 
-	const updated = await cardsColl().findOneAndUpdate(
-		{ _id: card._id },
-		{ $set: { columnId: targetColumn._id, position: newPosition } },
-		{ returnDocument: "after" },
-	);
+	const [updated] = await db.update(cards)
+		.set({ columnId: targetColumn.id, position: newPosition, updatedAt: new Date() })
+		.where(eq(cards.id, card.id))
+		.returning();
 
 	if (!updated) {
 		throw new AppError("INTERNAL_ERROR", "Failed to update card.");
@@ -338,11 +346,11 @@ export async function moveCard(
 
 	eventBus.emit({
 		type: "card.moved",
-		boardId: String(boardId),
+		boardId,
 		payload: {
 			id: summary.id,
 			fromColumnId,
-			toColumnId: String(targetColumn._id),
+			toColumnId: targetColumn.id,
 			position: clampedPosition,
 		},
 	});
@@ -353,23 +361,23 @@ export async function moveCard(
 // ── reorderCardsInColumn ──────────────────────────────────────────────────────
 
 export async function reorderCardsInColumn(
-	boardId: ObjectId,
+	boardId: string,
 	columnId: string,
 	orderedIds: string[],
 ): Promise<{ orderedIds: string[] }> {
 	// Verify the column belongs to the board.
-	const column = await columnsColl().findOne({
-		_id: new ObjectId(columnId),
-		boardId,
-	});
+	const [column] = await db.select()
+		.from(columns)
+		.where(and(eq(columns.id, columnId), eq(columns.boardId, boardId)))
+		.limit(1);
 	if (!column) {
 		throw new AppError("NOT_FOUND", "Column not found.");
 	}
 
-	const currentCards = await cardsColl()
-		.find({ columnId: column._id })
-		.sort({ position: 1 })
-		.toArray();
+	const currentCards = await db.select()
+		.from(cards)
+		.where(eq(cards.columnId, column.id))
+		.orderBy(asc(cards.position));
 
 	if (currentCards.length !== orderedIds.length) {
 		throw new AppError(
@@ -378,7 +386,7 @@ export async function reorderCardsInColumn(
 		);
 	}
 
-	const currentIds = new Set(currentCards.map((c) => String(c._id)));
+	const currentIds = new Set(currentCards.map((c) => c.id));
 	for (const id of orderedIds) {
 		if (!currentIds.has(id)) {
 			throw new AppError(
@@ -390,26 +398,25 @@ export async function reorderCardsInColumn(
 
 	const updates = reorderToMatch(
 		currentCards.map((c) => ({
-			_id: String(c._id),
+			_id: c.id,
 			position: c.position,
 		})),
 		orderedIds,
 	);
 
 	if (updates.length > 0) {
-		await cardsColl().bulkWrite(
-			updates.map((u) => ({
-				updateOne: {
-					filter: { _id: new ObjectId(u.id) },
-					update: { $set: { position: u.position } },
-				},
-			})),
-		);
+		await db.transaction(async (tx) => {
+			for (const u of updates) {
+				await tx.update(cards)
+					.set({ position: u.position })
+					.where(eq(cards.id, u.id));
+			}
+		});
 	}
 
 	eventBus.emit({
 		type: "cards.reordered",
-		boardId: String(boardId),
+		boardId,
 		payload: { columnId, orderedIds },
 	});
 
@@ -419,39 +426,38 @@ export async function reorderCardsInColumn(
 // ── deleteCard ────────────────────────────────────────────────────────────────
 
 export async function deleteCard(
-	boardId: ObjectId,
+	boardId: string,
 	cardId: string,
 ): Promise<void> {
-	const cardObjId = new ObjectId(cardId);
-
 	// Fetch the card scoped to board; 404 if missing.
-	const card = await cardsColl().findOne({ _id: cardObjId, boardId });
+	const [card] = await db.select()
+		.from(cards)
+		.where(and(eq(cards.id, cardId), eq(cards.boardId, boardId)))
+		.limit(1);
 	if (!card) {
 		throw new AppError("NOT_FOUND", "Card not found.");
 	}
 
-	const columnId = String(card.columnId);
+	const columnId = card.columnId;
 
 	// Resolve attachment records so we can delete stored files after the
 	// transaction commits (deleting files inside the transaction would risk
 	// orphaning data on rollback).
 	const attachmentsToDelete =
 		card.attachmentIds && card.attachmentIds.length > 0
-			? await attachmentsColl()
-					.find({ _id: { $in: card.attachmentIds } })
-					.toArray()
+			? await db.select()
+					.from(attachments)
+					.where(inArray(attachments.id, card.attachmentIds))
 			: [];
 
-	await withTransaction(async (session) => {
+	await db.transaction(async (tx) => {
 		// Remove attachment DB rows.
 		if (attachmentsToDelete.length > 0) {
-			await attachmentsColl().deleteMany(
-				{ _id: { $in: attachmentsToDelete.map((a) => a._id) } },
-				{ session },
-			);
+			await tx.delete(attachments)
+				.where(inArray(attachments.id, attachmentsToDelete.map((a) => a.id)));
 		}
 		// Delete the card.
-		await cardsColl().deleteOne({ _id: cardObjId }, { session });
+		await tx.delete(cards).where(eq(cards.id, cardId));
 	});
 
 	// Delete stored files after the transaction has committed.
@@ -461,7 +467,7 @@ export async function deleteCard(
 		} catch (err) {
 			// Log and continue — DB row is gone, file may linger.
 			console.error(
-				`[deleteCard] Failed to delete storage file for attachment ${String(a._id)}:`,
+				`[deleteCard] Failed to delete storage file for attachment ${a.id}:`,
 				err,
 			);
 		}
@@ -469,7 +475,7 @@ export async function deleteCard(
 
 	eventBus.emit({
 		type: "card.deleted",
-		boardId: String(boardId),
+		boardId,
 		payload: { id: cardId, columnId },
 	});
 }

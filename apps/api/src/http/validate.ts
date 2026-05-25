@@ -1,7 +1,6 @@
 import { zValidator as base } from "@hono/zod-validator";
 import type { ValidationTargets } from "hono";
 import type { ZodSchema } from "zod";
-import { ObjectId } from "mongodb";
 import { AppError } from "./error.js";
 
 export const zValidator = <
@@ -21,15 +20,8 @@ export const zValidator = <
 		}
 	});
 
-/**
- * Validate that `value` is a syntactically valid MongoDB ObjectId.
- * Throws a 422 VALIDATION_ERROR if not. Returns the validated value.
- *
- * @param value - The raw string from a route param (or undefined).
- * @param name  - Human-readable param name used in the error message.
- */
-export function validateObjectId(value: string | undefined, name: string): string {
-	if (!value || !ObjectId.isValid(value)) {
+export function validateId(value: string | undefined, name: string): string {
+	if (!value || typeof value !== "string") {
 		throw new AppError("VALIDATION_ERROR", `${name} must be a valid id`);
 	}
 	return value;

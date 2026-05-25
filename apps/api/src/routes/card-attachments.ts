@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { requireSession, loadBoardAccess } from "../auth/middleware.js";
 import { AppError } from "../http/error.js";
-import { validateObjectId } from "../http/validate.js";
+import { validateId } from "../http/validate.js";
 import { created, noContent } from "../http/responders.js";
 import type { AppVariables } from "../http/types.js";
 import { env } from "../env.js";
@@ -40,9 +40,9 @@ r.post("/", async (c) => {
 
 	const board = c.get("board");
 	// cardId comes from the parent mount path (/api/boards/:boardId/cards/:cardId/attachments)
-	const cardId = validateObjectId(c.req.param("cardId"), "cardId");
+	const cardId = validateId(c.req.param("cardId"), "cardId");
 	const att = await uploadAttachment({
-		boardId: board._id,
+		boardId: board.id,
 		cardId,
 		file,
 		user: c.get("user"),
@@ -54,9 +54,9 @@ r.post("/", async (c) => {
 // DELETE /api/boards/:boardId/cards/:cardId/attachments/:attachmentId
 r.delete("/:attachmentId", async (c) => {
 	const board = c.get("board");
-	const cardId = validateObjectId(c.req.param("cardId"), "cardId");
-	const attachmentId = validateObjectId(c.req.param("attachmentId"), "attachmentId");
-	await deleteAttachment(board._id, cardId, attachmentId);
+	const cardId = validateId(c.req.param("cardId"), "cardId");
+	const attachmentId = validateId(c.req.param("attachmentId"), "attachmentId");
+	await deleteAttachment(board.id, cardId, attachmentId);
 	return noContent(c);
 });
 

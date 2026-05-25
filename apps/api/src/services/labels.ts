@@ -1,6 +1,7 @@
-import { ObjectId } from "mongodb";
-import { withTransaction } from "../db/connection.js";
-import { cards as cardsColl, labels as labelsColl } from "../db/schemas/index.js";
+import { eq, and, sql } from "drizzle-orm";
+import { db } from "../db/client.js";
+import { newId } from "../db/ids.js";
+import { cards, labels } from "../db/schema/index.js";
 import { AppError } from "../http/error.js";
 import { eventBus } from "../events/bus.js";
 
@@ -13,39 +14,31 @@ export interface LabelDetail {
 	color: string;
 }
 
-function toDetail(label: {
-	_id: unknown;
-	boardId: unknown;
-	name: string;
-	color: string;
-}): LabelDetail {
-	return {
-		id: String(label._id),
-		boardId: String(label.boardId),
-		name: label.name,
-		color: label.color,
-	};
-}
-
 // ── createLabel ───────────────────────────────────────────────────────────────
 
 export async function createLabel(
-	boardId: ObjectId,
+	boardId: string,
 	input: { name: string; color: string },
 ): Promise<LabelDetail> {
-	const insert = await labelsColl().insertOne({
-		_id: new ObjectId(),
-		boardId,
-		name: input.name,
-		color: input.color,
-	});
+	const [label] = await db
+		.insert(labels)
+		.values({ id: newId(), boardId, name: input.name, color: input.color })
+		.returning();
 
-	const doc = await labelsColl().findOne({ _id: insert.insertedId });
-	const detail = toDetail(doc!);
+	if (!label) {
+		throw new AppError("INTERNAL_ERROR", "Label was created but could not be fetched.");
+	}
+
+	const detail: LabelDetail = {
+		id: label.id,
+		boardId: label.boardId,
+		name: label.name,
+		color: label.color,
+	};
 
 	eventBus.emit({
 		type: "label.created",
-		boardId: String(boardId),
+		boardId,
 		payload: detail,
 	});
 
@@ -55,29 +48,34 @@ export async function createLabel(
 // ── updateLabel ───────────────────────────────────────────────────────────────
 
 export async function updateLabel(
-	boardId: ObjectId,
+	boardId: string,
 	labelId: string,
 	input: { name?: string; color?: string },
 ): Promise<LabelDetail> {
-	const patch: Record<string, unknown> = {};
+	const patch: Partial<{ name: string; color: string }> = {};
 	if (input.name !== undefined) patch.name = input.name;
 	if (input.color !== undefined) patch.color = input.color;
 
-	const label = await labelsColl().findOneAndUpdate(
-		{ _id: new ObjectId(labelId), boardId },
-		{ $set: patch },
-		{ returnDocument: "after" },
-	);
+	const [label] = await db
+		.update(labels)
+		.set(patch)
+		.where(and(eq(labels.id, labelId), eq(labels.boardId, boardId)))
+		.returning();
 
 	if (!label) {
 		throw new AppError("NOT_FOUND", "Label not found.");
 	}
 
-	const detail = toDetail(label);
+	const detail: LabelDetail = {
+		id: label.id,
+		boardId: label.boardId,
+		name: label.name,
+		color: label.color,
+	};
 
 	eventBus.emit({
 		type: "label.updated",
-		boardId: String(boardId),
+		boardId,
 		payload: detail,
 	});
 
@@ -87,29 +85,35 @@ export async function updateLabel(
 // ── deleteLabel ───────────────────────────────────────────────────────────────
 
 export async function deleteLabel(
-	boardId: ObjectId,
+	boardId: string,
 	labelId: string,
 ): Promise<void> {
-	const labelObjId = new ObjectId(labelId);
-	const label = await labelsColl().findOne({ _id: labelObjId, boardId });
-	if (!label) {
-		throw new AppError("NOT_FOUND", "Label not found.");
-	}
+	await db.transaction(async (tx) => {
+		// Pull the label from every card on the board that references it.
+		await tx
+			.update(cards)
+			.set({ labelIds: sql`array_remove(${cards.labelIds}, ${labelId})` })
+			.where(
+				and(
+					eq(cards.boardId, boardId),
+					sql`${labelId} = ANY(${cards.labelIds})`,
+				),
+			);
 
-	await withTransaction(async (session) => {
-		// Remove this label from all cards on the board.
-		await cardsColl().updateMany(
-			{ boardId, labelIds: labelObjId },
-			{ $pull: { labelIds: labelObjId } },
-			{ session },
-		);
 		// Delete the label.
-		await labelsColl().deleteOne({ _id: labelObjId }, { session });
+		const deleted = await tx
+			.delete(labels)
+			.where(and(eq(labels.id, labelId), eq(labels.boardId, boardId)))
+			.returning({ id: labels.id });
+
+		if (deleted.length === 0) {
+			throw new AppError("NOT_FOUND", "Label not found.");
+		}
 	});
 
 	eventBus.emit({
 		type: "label.deleted",
-		boardId: String(boardId),
-		payload: { id: labelId, boardId: String(boardId) },
+		boardId,
+		payload: { id: labelId, boardId },
 	});
 }

@@ -1,5 +1,6 @@
-import { ObjectId } from "mongodb";
-import { boards, columns, cards } from "../db/schemas/index.js";
+import { eq, inArray, asc } from "drizzle-orm";
+import { db } from "../db/client.js";
+import { boards, columns, cards } from "../db/schema/index.js";
 import { AppError } from "../http/error.js";
 
 export interface CardSummary {
@@ -34,60 +35,49 @@ export interface BoardWithColumnsAndCards {
 export async function getBoardWithColumnsAndCards(
 	boardId: string,
 ): Promise<BoardWithColumnsAndCards> {
-	const board = await boards().findOne({ _id: new ObjectId(boardId) });
-	if (!board) {
-		throw new AppError("NOT_FOUND", "Board not found.");
-	}
+	const [board] = await db.select().from(boards).where(eq(boards.id, boardId)).limit(1);
+	if (!board) throw new AppError("NOT_FOUND", "Board not found.");
 
-	const cols = await columns()
-		.find({ boardId: board._id })
-		.sort({ position: 1 })
-		.toArray();
+	const cols = await db.select().from(columns)
+		.where(eq(columns.boardId, board.id))
+		.orderBy(asc(columns.position));
 
-	const columnIds = cols.map((c) => c._id);
-	const cardDocs =
-		columnIds.length > 0
-			? await cards()
-					.find({ columnId: { $in: columnIds } })
-					.sort({ position: 1 })
-					.toArray()
-			: [];
+	const columnIds = cols.map((c) => c.id);
+	const cardDocs = columnIds.length > 0
+		? await db.select().from(cards)
+				.where(inArray(cards.columnId, columnIds))
+				.orderBy(asc(cards.position))
+		: [];
 
 	const cardsByColumnId = new Map<string, CardSummary[]>();
-	for (const col of cols) {
-		cardsByColumnId.set(String(col._id), []);
-	}
+	for (const col of cols) cardsByColumnId.set(col.id, []);
 
 	for (const card of cardDocs) {
-		const colId = String(card.columnId);
-		const list = cardsByColumnId.get(colId);
-		if (list) {
-			list.push({
-				id: String(card._id),
-				title: card.title,
-				position: card.position,
-				dueDate: card.dueDate ?? null,
-				labelIds: (card.labelIds ?? []).map(String),
-				assigneeIds: (card.assigneeIds ?? []).map(String),
-				attachmentIds: (card.attachmentIds ?? []).map(String),
-				commentsCount: (card.comments ?? []).length,
-				checklistsCount: (card.checklists ?? []).length,
-			});
-		}
+		cardsByColumnId.get(card.columnId)?.push({
+			id: card.id,
+			title: card.title,
+			position: card.position,
+			dueDate: card.dueDate ?? null,
+			labelIds: card.labelIds ?? [],
+			assigneeIds: card.assigneeIds ?? [],
+			attachmentIds: card.attachmentIds ?? [],
+			commentsCount: (card.comments ?? []).length,
+			checklistsCount: (card.checklists ?? []).length,
+		});
 	}
 
 	return {
-		id: String(board._id),
+		id: board.id,
 		kind: board.kind,
 		title: board.title,
-		...(board.teamId ? { teamId: String(board.teamId) } : {}),
-		...(board.ownerId ? { ownerId: String(board.ownerId) } : {}),
+		...(board.teamId !== null && { teamId: board.teamId }),
+		...(board.ownerId !== null && { ownerId: board.ownerId }),
 		createdAt: board.createdAt,
 		columns: cols.map((col) => ({
-			id: String(col._id),
+			id: col.id,
 			title: col.title,
 			position: col.position,
-			cards: cardsByColumnId.get(String(col._id)) ?? [],
+			cards: cardsByColumnId.get(col.id) ?? [],
 		})),
 	};
 }

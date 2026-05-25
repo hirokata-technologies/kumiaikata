@@ -37,6 +37,8 @@ ENV NODE_ENV=production
 
 # Compiled output from the build stage
 COPY --from=build /app/apps/api/dist ./dist
+# Migration files — drizzle-kit migrate runs at startup
+COPY --from=build /app/apps/api/drizzle ./drizzle
 # Clean production node_modules (from prod-deps stage, no dev packages)
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/package.json ./package.json

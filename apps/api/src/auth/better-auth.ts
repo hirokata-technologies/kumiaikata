@@ -1,13 +1,17 @@
 import { betterAuth } from "better-auth";
-import { mongodbAdapter } from "better-auth/adapters/mongodb";
-import "../db/connection.js";
-import { db } from "../db/connection.js";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { db } from "../db/client.js";
 import { env } from "../env.js";
 import { assertAllowedDomain } from "./domain-allowlist.js";
 import { provisionUser } from "./provisioning.js";
 
 export const auth = betterAuth({
-	database: mongodbAdapter(db),
+	database: drizzleAdapter(db, {
+		provider: "pg",
+		// Schema exports use plural names (users, sessions, accounts, verifications)
+		// rather than Better Auth's default singular names (user, session, etc.).
+		usePlural: true,
+	}),
 	secret: env.BETTER_AUTH_SECRET,
 	baseURL: env.BETTER_AUTH_URL,
 	trustedOrigins: env.ALLOWED_ORIGINS,

@@ -1,5 +1,6 @@
-import { ObjectId } from "mongodb";
-import { teams, teamMembers } from "../db/schemas/index.js";
+import { eq, and, count } from "drizzle-orm";
+import { db } from "../db/client.js";
+import { teams, teamMembers } from "../db/schema/index.js";
 import { AppError } from "../http/error.js";
 import type { Role } from "../db/types.js";
 
@@ -18,33 +19,41 @@ export interface TeamMemberRow {
 }
 
 export async function getTeamForUser(userId: string): Promise<TeamForUser> {
-	// Better Auth user IDs are strings (not ObjectId); stored as string in teamMembers.userId.
-	const membership = await teamMembers().findOne({
-		userId: userId as unknown as ObjectId,
-	});
+	const [membership] = await db
+		.select()
+		.from(teamMembers)
+		.where(eq(teamMembers.userId, userId))
+		.limit(1);
 	if (!membership) {
 		throw new AppError("NOT_FOUND", "No team membership found.");
 	}
-	const team = await teams().findOne({ _id: membership.teamId });
+
+	const [team] = await db
+		.select()
+		.from(teams)
+		.where(eq(teams.id, membership.teamId))
+		.limit(1);
 	if (!team) {
 		throw new AppError("NOT_FOUND", "Team not found.");
 	}
+
 	return {
-		id: String(team._id),
+		id: team.id,
 		domain: team.domain,
 		name: team.name,
-		role: membership.role,
+		role: membership.role as Role,
 	};
 }
 
 export async function listMembers(teamId: string): Promise<TeamMemberRow[]> {
-	const rows = await teamMembers()
-		.find({ teamId: new ObjectId(teamId) })
-		.toArray();
+	const rows = await db
+		.select()
+		.from(teamMembers)
+		.where(eq(teamMembers.teamId, teamId));
 	return rows.map((r) => ({
-		userId: String(r.userId),
+		userId: r.userId,
 		email: "",
-		role: r.role,
+		role: r.role as Role,
 		joinedAt: r.joinedAt,
 	}));
 }
@@ -55,30 +64,33 @@ export async function setMemberRole(
 	newRole: Role,
 	actorId: string,
 ): Promise<{ userId: string; role: Role }> {
-	const teamObjId = new ObjectId(teamId);
-
-	// Better Auth user IDs are strings (not ObjectId); use as-is with type cast.
-	const actorMembership = await teamMembers().findOne({
-		teamId: teamObjId,
-		userId: actorId as unknown as ObjectId,
-	});
+	// Verify actor is admin.
+	const [actorMembership] = await db
+		.select()
+		.from(teamMembers)
+		.where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, actorId)))
+		.limit(1);
 	if (!actorMembership || actorMembership.role !== "admin") {
 		throw new AppError("FORBIDDEN", "Only team admins may change roles.");
 	}
 
-	const target = await teamMembers().findOne({
-		teamId: teamObjId,
-		userId: targetUserId as unknown as ObjectId,
-	});
+	// Find target membership.
+	const [target] = await db
+		.select()
+		.from(teamMembers)
+		.where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, targetUserId)))
+		.limit(1);
 	if (!target) {
 		throw new AppError("NOT_FOUND", "User is not a member of this team.");
 	}
 
+	// Prevent demoting the last admin.
 	if (target.role === "admin" && newRole === "member") {
-		const adminCount = await teamMembers().countDocuments({
-			teamId: teamObjId,
-			role: "admin",
-		});
+		const result = await db
+			.select({ adminCount: count() })
+			.from(teamMembers)
+			.where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.role, "admin")));
+		const adminCount = result[0]?.adminCount ?? 0;
 		if (adminCount <= 1) {
 			throw new AppError(
 				"CONFLICT",
@@ -87,10 +99,10 @@ export async function setMemberRole(
 		}
 	}
 
-	await teamMembers().updateOne(
-		{ _id: target._id },
-		{ $set: { role: newRole } },
-	);
+	await db
+		.update(teamMembers)
+		.set({ role: newRole })
+		.where(eq(teamMembers.id, target.id));
 
 	return { userId: targetUserId, role: newRole };
 }

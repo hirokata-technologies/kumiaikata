@@ -1,6 +1,7 @@
 import { Hono } from "hono";
-import { boards as boardsColl, teamMembers as teamMembersColl } from "../db/schemas/index.js";
-import { ObjectId } from "mongodb";
+import { eq, and } from "drizzle-orm";
+import { db } from "../db/client.js";
+import { boards, teamMembers, users } from "../db/schema/index.js";
 import { AppError } from "../http/error.js";
 import { ok } from "../http/responders.js";
 import { requireSession } from "../auth/middleware.js";
@@ -8,42 +9,39 @@ import { getBoardWithColumnsAndCards } from "../services/boards.js";
 import type { AppVariables } from "../http/types.js";
 
 const r = new Hono<{ Variables: AppVariables }>();
-
 r.use("*", requireSession);
 
 r.get("/personal", async (c) => {
 	const user = c.get("user");
-	// Better Auth user IDs are strings; ownerId is stored as string via type cast.
-	const board = await boardsColl().findOne({
-		kind: "personal",
-		ownerId: user.id as unknown as ObjectId,
-	});
-	if (!board) {
-		throw new AppError(
-			"NOT_FOUND",
-			"Personal board missing — provisioning may have failed.",
-		);
+	// Use the denormalised pointer first — single-row lookup.
+	const [u] = await db.select({ personalBoardId: users.personalBoardId })
+		.from(users).where(eq(users.id, user.id)).limit(1);
+
+	let boardId = u?.personalBoardId ?? null;
+	if (!boardId) {
+		// Fall back to scanning boards by ownerId in case the denormalised pointer
+		// is missing (defence-in-depth against provisioning regressions).
+		const [b] = await db.select({ id: boards.id }).from(boards)
+			.where(and(eq(boards.kind, "personal"), eq(boards.ownerId, user.id)))
+			.limit(1);
+		boardId = b?.id ?? null;
 	}
-	return ok(c, await getBoardWithColumnsAndCards(String(board._id)));
+	if (!boardId) {
+		throw new AppError("NOT_FOUND", "Personal board missing — provisioning may have failed.");
+	}
+	return ok(c, await getBoardWithColumnsAndCards(boardId));
 });
 
 r.get("/team", async (c) => {
 	const user = c.get("user");
-	// Better Auth user IDs are strings; userId is stored as string via type cast.
-	const membership = await teamMembersColl().findOne({
-		userId: user.id as unknown as ObjectId,
-	});
-	if (!membership) {
-		throw new AppError("NOT_FOUND", "No team membership found.");
-	}
-	const board = await boardsColl().findOne({
-		kind: "team",
-		teamId: membership.teamId,
-	});
-	if (!board) {
-		throw new AppError("NOT_FOUND", "Team board missing.");
-	}
-	return ok(c, await getBoardWithColumnsAndCards(String(board._id)));
+	const [membership] = await db.select({ teamId: teamMembers.teamId })
+		.from(teamMembers).where(eq(teamMembers.userId, user.id)).limit(1);
+	if (!membership) throw new AppError("NOT_FOUND", "No team membership found.");
+	const [board] = await db.select({ id: boards.id }).from(boards)
+		.where(and(eq(boards.kind, "team"), eq(boards.teamId, membership.teamId)))
+		.limit(1);
+	if (!board) throw new AppError("NOT_FOUND", "Team board missing.");
+	return ok(c, await getBoardWithColumnsAndCards(board.id));
 });
 
 export default r;
