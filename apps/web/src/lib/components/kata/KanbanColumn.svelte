@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Plus } from 'lucide-svelte';
-	import type { KataCard, KataColumn } from '$lib/types.js';
+	import { Plus, FolderMinus } from 'lucide-svelte';
+	import type { DisplayColumn, KataLabel, KataProject } from '$lib/types.js';
 	import KanbanCard from './KanbanCard.svelte';
 
 	let {
@@ -10,18 +10,28 @@
 		columnStyle,
 		glowCardIds,
 		dragging,
+		boardLabels,
+		boardProjects,
+		/** In project-group mode: maps card id → status column id */
+		statusLookup,
+		/** In project-group mode: maps status column id → column title */
+		statusTitles,
 		onCardOpen,
 		onCardDrop,
 		onAddCard,
 	}: {
-		column: KataColumn;
+		column: DisplayColumn;
 		density: string;
 		query: string;
 		columnStyle: string;
 		glowCardIds: Set<string>;
 		dragging: { cardId: string; fromColumnId: string } | null;
+		boardLabels: KataLabel[];
+		boardProjects: KataProject[];
+		statusLookup?: Map<string, string>;
+		statusTitles?: Map<string, string>;
 		onCardOpen: (id: string) => void;
-		onCardDrop: (toColId: string) => void;
+		onCardDrop: (toColId: string, dropIndex: number) => void;
 		onAddCard: (colId: string, title: string) => void;
 	} = $props();
 
@@ -32,18 +42,17 @@
 	let sectionRef: HTMLElement;
 	let draftTextareaRef: HTMLTextAreaElement | null = $state(null);
 
+	const isProjectMode = $derived(column.projectId !== undefined);
+
 	function startDrafting() {
 		drafting = true;
 		draft = '';
-		// Focus textarea after DOM update
 		setTimeout(() => draftTextareaRef?.focus(), 0);
 	}
 
 	function commitDraft() {
 		const t = draft.trim();
-		if (t) {
-			onAddCard(column.id, t);
-		}
+		if (t) onAddCard(column.id, t);
 		drafting = false;
 		draft = '';
 	}
@@ -59,7 +68,6 @@
 	}
 
 	function handleDragLeave(e: DragEvent) {
-		// Only set over=false if leaving the section entirely
 		if (!sectionRef.contains(e.relatedTarget as Node)) {
 			over = false;
 		}
@@ -68,7 +76,19 @@
 	function handleDrop(e: DragEvent) {
 		e.preventDefault();
 		over = false;
-		onCardDrop(column.id);
+		const bodyEl = sectionRef.querySelector('.kcol-body') as HTMLElement | null;
+		let dropIndex = column.cards.length;
+		if (bodyEl) {
+			const children = Array.from(bodyEl.querySelectorAll('.kc')) as HTMLElement[];
+			for (let i = 0; i < children.length; i++) {
+				const rect = children[i]!.getBoundingClientRect();
+				if (e.clientY < rect.top + rect.height / 2) {
+					dropIndex = i;
+					break;
+				}
+			}
+		}
+		onCardDrop(column.id, dropIndex);
 	}
 </script>
 
@@ -76,17 +96,66 @@
 	class="kcol"
 	class:kcol-flat={columnStyle === 'flat'}
 	class:is-over={over}
+	class:kcol-project={isProjectMode}
+	class:kcol-orphan={column.isOrphan}
+	style={isProjectMode && column.project ? `--pc: ${column.project.color}` : undefined}
 	bind:this={sectionRef}
 >
-	<div class="kcol-head">
-		<div class="kcol-head-l">
-			<span class="kcol-title">{column.title}</span>
-			<span class="kcol-count">{column.cards.length}</span>
+	{#if isProjectMode}
+		<!-- Project-mode column header -->
+		<div class="kcol-head kcol-head-project">
+			<div class="kcol-head-l">
+				<div class="kproj-icon" class:kproj-icon-orphan={column.isOrphan}>
+					{#if column.isOrphan}
+						<FolderMinus size={18} />
+					{:else}
+						<!-- Coloured block — API doesn't carry per-project icons -->
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+						</svg>
+					{/if}
+				</div>
+				<div class="kproj-titles">
+					<h3 class="kcol-title kproj-title">{column.title}</h3>
+					<div class="kproj-sub">
+						<span>{column.cards.length} {column.cards.length === 1 ? 'card' : 'cards'}</span>
+						{#if (column.activeCount ?? 0) > 0 || (column.doneCount ?? 0) > 0}
+							<span class="kproj-sep">·</span>
+							{#if (column.activeCount ?? 0) > 0}
+								<span class="kproj-mini kproj-mini-active">
+									<span class="kproj-mini-dot"></span>
+									{column.activeCount} active
+								</span>
+							{/if}
+							{#if (column.doneCount ?? 0) > 0}
+								{#if (column.activeCount ?? 0) > 0}
+									<span class="kproj-sep">·</span>
+								{/if}
+								<span class="kproj-mini kproj-mini-done">
+									<span class="kproj-mini-dot"></span>
+									{column.doneCount} done
+								</span>
+							{/if}
+						{/if}
+					</div>
+				</div>
+			</div>
+			<button class="kcol-add" onclick={startDrafting} aria-label="Add card to project">
+				<Plus size={16} />
+			</button>
 		</div>
-		<button class="kcol-add" onclick={startDrafting} aria-label="Add card">
-			<Plus size={16} />
-		</button>
-	</div>
+	{:else}
+		<!-- Status-mode column header -->
+		<div class="kcol-head">
+			<div class="kcol-head-l">
+				<span class="kcol-title">{column.title}</span>
+				<span class="kcol-count">{column.cards.length}</span>
+			</div>
+			<button class="kcol-add" onclick={startDrafting} aria-label="Add card">
+				<Plus size={16} />
+			</button>
+		</div>
+	{/if}
 
 	<div
 		class="kcol-body"
@@ -97,6 +166,8 @@
 		aria-label="{column.title} cards"
 	>
 		{#each column.cards as card (card.id)}
+			{@const cardStatusId = statusLookup?.get(card.id)}
+			{@const cardStatusTitle = cardStatusId ? (statusTitles?.get(cardStatusId) ?? cardStatusId) : undefined}
 			<KanbanCard
 				{card}
 				columnId={column.id}
@@ -105,6 +176,10 @@
 				dragging={dragging?.cardId === card.id}
 				glow={glowCardIds.has(card.id)}
 				{columnStyle}
+				{boardLabels}
+				{boardProjects}
+				statusId={cardStatusId}
+				statusTitle={cardStatusTitle}
 				onopen={onCardOpen}
 				ondragstart={(e, c, colId) => {
 					window.dispatchEvent(new CustomEvent('hk-drag-start', { detail: { cardId: c.id, fromColumnId: colId } }));
@@ -168,11 +243,46 @@
 		flex-basis: 300px;
 	}
 
+	/* Project-mode column */
+	.kcol-project {
+		--pc: var(--fg-3);
+		flex-basis: 360px;
+		background: var(--paper-0);
+	}
+
+	.kcol-project.kcol-flat {
+		background: transparent;
+	}
+
+	.kcol-orphan {
+		background: transparent;
+		border: 1px dashed var(--line-2);
+		box-shadow: none;
+	}
+
+	.kcol-project.is-over {
+		border-color: var(--pc);
+		background: color-mix(in srgb, var(--pc) 7%, var(--paper-0));
+	}
+
+	:global([data-theme="dark"]) .kcol-project.is-over {
+		background: color-mix(in srgb, var(--pc) 18%, var(--paper-0));
+	}
+
+	/* Status-mode header */
 	.kcol-head {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		padding: 14px 16px 10px;
+	}
+
+	/* Project-mode header */
+	.kcol-head-project {
+		padding: 18px 18px 14px;
+		border-bottom: 1px solid var(--line-1);
+		align-items: flex-start;
+		gap: 12px;
 	}
 
 	.kcol-head-l {
@@ -182,6 +292,77 @@
 		flex: 1;
 		min-width: 0;
 	}
+
+	.kcol-head-project .kcol-head-l {
+		align-items: flex-start;
+		gap: 12px;
+	}
+
+	.kproj-icon {
+		width: 34px;
+		height: 34px;
+		flex-shrink: 0;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 10px;
+		background: var(--pc);
+		color: var(--paper-0);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+	}
+
+	.kproj-icon-orphan {
+		background: transparent;
+		border: 1px dashed var(--line-3);
+		color: var(--fg-3);
+		box-shadow: none;
+	}
+
+	.kproj-titles {
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+		min-width: 0;
+		margin-top: -1px;
+	}
+
+	.kproj-title {
+		font: 500 19px var(--font-display);
+		cursor: default;
+		padding: 0;
+		margin: 0;
+		letter-spacing: -0.015em;
+		color: var(--fg-1);
+	}
+
+	.kproj-sub {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 5px;
+		font: 500 11.5px var(--font-sans);
+		color: var(--fg-3);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.kproj-sep { color: var(--fg-4); }
+
+	.kproj-mini {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.kproj-mini-dot {
+		width: 5px;
+		height: 5px;
+		border-radius: 999px;
+		background: var(--fg-4);
+	}
+
+	.kproj-mini-active .kproj-mini-dot { background: var(--warning); }
+	.kproj-mini-done .kproj-mini-dot { background: var(--success); }
+	.kproj-mini-done { color: var(--success); }
 
 	.kcol-title {
 		margin: 0;
@@ -217,6 +398,7 @@
 		color: var(--fg-3);
 		cursor: pointer;
 		transition: all 140ms;
+		flex-shrink: 0;
 	}
 
 	.kcol-add:hover {
@@ -233,14 +415,8 @@
 		gap: 8px;
 	}
 
-	.kcol-body::-webkit-scrollbar {
-		width: 6px;
-	}
-
-	.kcol-body::-webkit-scrollbar-thumb {
-		background: var(--line-2);
-		border-radius: 999px;
-	}
+	.kcol-body::-webkit-scrollbar { width: 6px; }
+	.kcol-body::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 999px; }
 
 	.kcol-empty {
 		flex: 1;

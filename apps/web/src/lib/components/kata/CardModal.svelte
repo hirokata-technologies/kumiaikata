@@ -1,18 +1,33 @@
 <script lang="ts">
 	import { Sparkles, X, Trash2 } from 'lucide-svelte';
-	import type { BoardState, KataCard, KataColumn, LabelId, AvatarId } from '$lib/types.js';
-	import { LABELS, AVATARS, deepCloneColumns, getPresetDate } from '$lib/data.js';
-	import LabelChip from './LabelChip.svelte';
+	import type { BoardState, KataCard, AvatarId } from '$lib/types.js';
+	import { AVATARS, deepCloneColumns, getPresetDate } from '$lib/data.js';
+	import {
+		updateCard as apiUpdateCard,
+		moveCard as apiMoveCard,
+		deleteCard as apiDeleteCard,
+		addLabelToCard,
+		removeLabelFromCard,
+		assignUser,
+		unassignUser,
+		getCard,
+		createLabel,
+		createProject,
+		markClientOp,
+		ApiError,
+	} from '$lib/api';
 	import AvatarChip from './AvatarChip.svelte';
 	import DueBadge from './DueBadge.svelte';
 
 	let {
+		boardId,
 		cardId,
-		state,
+		state: boardState,
 		onClose,
 		onAsk,
 		onStateChange
 	}: {
+		boardId: string;
 		cardId: string;
 		state: BoardState;
 		onClose: () => void;
@@ -21,34 +36,78 @@
 	} = $props();
 
 	// Find card and column
-	const found = $derived(() => {
-		for (const col of state.columns) {
+	const found = $derived.by(() => {
+		for (const col of boardState.columns) {
 			const card = col.cards.find(c => c.id === cardId);
 			if (card) return { card, col };
 		}
 		return null;
 	});
 
-	const card = $derived(found()?.card ?? null);
-	const col = $derived(found()?.col ?? null);
+	const card = $derived(found?.card ?? null);
+	const col = $derived(found?.col ?? null);
 
-	function updateCard(patch: Partial<KataCard>) {
+	let modalError: string | null = $state(null);
+
+	// Fetch card detail (description etc.) on open
+	$effect(() => {
+		if (!cardId || !boardId) return;
+		modalError = null;
+		getCard(boardId, cardId)
+			.then(detail => {
+				if (!detail.description) return;
+				// Patch the desc into boardState so the modal textarea shows it
+				const cols = deepCloneColumns(boardState.columns);
+				for (const c of cols) {
+					const idx = c.cards.findIndex(ca => ca.id === cardId);
+					if (idx !== -1) {
+						cols[cols.indexOf(c)]!.cards[idx] = { ...c.cards[idx]!, desc: detail.description ?? '' };
+						break;
+					}
+				}
+				onStateChange({ ...boardState, columns: cols });
+			})
+			.catch(err => {
+				// Non-fatal: description just won't be pre-filled
+				console.warn('[CardModal] getCard error:', err);
+			});
+	});
+
+	async function updateCardField(patch: Partial<KataCard>) {
 		if (!card) return;
-		const cols = deepCloneColumns(state.columns);
+		const previous = boardState;
+		// Optimistic update
+		const cols = deepCloneColumns(boardState.columns);
 		for (const c of cols) {
 			const idx = c.cards.findIndex(ca => ca.id === cardId);
 			if (idx !== -1) {
-				c.cards[idx] = { ...c.cards[idx], ...patch };
+				c.cards[idx] = { ...c.cards[idx]!, ...patch };
 				break;
 			}
 		}
-		onStateChange({ columns: cols });
+		onStateChange({ ...boardState, columns: cols });
+
+		modalError = null;
+		try {
+			markClientOp(`update:${cardId}`);
+			await apiUpdateCard(boardId, cardId, {
+				...(patch.title !== undefined && { title: patch.title }),
+				...(patch.desc !== undefined && { description: patch.desc }),
+				...(patch.due !== undefined && { dueDate: patch.due ? new Date(patch.due).toISOString() : null }),
+			});
+		} catch (err) {
+			onStateChange(previous);
+			modalError = err instanceof ApiError ? err.message : 'Failed to update card';
+			console.warn('[CardModal] updateCardField error:', err);
+		}
 	}
 
-	function moveTo(toColId: string) {
+	async function moveTo(toColId: string) {
 		if (!card || !col) return;
 		if (col.id === toColId) return;
-		const cols = deepCloneColumns(state.columns);
+
+		const previous = boardState;
+		const cols = deepCloneColumns(boardState.columns);
 		let movedCard: KataCard | null = null;
 		for (const c of cols) {
 			const idx = c.cards.findIndex(ca => ca.id === cardId);
@@ -61,13 +120,24 @@
 			const toCol = cols.find(c => c.id === toColId);
 			if (toCol) {
 				toCol.cards.unshift(movedCard);
-				onStateChange({ columns: cols });
+				onStateChange({ ...boardState, columns: cols });
 			}
+		}
+
+		modalError = null;
+		try {
+			markClientOp(`move:${cardId}`);
+			await apiMoveCard(boardId, cardId, toColId, 0);
+		} catch (err) {
+			onStateChange(previous);
+			modalError = err instanceof ApiError ? err.message : 'Failed to move card';
+			console.warn('[CardModal] moveTo error:', err);
 		}
 	}
 
-	function deleteCard() {
-		const cols = deepCloneColumns(state.columns);
+	async function deleteCard() {
+		const previous = boardState;
+		const cols = deepCloneColumns(boardState.columns);
 		for (const c of cols) {
 			const idx = c.cards.findIndex(ca => ca.id === cardId);
 			if (idx !== -1) {
@@ -75,20 +145,144 @@
 				break;
 			}
 		}
-		onStateChange({ columns: cols });
+		onStateChange({ ...boardState, columns: cols });
 		onClose();
+
+		try {
+			markClientOp(`delete:${cardId}`);
+			await apiDeleteCard(boardId, cardId);
+		} catch (err) {
+			onStateChange(previous);
+			// Modal is already closed; log the error
+			console.warn('[CardModal] deleteCard error:', err);
+		}
 	}
 
-	function toggleLabel(labelId: LabelId) {
+	// Label creation state
+	let creatingLabel = $state(false);
+	let newLabelName = $state('');
+	let newLabelColor = $state('#2E3A6B');
+	let newLabelRef: HTMLInputElement | null = $state(null);
+
+	const LABEL_COLORS = ['#2E3A6B','#9B3B2E','#3F6B4A','#B07A2A','#76716A','#4A463E','#7C3AED','#0891B2','#BE185D','#065F46'];
+
+	// Project creation state
+	let creatingProject = $state(false);
+	let newProjectName = $state('');
+	let newProjectColor = $state('#2E3A6B');
+	let newProjectRef: HTMLInputElement | null = $state(null);
+
+	const PROJECT_COLORS = ['#2E3A6B','#9B3B2E','#3F6B4A','#B07A2A','#76716A','#4A463E','#7C3AED','#0891B2','#BE185D','#065F46'];
+
+	async function setCardProject(projectId: string | null) {
 		if (!card) return;
-		const labels = card.labels.includes(labelId)
+		const previous = boardState;
+		const cols = deepCloneColumns(boardState.columns);
+		for (const c of cols) {
+			const idx = c.cards.findIndex(ca => ca.id === cardId);
+			if (idx !== -1) { c.cards[idx] = { ...c.cards[idx]!, projectId }; break; }
+		}
+		onStateChange({ ...boardState, columns: cols });
+		try {
+			markClientOp(`update:${cardId}`);
+			await apiUpdateCard(boardId, cardId, { projectId });
+		} catch (err) {
+			onStateChange(previous);
+			modalError = err instanceof ApiError ? err.message : 'Failed to update project';
+		}
+	}
+
+	async function addNewProject() {
+		const name = newProjectName.trim();
+		if (!name) return;
+		creatingProject = false;
+		newProjectName = '';
+		try {
+			const proj = await createProject(boardId, name, newProjectColor);
+			// Optimistically add to boardState so it shows immediately without waiting for SSE
+			onStateChange({ ...boardState, projects: [...boardState.projects, { id: proj.id, name: proj.name, color: proj.color }] });
+			await setCardProject(proj.id);
+		} catch (err) {
+			modalError = err instanceof ApiError ? err.message : 'Failed to create project';
+		}
+	}
+
+	async function addNewLabel() {
+		const name = newLabelName.trim();
+		if (!name) return;
+		creatingLabel = false;
+		newLabelName = '';
+		try {
+			const label = await createLabel(boardId, name, newLabelColor);
+			// Optimistically add to boardState so it shows immediately without waiting for SSE
+			onStateChange({ ...boardState, labels: [...boardState.labels, { id: label.id, name: label.name, color: label.color }] });
+			await toggleLabel(label.id);
+		} catch (err) {
+			modalError = err instanceof ApiError ? err.message : 'Failed to create label';
+		}
+	}
+
+	async function toggleLabel(labelId: string) {
+		if (!card) return;
+		const isOn = card.labels.includes(labelId);
+		const previous = boardState;
+		// Optimistic
+		const labels = isOn
 			? card.labels.filter(l => l !== labelId)
 			: [...card.labels, labelId];
-		updateCard({ labels });
+		const cols = deepCloneColumns(boardState.columns);
+		for (const c of cols) {
+			const idx = c.cards.findIndex(ca => ca.id === cardId);
+			if (idx !== -1) {
+				c.cards[idx] = { ...c.cards[idx]!, labels };
+				break;
+			}
+		}
+		onStateChange({ ...boardState, columns: cols });
+
+		modalError = null;
+		try {
+			markClientOp(`label:${cardId}:${labelId}`);
+			if (isOn) {
+				await removeLabelFromCard(boardId, cardId, labelId);
+			} else {
+				await addLabelToCard(boardId, cardId, labelId);
+			}
+		} catch (err) {
+			onStateChange(previous);
+			modalError = err instanceof ApiError ? err.message : 'Failed to toggle label';
+			console.warn('[CardModal] toggleLabel error:', err);
+		}
 	}
 
-	function setAssignee(avatarId: AvatarId) {
-		updateCard({ assignee: avatarId });
+	async function setAssignee(avatarId: AvatarId) {
+		if (!card) return;
+		const previous = boardState;
+		const prevAssignee = card.assignee;
+		// Optimistic
+		const cols = deepCloneColumns(boardState.columns);
+		for (const c of cols) {
+			const idx = c.cards.findIndex(ca => ca.id === cardId);
+			if (idx !== -1) {
+				c.cards[idx] = { ...c.cards[idx]!, assignee: avatarId };
+				break;
+			}
+		}
+		onStateChange({ ...boardState, columns: cols });
+
+		modalError = null;
+		try {
+			markClientOp(`assignee:${cardId}`);
+			// Unassign previous if different
+			if (prevAssignee && prevAssignee !== avatarId && prevAssignee !== 'me') {
+				await unassignUser(boardId, cardId, prevAssignee);
+			}
+			await assignUser(boardId, cardId, avatarId);
+		} catch (err) {
+			onStateChange(previous);
+			modalError = err instanceof ApiError ? err.message : 'Failed to update assignee';
+			console.warn('[CardModal] setAssignee error:', err);
+		}
 	}
 
 	function isPresetActive(preset: string): boolean {
@@ -133,13 +327,17 @@
 				</div>
 			</header>
 
+			{#if modalError}
+				<div class="modal-error" role="alert">{modalError}</div>
+			{/if}
+
 			<div class="modal-body">
 				<div class="modal-main">
 					<input
 						class="modal-title"
 						type="text"
 						value={card.title}
-						onchange={(e) => updateCard({ title: (e.currentTarget as HTMLInputElement).value })}
+						onchange={(e) => updateCardField({ title: (e.currentTarget as HTMLInputElement).value })}
 						aria-label="Card title"
 					/>
 
@@ -149,7 +347,7 @@
 							class="modal-desc"
 							value={card.desc}
 							placeholder="Add a description…"
-							onchange={(e) => updateCard({ desc: (e.currentTarget as HTMLTextAreaElement).value })}
+							onchange={(e) => updateCardField({ desc: (e.currentTarget as HTMLTextAreaElement).value })}
 							aria-label="Card description"
 						></textarea>
 					</div>
@@ -158,9 +356,9 @@
 				<aside class="modal-side">
 					<!-- Column picker -->
 					<div class="modal-side-sec">
-						<span class="eyebrow">Column</span>
+						<span class="eyebrow">Status</span>
 						<div class="modal-pill-row">
-							{#each state.columns as c (c.id)}
+							{#each boardState.columns as c (c.id)}
 								<button
 									class="modal-pill"
 									class:is-on={c.id === col.id}
@@ -170,23 +368,111 @@
 						</div>
 					</div>
 
+					<!-- Project -->
+					<div class="modal-side-sec">
+						<span class="eyebrow">Project</span>
+						<div class="modal-projects">
+							{#each boardState.projects as proj (proj.id)}
+								{@const isOn = card.projectId === proj.id}
+								<button
+									class="proj-toggle"
+									class:is-on={isOn}
+									style="--proj-color: {proj.color};"
+									onclick={() => setCardProject(isOn ? null : proj.id)}
+									aria-pressed={isOn}
+								>
+									<span class="proj-dot" style="background: {proj.color};"></span>
+									{proj.name}
+								</button>
+							{/each}
+
+							{#if creatingProject}
+								<div class="lbl-new-form">
+									<input
+										bind:this={newProjectRef}
+										bind:value={newProjectName}
+										class="lbl-new-input"
+										placeholder="Project name…"
+										onkeydown={(e) => {
+											if (e.key === 'Enter') { e.preventDefault(); addNewProject(); }
+											if (e.key === 'Escape') { creatingProject = false; newProjectName = ''; }
+										}}
+									/>
+									<div class="lbl-color-row">
+										{#each PROJECT_COLORS as c (c)}
+											<button
+												class="lbl-color-swatch"
+												class:is-active={newProjectColor === c}
+												style="background: {c};"
+												onclick={() => (newProjectColor = c)}
+												aria-label="Pick color {c}"
+											></button>
+										{/each}
+									</div>
+									<div class="lbl-new-actions">
+										<button class="lbl-new-add" onclick={addNewProject} disabled={!newProjectName.trim()}>Add</button>
+										<button class="lbl-new-cancel" onclick={() => { creatingProject = false; newProjectName = ''; }}>Cancel</button>
+									</div>
+								</div>
+							{:else}
+								<button class="lbl-new-btn" onclick={() => { creatingProject = true; setTimeout(() => newProjectRef?.focus(), 0); }}>
+									+ New project
+								</button>
+							{/if}
+						</div>
+					</div>
+
 					<!-- Labels -->
 					<div class="modal-side-sec">
 						<span class="eyebrow">Labels</span>
 						<div class="modal-labels">
-							{#each Object.entries(LABELS) as [labelId, labelDef] (labelId)}
-								{@const isOn = card.labels.includes(labelId as LabelId)}
+							{#each boardState.labels as label (label.id)}
+								{@const isOn = card.labels.includes(label.id)}
 								<button
 									class="lbl-toggle"
 									class:is-on={isOn}
-									style="color: {labelDef.fg}; background: {isOn ? labelDef.bg : 'transparent'}; border: 1px solid {isOn ? labelDef.fg + '55' : 'transparent'};"
-									onclick={() => toggleLabel(labelId as LabelId)}
+									style="color: {label.color}; background: {isOn ? label.color + '1a' : 'transparent'}; border: 1px solid {isOn ? label.color + '55' : 'transparent'};"
+									onclick={() => toggleLabel(label.id)}
 									aria-pressed={isOn}
 								>
-									<span class="lbl-dot" style="background: {labelDef.fg};"></span>
-									{labelDef.name}
+									<span class="lbl-dot" style="background: {label.color};"></span>
+									{label.name}
 								</button>
 							{/each}
+
+							{#if creatingLabel}
+								<div class="lbl-new-form">
+									<input
+										bind:this={newLabelRef}
+										bind:value={newLabelName}
+										class="lbl-new-input"
+										placeholder="Label name…"
+										onkeydown={(e) => {
+											if (e.key === 'Enter') { e.preventDefault(); addNewLabel(); }
+											if (e.key === 'Escape') { creatingLabel = false; newLabelName = ''; }
+										}}
+									/>
+									<div class="lbl-color-row">
+										{#each LABEL_COLORS as c (c)}
+											<button
+												class="lbl-color-swatch"
+												class:is-active={newLabelColor === c}
+												style="background: {c};"
+												onclick={() => (newLabelColor = c)}
+												aria-label="Pick color {c}"
+											></button>
+										{/each}
+									</div>
+									<div class="lbl-new-actions">
+										<button class="lbl-new-add" onclick={addNewLabel} disabled={!newLabelName.trim()}>Add</button>
+										<button class="lbl-new-cancel" onclick={() => { creatingLabel = false; newLabelName = ''; }}>Cancel</button>
+									</div>
+								</div>
+							{:else}
+								<button class="lbl-new-btn" onclick={() => { creatingLabel = true; setTimeout(() => newLabelRef?.focus(), 0); }}>
+									+ New label
+								</button>
+							{/if}
 						</div>
 					</div>
 
@@ -197,7 +483,7 @@
 							<div class="datepicker-current">
 								{#if card.due}
 									<DueBadge iso={card.due} />
-									<button class="datepicker-clear" onclick={() => updateCard({ due: undefined })} title="Clear date" aria-label="Clear due date">
+									<button class="datepicker-clear" onclick={() => updateCardField({ due: undefined })} title="Clear date" aria-label="Clear due date">
 										<X size={12} />
 									</button>
 								{:else}
@@ -205,10 +491,10 @@
 								{/if}
 							</div>
 							<div class="datepicker-presets">
-								<button class="datepicker-preset" class:is-on={isPresetActive('today')} onclick={() => updateCard({ due: getPresetDate('today') })}>Today</button>
-								<button class="datepicker-preset" class:is-on={isPresetActive('tomorrow')} onclick={() => updateCard({ due: getPresetDate('tomorrow') })}>Tomorrow</button>
-								<button class="datepicker-preset" class:is-on={isPresetActive('weekend')} onclick={() => updateCard({ due: getPresetDate('weekend') })}>This wknd</button>
-								<button class="datepicker-preset" class:is-on={isPresetActive('nextweek')} onclick={() => updateCard({ due: getPresetDate('nextweek') })}>Next week</button>
+								<button class="datepicker-preset" class:is-on={isPresetActive('today')} onclick={() => updateCardField({ due: getPresetDate('today') })}>Today</button>
+								<button class="datepicker-preset" class:is-on={isPresetActive('tomorrow')} onclick={() => updateCardField({ due: getPresetDate('tomorrow') })}>Tomorrow</button>
+								<button class="datepicker-preset" class:is-on={isPresetActive('weekend')} onclick={() => updateCardField({ due: getPresetDate('weekend') })}>This wknd</button>
+								<button class="datepicker-preset" class:is-on={isPresetActive('nextweek')} onclick={() => updateCardField({ due: getPresetDate('nextweek') })}>Next week</button>
 							</div>
 							<div class="datepicker-input">
 								<input
@@ -216,7 +502,7 @@
 									value={card.due ?? ''}
 									onchange={(e) => {
 										const v = (e.currentTarget as HTMLInputElement).value;
-										updateCard({ due: v || undefined });
+										updateCardField({ due: v || undefined });
 									}}
 									aria-label="Pick a due date"
 								/>
@@ -337,6 +623,14 @@
 	.chat-iconbtn:hover {
 		background: var(--paper-1);
 		color: var(--fg-1);
+	}
+
+	.modal-error {
+		padding: 8px 20px;
+		background: #fff0ee;
+		border-bottom: 1px solid rgba(155, 59, 46, 0.2);
+		color: #9B3B2E;
+		font: 500 12px var(--font-sans);
 	}
 
 	.modal-body {
@@ -613,5 +907,147 @@
 
 	.datepicker-input input:focus {
 		border-color: var(--accent);
+	}
+
+	.lbl-new-form {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin-top: 4px;
+		padding: 10px 12px;
+		background: var(--paper-1);
+		border: 1px solid var(--line-2);
+		border-radius: 8px;
+		width: 100%;
+	}
+
+	.lbl-new-input {
+		width: 100%;
+		border: 1px solid var(--line-2);
+		border-radius: 6px;
+		padding: 5px 8px;
+		font: 500 13px var(--font-sans);
+		background: var(--paper-0);
+		color: var(--fg-1);
+		outline: none;
+	}
+
+	.lbl-new-input:focus {
+		border-color: var(--accent);
+	}
+
+	.lbl-color-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.lbl-color-swatch {
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		border: 2px solid transparent;
+		cursor: pointer;
+		transition: transform 100ms;
+	}
+
+	.lbl-color-swatch:hover {
+		transform: scale(1.15);
+	}
+
+	.lbl-color-swatch.is-active {
+		border-color: var(--fg-1);
+		transform: scale(1.15);
+	}
+
+	.lbl-new-actions {
+		display: flex;
+		gap: 6px;
+	}
+
+	.lbl-new-add {
+		flex: 1;
+		padding: 4px 10px;
+		background: var(--accent);
+		color: #fff;
+		border: none;
+		border-radius: 6px;
+		font: 500 12px var(--font-sans);
+		cursor: pointer;
+	}
+
+	.lbl-new-add:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
+	}
+
+	.lbl-new-cancel {
+		padding: 4px 10px;
+		background: transparent;
+		border: 1px solid var(--line-2);
+		border-radius: 6px;
+		font: 500 12px var(--font-sans);
+		cursor: pointer;
+		color: var(--fg-2);
+	}
+
+	.lbl-new-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 3px 10px;
+		background: transparent;
+		border: 1px dashed var(--line-2);
+		border-radius: 6px;
+		font: 500 12px var(--font-sans);
+		color: var(--fg-3);
+		cursor: pointer;
+		transition: all 140ms;
+		margin-top: 2px;
+	}
+
+	.lbl-new-btn:hover {
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+
+	.modal-projects {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.proj-toggle {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 6px 10px;
+		border-radius: 8px;
+		border: 1px solid transparent;
+		background: transparent;
+		font: 500 13px var(--font-sans);
+		color: var(--fg-2);
+		cursor: pointer;
+		text-align: left;
+		transition: all 140ms;
+		width: 100%;
+	}
+
+	.proj-toggle:hover {
+		background: var(--paper-1);
+		color: var(--fg-1);
+	}
+
+	.proj-toggle.is-on {
+		background: color-mix(in srgb, var(--proj-color) 12%, transparent);
+		border-color: color-mix(in srgb, var(--proj-color) 40%, transparent);
+		color: var(--proj-color);
+	}
+
+	.proj-dot {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		flex-shrink: 0;
 	}
 </style>

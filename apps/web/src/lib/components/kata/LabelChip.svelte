@@ -1,18 +1,15 @@
 <script lang="ts">
-	import { LABELS } from '$lib/data.js';
-	import type { LabelId } from '$lib/types.js';
+	import type { KataLabel } from '$lib/types.js';
 
-	let { id }: { id: LabelId } = $props();
+	let { label }: { label: KataLabel } = $props();
 
-	const L = $derived(LABELS[id]);
+	const bg = $derived(label.color + '1a');
 </script>
 
-{#if L}
-	<span class="lbl" style="color: {L.fg}; background: {L.bg}">
-		<span class="color-dot" style="background: {L.fg}"></span>
-		{L.name}
-	</span>
-{/if}
+<span class="lbl" style="color: {label.color}; background: {bg}">
+	<span class="color-dot" style="background: {label.color}"></span>
+	{label.name}
+</span>
 
 <style>
 	.lbl {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { KataCard } from '$lib/types.js';
+	import type { KataCard, KataLabel, KataProject } from '$lib/types.js';
 	import LabelChip from './LabelChip.svelte';
 	import AvatarChip from './AvatarChip.svelte';
 	import DueBadge from './DueBadge.svelte';
@@ -12,6 +12,12 @@
 		dragging,
 		glow,
 		columnStyle,
+		boardLabels,
+		boardProjects,
+		/** In project-group mode: the real status column id (e.g. 'backlog', 'doing', 'done') */
+		statusId,
+		/** In project-group mode: the human-readable status title */
+		statusTitle,
 		onopen,
 		ondragstart,
 		ondragend
@@ -23,26 +29,40 @@
 		dragging: boolean;
 		glow: boolean;
 		columnStyle: string;
+		boardLabels: KataLabel[];
+		boardProjects: KataProject[];
+		statusId?: string;
+		statusTitle?: string;
 		onopen: (id: string) => void;
 		ondragstart: (e: DragEvent, card: KataCard, colId: string) => void;
 		ondragend: () => void;
 	} = $props();
 
-	const matches = $derived(() => {
-		if (!query) return true;
-		const q = query.toLowerCase();
-		if (card.title.toLowerCase().includes(q)) return true;
-		if (card.desc && card.desc.toLowerCase().includes(q)) return true;
-		if (card.labels.some(l => l.toLowerCase().includes(q))) return true;
-		return false;
-	});
+	const matches = $derived(
+		!query
+		|| card.title.toLowerCase().includes(query.toLowerCase())
+		|| (card.desc ?? '').toLowerCase().includes(query.toLowerCase())
+		|| card.labels.some(labelId => {
+			const label = boardLabels.find(l => l.id === labelId);
+			return label ? label.name.toLowerCase().includes(query.toLowerCase()) : false;
+		})
+	);
+
+	const project = $derived(card.projectId ? boardProjects.find(p => p.id === card.projectId) ?? null : null);
+
+	// In project-group mode, show a status pill; in status mode, show the project ribbon.
+	const showProjectRibbon = $derived(!statusId && !!project);
+	const showStatusPill = $derived(!!statusId);
+
+	// Effective "done" column: in status mode it's columnId; in project mode it's statusId
+	const effectiveColumnId = $derived(statusId ?? columnId);
 </script>
 
 <div
 	class="kc {density}"
 	class:is-dragging={dragging}
 	class:is-glow={glow}
-	class:is-dim={!matches()}
+	class:is-dim={!matches}
 	class:kc-flat={columnStyle === 'flat'}
 	draggable={true}
 	role="button"
@@ -52,6 +72,13 @@
 	ondragstart={(e) => ondragstart(e, card, columnId)}
 	ondragend={() => ondragend()}
 >
+	{#if showProjectRibbon}
+		<div class="kc-proj" title="In {project!.name}">
+			<span class="kc-proj-dot" style="background: {project!.color};"></span>
+			<span class="kc-proj-name">{project!.name}</span>
+		</div>
+	{/if}
+
 	<div class="kc-title">{card.title}</div>
 
 	{#if card.desc && density !== 'compact'}
@@ -60,11 +87,20 @@
 
 	<div class="kc-meta">
 		<div class="kc-labels">
-			{#if card.due || columnId === 'done'}
-				<DueBadge iso={card.due} done={columnId === 'done'} />
+			{#if showStatusPill}
+				<span class="kc-status kc-status-{statusId}">
+					<span class="kc-status-dot"></span>
+					{statusTitle}
+				</span>
+			{/if}
+			{#if card.due || effectiveColumnId === 'done'}
+				<DueBadge iso={card.due} done={effectiveColumnId === 'done'} />
 			{/if}
 			{#each card.labels as labelId (labelId)}
-				<LabelChip id={labelId} />
+				{@const label = boardLabels.find(l => l.id === labelId)}
+				{#if label}
+					<LabelChip {label} />
+				{/if}
 			{/each}
 		</div>
 		{#if card.assignee}
@@ -84,6 +120,82 @@
 		transition: box-shadow 140ms, border-color 140ms, transform 140ms, opacity 140ms;
 		user-select: none;
 		position: relative;
+	}
+
+	/* Project ribbon — colored dot + name */
+	.kc-proj {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font: 500 10.5px var(--font-sans);
+		color: var(--fg-3);
+		margin-bottom: 4px;
+		max-width: 100%;
+	}
+
+	.kc-proj-dot {
+		width: 5px;
+		height: 5px;
+		border-radius: 999px;
+		flex-shrink: 0;
+	}
+
+	.kc-proj-name {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		min-width: 0;
+	}
+
+	.compact .kc-proj { font-size: 10px; margin-bottom: 2px; }
+	.spacious .kc-proj { font-size: 11px; margin-bottom: 6px; }
+
+	/* Status pill — shown in project-group mode */
+	.kc-status {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font: 500 10.5px var(--font-sans);
+		letter-spacing: -0.005em;
+		padding: 2px 8px 2px 7px;
+		border-radius: 999px;
+		background: var(--paper-2);
+		color: var(--fg-2);
+		white-space: nowrap;
+		border: 1px solid var(--line-1);
+	}
+
+	.kc-status-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 999px;
+		background: var(--fg-3);
+		flex-shrink: 0;
+	}
+
+	.kc-status-backlog .kc-status-dot { background: var(--fg-4); }
+	.kc-status-todo    .kc-status-dot { background: var(--accent); }
+
+	.kc-status-doing {
+		background: rgba(176, 122, 42, 0.10);
+		color: var(--warning);
+		border-color: rgba(176, 122, 42, 0.22);
+	}
+	.kc-status-doing .kc-status-dot { background: var(--warning); }
+
+	.kc-status-done {
+		background: rgba(63, 107, 74, 0.08);
+		color: var(--success);
+		border-color: rgba(63, 107, 74, 0.22);
+	}
+	.kc-status-done .kc-status-dot { background: var(--success); }
+
+	:global([data-theme="dark"]) .kc-status { background: rgba(244, 241, 234, 0.06); }
+	:global([data-theme="dark"]) .kc-status-doing { background: rgba(176, 122, 42, 0.18); }
+	:global([data-theme="dark"]) .kc-status-done {
+		background: rgba(63, 107, 74, 0.18);
+		color: #8EBBA0;
+		border-color: rgba(63, 107, 74, 0.4);
 	}
 
 	.kc:hover {
