@@ -1,5 +1,9 @@
 <script lang="ts">
 	import { Search, X, Sparkles } from 'lucide-svelte';
+	import MeMenu from './MeMenu.svelte';
+	import ThemeToggle from './ThemeToggle.svelte';
+	import WorkspaceSwitcher from './WorkspaceSwitcher.svelte';
+	import type { Workspace } from './WorkspaceSwitcher.svelte';
 
 	let {
 		query,
@@ -7,7 +11,14 @@
 		density,
 		ondensity,
 		chatVisible,
-		onOpenChat
+		onOpenChat,
+		chatPlacement = 'side',
+		isDark = false,
+		ontoggle,
+		workspace,
+		workspaces,
+		onselectworkspace,
+		user
 	}: {
 		query: string;
 		onquery: (q: string) => void;
@@ -15,6 +26,13 @@
 		ondensity: (d: string) => void;
 		chatVisible: boolean;
 		onOpenChat: () => void;
+		chatPlacement?: string;
+		isDark?: boolean;
+		ontoggle?: () => void;
+		workspace: Workspace;
+		workspaces: Workspace[];
+		onselectworkspace: (id: string) => void;
+		user?: { name?: string | null; email: string } | null;
 	} = $props();
 
 	let searchRef: HTMLInputElement | null = $state(null);
@@ -44,14 +62,10 @@
 			<img class="brand-mark" src="/logo-mark.png" alt="Kata" />
 			<div class="brand-text">
 				<div class="brand-name">Kata</div>
-				<div class="brand-sub">Personal board</div>
 			</div>
 		</a>
 		<span class="topbar-sep" aria-hidden="true"></span>
-		<div class="topbar-crumbs">
-			<span class="eyebrow">Workspace</span>
-			<span class="topbar-crumb">Personal</span>
-		</div>
+		<WorkspaceSwitcher {workspace} {workspaces} {onselectworkspace} />
 	</div>
 
 	<div class="topbar-c">
@@ -85,28 +99,30 @@
 			{/each}
 		</div>
 
-		{#if !chatVisible}
+		{#if !chatVisible && chatPlacement !== 'floating'}
 			<button class="hkb hkb-secondary" onclick={onOpenChat}>
 				<Sparkles class="hkb-i" size={16} />
 				Assistant
 			</button>
 		{/if}
 
-		<button class="me-avatar" aria-label="User menu">
-			<span class="me-avatar-circle" aria-hidden="true">Y</span>
-		</button>
+		{#if ontoggle}
+			<ThemeToggle {isDark} ontoggle={ontoggle} />
+		{/if}
+
+		<MeMenu {user} />
 	</div>
 </header>
 
 <style>
 	.topbar {
-		display: grid;
-		grid-template-columns: 1fr minmax(260px, 480px) 1fr;
+		display: flex;
 		align-items: center;
 		gap: 24px;
 		padding: 12px 20px;
 		background: rgba(251, 250, 246, 0.85);
 		backdrop-filter: saturate(140%) blur(12px);
+		-webkit-backdrop-filter: saturate(140%) blur(12px);
 		border-bottom: 1px solid var(--line-1);
 		z-index: 5;
 	}
@@ -120,11 +136,19 @@
 		align-items: center;
 		gap: 14px;
 		min-width: 0;
+		flex: 0 0 auto;
 	}
 
 	.topbar-c {
 		display: flex;
 		justify-content: center;
+		min-width: 0;
+		flex: 1 1 auto;
+	}
+
+	.topbar-c .search {
+		width: 100%;
+		max-width: 480px;
 	}
 
 	.topbar-r {
@@ -132,6 +156,7 @@
 		align-items: center;
 		gap: 10px;
 		justify-content: flex-end;
+		flex: 0 0 auto;
 	}
 
 	.brand {
@@ -140,6 +165,7 @@
 		gap: 10px;
 		color: var(--fg-1);
 		text-decoration: none;
+		flex-shrink: 0;
 	}
 
 	.brand-mark {
@@ -147,6 +173,11 @@
 		height: 32px;
 		border-radius: 999px;
 		background: var(--ink-0);
+	}
+
+	:global([data-theme="dark"]) .brand-mark {
+		background: transparent;
+		filter: invert(1) hue-rotate(180deg);
 	}
 
 	.brand-text {
@@ -160,31 +191,11 @@
 		letter-spacing: -0.01em;
 	}
 
-	.brand-sub {
-		font-size: 11px;
-		color: var(--fg-3);
-		letter-spacing: 0.04em;
-		white-space: nowrap;
-	}
-
 	.topbar-sep {
 		width: 1px;
 		height: 22px;
 		background: var(--line-2);
-	}
-
-	.topbar-crumbs {
-		display: flex;
-		flex-direction: column;
-		line-height: 1.15;
-		gap: 1px;
-	}
-
-	.topbar-crumb {
-		font-family: var(--font-display);
-		font-size: 15px;
-		color: var(--fg-1);
-		font-weight: 500;
+		flex-shrink: 0;
 	}
 
 	.search {
@@ -218,7 +229,6 @@
 		color: var(--fg-4);
 	}
 
-	/* Position the Search icon absolutely inside the search box */
 	.search :global(svg) {
 		position: absolute;
 		left: 12px;
@@ -239,26 +249,6 @@
 	.search-clear:hover {
 		background: var(--paper-3);
 		color: var(--fg-1);
-	}
-
-	.me-avatar {
-		background: transparent;
-		border: none;
-		cursor: pointer;
-		padding: 0;
-		border-radius: 999px;
-	}
-
-	.me-avatar-circle {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 32px;
-		height: 32px;
-		border-radius: 999px;
-		background: var(--accent);
-		color: var(--paper-0);
-		font: 600 13px var(--font-sans);
 	}
 
 	.hkb {

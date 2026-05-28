@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { Sparkles } from 'lucide-svelte';
 	import type { BoardState, GroupBy } from '$lib/types.js';
+	import type { Workspace } from '$lib/components/kata/WorkspaceSwitcher.svelte';
 	import { getPersonalBoard, listLabels, listProjects, subscribeBoard, ApiError, wasClientOp } from '$lib/api';
 	import {
 		toLocalColumns,
@@ -26,6 +28,8 @@
 	import KanbanBoard from '$lib/components/kata/KanbanBoard.svelte';
 	import ChatPanel from '$lib/components/kata/ChatPanel.svelte';
 	import CardModal from '$lib/components/kata/CardModal.svelte';
+
+	let { data } = $props();
 
 	let boardState: BoardState = $state({ columns: [], labels: [], projects: [] });
 	let boardId: string | null = $state(null);
@@ -60,8 +64,15 @@
 	const totalCount = $derived(boardState.columns.reduce((n, c) => n + c.cards.length, 0));
 	let mist = $state(true);
 	let density = $state('comfortable');
-	let chat_placement = $state('side');
+	let chat_placement = $state('floating');
 	let column_style = $state('tray');
+
+	const workspaces: Workspace[] = [
+		{ id: 'personal', name: 'Personal', hint: 'Just for you', icon: 'user' },
+		{ id: 'studio', name: 'HiroKata Studio', hint: 'Shared with the team · 4 members', icon: 'users' }
+	];
+	let workspaceId = $state('personal');
+	const workspace = $derived(workspaces.find((w) => w.id === workspaceId) ?? workspaces[0]);
 
 	async function loadBoard() {
 		loading = true;
@@ -202,9 +213,12 @@
 		return unsubscribe;
 	});
 
-	// Apply dark theme to document
+	// Apply dark theme to document; enable cross-theme transitions after first paint
 	$effect(() => {
 		document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+		requestAnimationFrame(() => {
+			document.documentElement.classList.add('theme-ready');
+		});
 	});
 
 	// Apply accent color
@@ -231,6 +245,10 @@
 		chatInput = prefix;
 		chatVisible = true;
 	}
+
+	function togglePlacement() {
+		chat_placement = chat_placement === 'side' ? 'floating' : 'side';
+	}
 </script>
 
 <svelte:head>
@@ -246,6 +264,13 @@
 		ondensity={(d) => (density = d)}
 		{chatVisible}
 		onOpenChat={() => (chatVisible = true)}
+		chatPlacement={chat_placement}
+		isDark={dark}
+		ontoggle={() => (dark = !dark)}
+		{workspace}
+		{workspaces}
+		onselectworkspace={(id) => (workspaceId = id)}
+		user={data?.user}
 	/>
 
 	{#if !loading && !loadError}
@@ -299,22 +324,35 @@
 					onChatInputChange={(v) => (chatInput = v)}
 					onClose={() => (chatVisible = false)}
 					onStateChange={(s) => (boardState = s)}
+					onTogglePlacement={togglePlacement}
 				/>
 			{/if}
 		</main>
 
-		{#if chatVisible && chat_placement === 'floating'}
-			<div class="floating-chat">
-				<ChatPanel
-					boardState={boardState}
-					selectedCardId={openCardId}
-					placement="floating"
-					chatInput={chatInput}
-					onChatInputChange={(v) => (chatInput = v)}
-					onClose={() => (chatVisible = false)}
-					onStateChange={(s) => (boardState = s)}
-				/>
-			</div>
+		{#if chat_placement === 'floating'}
+			{#if chatVisible}
+				<div class="floating-chat">
+					<ChatPanel
+						boardState={boardState}
+						selectedCardId={openCardId}
+						placement="floating"
+						chatInput={chatInput}
+						onChatInputChange={(v) => (chatInput = v)}
+						onClose={() => (chatVisible = false)}
+						onStateChange={(s) => (boardState = s)}
+						onTogglePlacement={togglePlacement}
+					/>
+				</div>
+			{:else}
+				<button
+					class="chat-fab"
+					onclick={() => (chatVisible = true)}
+					aria-label="Open assistant"
+					title="Open assistant"
+				>
+					<Sparkles size={22} />
+				</button>
+			{/if}
 		{/if}
 
 		{#if chatVisible && chat_placement === 'overlay'}
@@ -418,6 +456,34 @@
 
 	.retry-btn:hover {
 		opacity: 0.88;
+	}
+
+	.chat-fab {
+		position: fixed;
+		bottom: 24px;
+		right: 24px;
+		z-index: 30;
+		width: 52px;
+		height: 52px;
+		border-radius: 999px;
+		background: var(--ink-0);
+		color: var(--paper-0);
+		border: none;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		box-shadow: var(--shadow-lg);
+		transition: background var(--dur-fast), transform var(--dur-fast);
+	}
+
+	.chat-fab:hover {
+		background: var(--accent);
+		transform: scale(1.06);
+	}
+
+	.chat-fab :global(svg) {
+		flex-shrink: 0;
 	}
 
 	.floating-chat {
