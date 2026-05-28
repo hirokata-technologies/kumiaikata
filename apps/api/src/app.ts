@@ -17,6 +17,7 @@ import cardChecklistsRouter from "./routes/card-checklists.js";
 import cardAssigneesRouter from "./routes/card-assignees.js";
 import cardAttachmentsRouter from "./routes/card-attachments.js";
 import attachmentsRouter from "./routes/attachments.js";
+import usersRouter from "./routes/users.js";
 import sseRouter from "./routes/sse.js";
 
 export const app = new Hono();
@@ -74,6 +75,7 @@ app.route(
 	cardAttachmentsRouter,
 );
 app.route("/api/attachments", attachmentsRouter);
+app.route("/api/users", usersRouter);
 app.route("/api/boards/:boardId", cardsRouter);
 // SSE router mounted last — /:boardId/events does not conflict with other subpaths
 app.route("/api/boards", sseRouter);
