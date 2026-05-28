@@ -19,6 +19,7 @@ const schema = z.object({
 	BETTER_AUTH_URL: z.string().url(),
 	GOOGLE_CLIENT_ID: z.string().min(1),
 	GOOGLE_CLIENT_SECRET: z.string().min(1),
+	RESEND_API_KEY: z.string().min(1),
 	ALLOWED_DOMAINS: commaSeparated,
 	ALLOWED_ORIGINS: commaSeparated,
 	ATTACHMENTS_DIR: z.string().default("/data/attachments"),
@@ -44,3 +45,7 @@ function parseEnv(): z.infer<typeof schema> {
 }
 
 export const env = parseEnv();
+
+if (env.ALLOWED_DOMAINS.length === 0) {
+	console.warn('[config] WARNING: ALLOWED_DOMAINS is empty — all sign-ins will be rejected.');
+}

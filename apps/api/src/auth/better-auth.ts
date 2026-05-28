@@ -4,6 +4,7 @@ import { db } from "../db/client.js";
 import { env } from "../env.js";
 import { assertAllowedDomain } from "./domain-allowlist.js";
 import { provisionUser } from "./provisioning.js";
+import { sendEmail } from "../services/email.js";
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
@@ -29,6 +30,42 @@ export const auth = betterAuth({
 			clientId: env.GOOGLE_CLIENT_ID,
 			clientSecret: env.GOOGLE_CLIENT_SECRET,
 		},
+	},
+	emailAndPassword: {
+		enabled: true,
+		requireEmailVerification: true,
+		autoSignIn: false,
+		minPasswordLength: 8,
+		maxPasswordLength: 128,
+		sendResetPassword: async ({ user, url }) => {
+			try {
+				await sendEmail({
+					to: user.email,
+					subject: "Reset your Kata password",
+					html: `<p>Click <a href="${url}">here</a> to reset your password.</p><p>This link expires in 1 hour.</p><p>If you did not request this, you can safely ignore this email.</p>`,
+				});
+			} catch (err) {
+				console.error("[better-auth] sendResetPassword: failed to send email:", err instanceof Error ? err.message : String(err));
+				throw new Error("We couldn't send the email, please try again.");
+			}
+		},
+		revokeSessionsOnPasswordReset: true,
+	},
+	emailVerification: {
+		sendVerificationEmail: async ({ user, url }) => {
+			try {
+				await sendEmail({
+					to: user.email,
+					subject: "Verify your Kata email address",
+					html: `<p>Click <a href="${url}">here</a> to verify your email address.</p><p>If you did not create an account, you can safely ignore this email.</p>`,
+				});
+			} catch (err) {
+				console.error("[better-auth] sendVerificationEmail: failed to send email:", err instanceof Error ? err.message : String(err));
+				throw new Error("We couldn't send the email, please try again.");
+			}
+		},
+		sendOnSignUp: true,
+		autoSignInAfterVerification: false,
 	},
 	user: {
 		additionalFields: {
