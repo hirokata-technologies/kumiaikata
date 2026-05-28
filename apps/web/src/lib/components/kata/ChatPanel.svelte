@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { Eraser, X, ArrowUp, Check, PlusCircle, MoveRight, FileText, Sparkles } from 'lucide-svelte';
+	import { Eraser, X, ArrowUp, Check, PlusCircle, MoveRight, FileText, Sparkles, Maximize2, Minimize2 } from 'lucide-svelte';
 	import type { BoardState, ChatMessage, MessagePart, KataCard } from '$lib/types.js';
 	import { scriptAI } from '$lib/ai.js';
 	import { deepCloneColumns, QUICK_REPLIES, SLASH_COMMANDS, newCardId } from '$lib/data.js';
@@ -15,7 +15,8 @@
 		chatInput,
 		onChatInputChange,
 		onClose,
-		onStateChange
+		onStateChange,
+		onTogglePlacement
 	}: {
 		boardState: BoardState;
 		selectedCardId: string | null;
@@ -24,6 +25,7 @@
 		onChatInputChange?: (v: string) => void;
 		onClose: () => void;
 		onStateChange: (s: BoardState) => void;
+		onTogglePlacement?: () => void;
 	} = $props();
 
 	const GREETING: ChatMessage = {
@@ -281,6 +283,19 @@
 			<button class="chat-iconbtn" onclick={clearChat} title="Clear chat">
 				<Eraser size={16} />
 			</button>
+			{#if onTogglePlacement}
+				<button
+					class="chat-iconbtn"
+					onclick={onTogglePlacement}
+					title={placement === 'side' ? 'Float chat' : 'Dock to sidebar'}
+				>
+					{#if placement === 'side'}
+						<Minimize2 size={16} />
+					{:else}
+						<Maximize2 size={16} />
+					{/if}
+				</button>
+			{/if}
 			{#if placement !== 'side'}
 				<button class="chat-iconbtn" onclick={onClose} title="Close">
 					<X size={16} />
