@@ -1,0 +1,33 @@
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+	test: {
+		environment: "node",
+		// Serial execution — tests share a single Postgres connection pool
+		fileParallelism: false,
+		setupFiles: [
+			"./test/setup-env.ts",
+			"./test/setup-db.ts",
+		],
+		coverage: {
+			provider: "v8",
+			include: ["src/**/*.ts"],
+			exclude: [
+				"src/index.ts",
+				"src/env.ts",
+				"src/auth/better-auth.ts",
+				"src/db/schema/**",
+				"src/db/client.ts",
+				"src/storage/disk.ts",
+				"src/storage/s3.ts",
+				"**/*.test.ts",
+			],
+			thresholds: {
+				lines: 70,
+				branches: 70,
+				functions: 70,
+				statements: 70,
+			},
+		},
+	},
+});
