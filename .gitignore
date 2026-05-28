@@ -1,6 +1,9 @@
 node_modules
 .guild
 
+# Claude Code — per-user overrides (committed config is .claude/settings.json and .claude/launch.json)
+.claude/settings.local.json
+
 # SvelteKit / Vite output
 apps/web/.svelte-kit
 apps/web/build
