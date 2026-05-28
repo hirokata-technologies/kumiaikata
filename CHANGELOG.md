@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- REQ-002: Add Email and Password Login & Sign Up
+- REQ-003: Use Resend for Email Sending
+- REQ-001: Remove Apple Sign In
+- REQ-007: Increase Code Coverage to 70%
+- REQ-006: QA Kanban Board Implementation
+- REQ-005: QA Google SSO Login Implementation
+- REQ-004: Configure Claude Preview to Launch Local Docker Compose
+- REQ-003: Update Local Docker Compose
 - REQ-001: Migrate from MongoDB to PostgreSQL
 - REQ-002: Disable Bot Exploration in kata-web
 - REQ-003: Migrate apps/api from Mongoose to Native MongoDB Driver
