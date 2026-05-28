@@ -41,6 +41,9 @@ r.post(
 				throw new AppError("NOT_FOUND", "Card not found.");
 			}
 
+			if ((card.checklists ?? []).length >= 50) {
+				throw new AppError("CONFLICT", "Checklist limit reached.");
+			}
 			const next = [...(card.checklists ?? []), checklist];
 			const rows = await tx
 				.update(cards)
@@ -142,8 +145,12 @@ r.post(
 				throw new AppError("NOT_FOUND", "Card or checklist not found.");
 			}
 
+			if ((card.checklists![clIdx]!.items ?? []).length >= 200) {
+				throw new AppError("CONFLICT", "Checklist item limit reached.");
+			}
+			const targetItems = [...(card.checklists![clIdx]!.items ?? []), newItem];
 			const next: Checklist[] = card.checklists!.map((cl, i) =>
-				i === clIdx ? { ...cl, items: [...(cl.items ?? []), newItem] } : cl,
+				i === clIdx ? { ...cl, items: targetItems } : cl,
 			);
 			const rows = await tx
 				.update(cards)

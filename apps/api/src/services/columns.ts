@@ -1,4 +1,4 @@
-import { eq, and, desc, count } from "drizzle-orm";
+import { eq, and, asc, desc, count } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { columns, cards } from "../db/schema/index.js";
 import { newId } from "../db/ids.js";
@@ -133,7 +133,7 @@ export async function reorderColumns(
 	const currentColumns = await db.select()
 		.from(columns)
 		.where(eq(columns.boardId, boardId))
-		.orderBy(desc(columns.position));
+		.orderBy(asc(columns.position));
 
 	if (currentColumns.length !== desiredIds.length) {
 		throw new AppError(

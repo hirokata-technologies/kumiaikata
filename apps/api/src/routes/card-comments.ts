@@ -46,6 +46,9 @@ r.post(
 				throw new AppError("NOT_FOUND", "Card not found.");
 			}
 
+			if ((card.comments ?? []).length >= 500) {
+				throw new AppError("CONFLICT", "Comment limit reached.");
+			}
 			const next = [...(card.comments ?? []), comment];
 			const rows = await tx
 				.update(cards)
