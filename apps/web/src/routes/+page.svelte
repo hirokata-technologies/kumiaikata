@@ -1,22 +1,206 @@
 <script lang="ts">
-	import { deepCloneColumns, SEED_COLUMNS } from '$lib/data.js';
-	import type { BoardState } from '$lib/types.js';
+	import type { BoardState, GroupBy } from '$lib/types.js';
+	import { getPersonalBoard, listLabels, listProjects, subscribeBoard, ApiError, wasClientOp } from '$lib/api';
+	import {
+		toLocalColumns,
+		applyColumnCreated,
+		applyColumnUpdated,
+		applyColumnDeleted,
+		applyCardCreated,
+		applyCardUpdated,
+		applyCardMoved,
+		applyCardDeleted,
+		applyColumnsReordered,
+		applyCardsReordered,
+		applyCardLabelChange,
+		applyCardAssigneeChange,
+		applyLabelCreated,
+		applyLabelUpdated,
+		applyLabelDeleted,
+		applyProjectCreated,
+		applyProjectUpdated,
+		applyProjectDeleted,
+	} from '$lib/api/adapters.js';
 	import TopBar from '$lib/components/kata/TopBar.svelte';
+	import ViewBar from '$lib/components/kata/ViewBar.svelte';
 	import KanbanBoard from '$lib/components/kata/KanbanBoard.svelte';
 	import ChatPanel from '$lib/components/kata/ChatPanel.svelte';
 	import CardModal from '$lib/components/kata/CardModal.svelte';
 
-	let boardState: BoardState = $state({ columns: deepCloneColumns(SEED_COLUMNS) });
+	let boardState: BoardState = $state({ columns: [], labels: [], projects: [] });
+	let boardId: string | null = $state(null);
+	let loading = $state(true);
+	let loadError: string | null = $state(null);
+
 	let query = $state('');
 	let openCardId: string | null = $state(null);
 	let chatVisible = $state(true);
+	let chatInput = $state('');
 	let glowIds: Set<string> = $state(new Set());
 	let dark = $state(false);
 	let accent = $state('#2E3A6B');
+	let groupBy = $state<GroupBy>('status');
+	let activeProjectId = $state<string | null>(null);
+
+	/** Per-project card counts + unassigned count, used by ViewBar chips */
+	const projectCounts = $derived.by(() => {
+		const counts: Record<string, number> = { __none: 0 };
+		for (const col of boardState.columns) {
+			for (const card of col.cards) {
+				if (card.projectId) {
+					counts[card.projectId] = (counts[card.projectId] ?? 0) + 1;
+				} else {
+					counts['__none'] = (counts['__none'] ?? 0) + 1;
+				}
+			}
+		}
+		return counts;
+	});
+
+	const totalCount = $derived(boardState.columns.reduce((n, c) => n + c.cards.length, 0));
 	let mist = $state(true);
 	let density = $state('comfortable');
 	let chat_placement = $state('side');
 	let column_style = $state('tray');
+
+	async function loadBoard() {
+		loading = true;
+		loadError = null;
+		try {
+			const api = await getPersonalBoard();
+			boardId = api.id;
+			const [columns, labels, projects] = await Promise.all([
+				Promise.resolve(toLocalColumns(api)),
+				listLabels(api.id),
+				listProjects(api.id),
+			]);
+			boardState = {
+				columns,
+				labels: labels.map(l => ({ id: l.id, name: l.name, color: l.color })),
+				projects: projects.map(p => ({ id: p.id, name: p.name, color: p.color })),
+			};
+		} catch (err) {
+			const e = err instanceof ApiError ? err : null;
+			loadError = e?.message ?? (err instanceof Error ? err.message : 'Failed to load board');
+		} finally {
+			loading = false;
+		}
+	}
+
+	let mounted = $state(false);
+	$effect(() => {
+		if (mounted) return;
+		mounted = true;
+		loadBoard();
+	});
+
+	$effect(() => {
+		if (!boardId) return;
+		const unsubscribe = subscribeBoard(boardId, (ev) => {
+			const { type, data } = ev;
+			const cols = boardState.columns;
+			let next = cols;
+			let next_projects = boardState.projects;
+			switch (type) {
+				case 'column.created':
+					next = applyColumnCreated(cols, data as { id: string; title: string; position: string });
+					break;
+				case 'column.updated':
+					next = applyColumnUpdated(cols, data as { id: string; title: string });
+					break;
+				case 'column.deleted':
+					next = applyColumnDeleted(cols, data as { id: string });
+					break;
+				case 'columns.reordered':
+					next = applyColumnsReordered(cols, data as { orderedIds: string[] });
+					break;
+				case 'card.created': {
+					const d = data as { id: string; columnId: string; title: string };
+					if (wasClientOp(`create:${d.id}`)) return;
+					next = applyCardCreated(cols, d);
+					break;
+				}
+				case 'card.updated': {
+					const d = data as { id: string; title?: string; dueDate?: string | null; projectId?: string | null };
+					if (wasClientOp(`update:${d.id}`)) return;
+					next = applyCardUpdated(cols, d);
+					break;
+				}
+				case 'card.moved': {
+					const d = data as { id: string; columnId: string; position: string };
+					if (wasClientOp(`move:${d.id}`)) return;
+					next = applyCardMoved(cols, d);
+					break;
+				}
+				case 'card.deleted': {
+					const d = data as { id: string };
+					if (wasClientOp(`delete:${d.id}`)) return;
+					next = applyCardDeleted(cols, d);
+					break;
+				}
+				case 'cards.reordered':
+					next = applyCardsReordered(
+						cols,
+						data as { columnId: string; orderedIds: string[] },
+					);
+					break;
+				case 'card.label.added':
+					next = applyCardLabelChange(
+						cols,
+						{ ...(data as { cardId: string; labelId: string }), op: 'add' },
+					);
+					break;
+				case 'card.label.removed':
+					next = applyCardLabelChange(
+						cols,
+						{ ...(data as { cardId: string; labelId: string }), op: 'remove' },
+					);
+					break;
+				case 'card.assignee.added':
+					next = applyCardAssigneeChange(
+						cols,
+						{ ...(data as { cardId: string; userId: string }), op: 'add' },
+					);
+					break;
+				case 'card.assignee.removed':
+					next = applyCardAssigneeChange(
+						cols,
+						{ ...(data as { cardId: string; userId: string }), op: 'remove' },
+					);
+					break;
+				case 'label.created':
+					boardState = { ...boardState, labels: applyLabelCreated(boardState.labels, data as { id: string; name: string; color: string }) };
+					return;
+				case 'label.updated':
+					boardState = { ...boardState, labels: applyLabelUpdated(boardState.labels, data as { id: string; name?: string; color?: string }) };
+					return;
+				case 'label.deleted':
+					boardState = { ...boardState, labels: applyLabelDeleted(boardState.labels, data as { id: string }) };
+					return;
+				case 'project.created':
+					next_projects = applyProjectCreated(boardState.projects, data as { id: string; name: string; color: string });
+					break;
+				case 'project.updated':
+					next_projects = applyProjectUpdated(boardState.projects, data as { id: string; name?: string; color?: string });
+					break;
+				case 'project.deleted':
+					next_projects = applyProjectDeleted(boardState.projects, data as { id: string });
+					break;
+				default:
+					return;
+			}
+			const colsChanged = next !== cols;
+			const projectsChanged = next_projects !== boardState.projects;
+			if (colsChanged || projectsChanged) {
+				boardState = {
+					...boardState,
+					...(colsChanged && { columns: next }),
+					...(projectsChanged && { projects: next_projects }),
+				};
+			}
+		});
+		return unsubscribe;
+	});
 
 	// Apply dark theme to document
 	$effect(() => {
@@ -44,9 +228,8 @@
 
 	function handleAsk(prefix: string) {
 		openCardId = null;
+		chatInput = prefix;
 		chatVisible = true;
-		// We can't directly focus the textarea in ChatPanel from here
-		// The ChatPanel will handle focus internally
 	}
 </script>
 
@@ -65,71 +248,111 @@
 		onOpenChat={() => (chatVisible = true)}
 	/>
 
-	<main class="main">
-		<KanbanBoard
-			state={boardState}
-			{density}
-			{query}
-			columnStyle={column_style}
-			showMist={mist}
-			glowCardIds={glowIds}
-			onCardOpen={(id) => (openCardId = id)}
-			onStateChange={(s) => (boardState = s)}
+	{#if !loading && !loadError}
+		<ViewBar
+			{groupBy}
+			{activeProjectId}
+			boardProjects={boardState.projects}
+			{projectCounts}
+			{totalCount}
+			ongroupby={(g) => { groupBy = g; activeProjectId = null; }}
+			onprojectfilter={(pid) => (activeProjectId = pid)}
 		/>
-
-		{#if chatVisible && chat_placement === 'side'}
-			<ChatPanel
-				boardState={boardState}
-				selectedCardId={openCardId}
-				placement="side"
-				onClose={() => (chatVisible = false)}
-				onStateChange={(s) => (boardState = s)}
-			/>
-		{/if}
-	</main>
-
-	{#if chatVisible && chat_placement === 'floating'}
-		<div class="floating-chat">
-			<ChatPanel
-				boardState={boardState}
-				selectedCardId={openCardId}
-				placement="floating"
-				onClose={() => (chatVisible = false)}
-				onStateChange={(s) => (boardState = s)}
-			/>
-		</div>
 	{/if}
 
-	{#if chatVisible && chat_placement === 'overlay'}
-		<div
-			class="overlay-chat-scrim"
-			onclick={() => (chatVisible = false)}
-			onkeydown={(e) => { if (e.key === 'Escape') chatVisible = false; }}
-			role="dialog"
-			aria-modal="true"
-			aria-label="Assistant chat"
-			tabindex="-1"
-		>
-			<div class="overlay-chat" onclick={(e) => e.stopPropagation()} role="presentation">
+	{#if loading}
+		<main class="main main-loading">
+			<p class="loading-message">Loading board…</p>
+		</main>
+	{:else if loadError}
+		<main class="main main-error">
+			<div class="error-banner">
+				<p class="error-message">{loadError}</p>
+				<button class="retry-btn" onclick={loadBoard}>Retry</button>
+			</div>
+		</main>
+	{:else}
+		<main class="main">
+			<KanbanBoard
+				boardId={boardId ?? ''}
+				state={boardState}
+				{density}
+				{query}
+				columnStyle={column_style}
+				showMist={mist}
+				glowCardIds={glowIds}
+				boardLabels={boardState.labels}
+				boardProjects={boardState.projects}
+				{groupBy}
+				{activeProjectId}
+				onCardOpen={(id) => (openCardId = id)}
+				onStateChange={(s) => (boardState = s)}
+				onclearfilter={() => (activeProjectId = null)}
+			/>
+
+			{#if chatVisible && chat_placement === 'side'}
 				<ChatPanel
 					boardState={boardState}
 					selectedCardId={openCardId}
-					placement="overlay"
+					placement="side"
+					chatInput={chatInput}
+					onChatInputChange={(v) => (chatInput = v)}
+					onClose={() => (chatVisible = false)}
+					onStateChange={(s) => (boardState = s)}
+				/>
+			{/if}
+		</main>
+
+		{#if chatVisible && chat_placement === 'floating'}
+			<div class="floating-chat">
+				<ChatPanel
+					boardState={boardState}
+					selectedCardId={openCardId}
+					placement="floating"
+					chatInput={chatInput}
+					onChatInputChange={(v) => (chatInput = v)}
 					onClose={() => (chatVisible = false)}
 					onStateChange={(s) => (boardState = s)}
 				/>
 			</div>
-		</div>
-	{/if}
+		{/if}
 
-	{#if openCardId}
-		<CardModal
-			cardId={openCardId}
-			state={boardState}
-			onClose={() => (openCardId = null)}
-			onAsk={handleAsk}
-			onStateChange={(s) => (boardState = s)}
-		/>
+		{#if chatVisible && chat_placement === 'overlay'}
+			<div
+				class="overlay-chat-scrim"
+				onclick={() => (chatVisible = false)}
+				onkeydown={(e) => {
+					if (e.key === 'Escape') chatVisible = false;
+				}}
+				role="dialog"
+				aria-modal="true"
+				aria-label="Assistant chat"
+				tabindex="-1"
+			>
+				<div class="overlay-chat" onclick={(e) => e.stopPropagation()} role="presentation">
+					<ChatPanel
+						boardState={boardState}
+						selectedCardId={openCardId}
+						placement="overlay"
+						chatInput={chatInput}
+						onChatInputChange={(v) => (chatInput = v)}
+						onClose={() => (chatVisible = false)}
+						onStateChange={(s) => (boardState = s)}
+					/>
+				</div>
+			</div>
+		{/if}
+
+		{#if openCardId}
+			<CardModal
+				boardId={boardId ?? ''}
+				cardId={openCardId}
+				state={boardState}
+				onClose={() => (openCardId = null)}
+				onAsk={handleAsk}
+				onStateChange={(s) => (boardState = s)}
+			/>
+		{/if}
 	{/if}
 </div>
 
@@ -147,6 +370,54 @@
 		display: flex;
 		min-height: 0;
 		min-width: 0;
+	}
+
+	.main-loading {
+		align-items: center;
+		justify-content: center;
+	}
+
+	.loading-message {
+		color: var(--fg-1);
+		font-size: 0.9rem;
+		opacity: 0.65;
+	}
+
+	.main-error {
+		align-items: center;
+		justify-content: center;
+	}
+
+	.error-banner {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 12px;
+		padding: 24px 32px;
+		background: var(--paper-1);
+		border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+		border-radius: 12px;
+	}
+
+	.error-message {
+		color: var(--fg-1);
+		font-size: 0.875rem;
+		text-align: center;
+		margin: 0;
+	}
+
+	.retry-btn {
+		padding: 6px 18px;
+		background: var(--accent);
+		color: #fff;
+		border: none;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		cursor: pointer;
+	}
+
+	.retry-btn:hover {
+		opacity: 0.88;
 	}
 
 	.floating-chat {
@@ -194,8 +465,14 @@
 	}
 
 	@keyframes overlay-in {
-		from { transform: translateY(8px); opacity: 0; }
-		to { transform: none; opacity: 1; }
+		from {
+			transform: translateY(8px);
+			opacity: 0;
+		}
+		to {
+			transform: none;
+			opacity: 1;
+		}
 	}
 
 	.overlay-chat :global(.chat) {

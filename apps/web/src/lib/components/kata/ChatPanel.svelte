@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { Eraser, X, ArrowUp, Check, PlusCircle, MoveRight, FileText, Sparkles } from 'lucide-svelte';
 	import type { BoardState, ChatMessage, MessagePart, KataCard } from '$lib/types.js';
 	import { scriptAI } from '$lib/ai.js';
@@ -11,12 +12,16 @@
 		boardState,
 		selectedCardId,
 		placement,
+		chatInput,
+		onChatInputChange,
 		onClose,
 		onStateChange
 	}: {
 		boardState: BoardState;
 		selectedCardId: string | null;
 		placement: string;
+		chatInput?: string;
+		onChatInputChange?: (v: string) => void;
 		onClose: () => void;
 		onStateChange: (s: BoardState) => void;
 	} = $props();
@@ -28,10 +33,28 @@
 	};
 
 	let messages: ChatMessage[] = $state([GREETING]);
-	let input = $state('');
+	let internalInput = $state('');
 	let busy = $state(false);
 	let scrollRef: HTMLElement | null = $state(null);
 	let inputRef: HTMLTextAreaElement | null = $state(null);
+
+	// When both chatInput and onChatInputChange are provided the textarea is controlled externally.
+	const controlled = $derived(chatInput !== undefined && onChatInputChange !== undefined);
+	// The effective input value — either the external prop or the internal state.
+	const input = $derived(controlled ? chatInput! : internalInput);
+
+	// Focus the textarea and move the caret to the end whenever a non-empty prefix arrives.
+	$effect(() => {
+		if (controlled && chatInput) {
+			const prefix = chatInput;
+			tick().then(() => {
+				if (inputRef) {
+					inputRef.focus();
+					inputRef.setSelectionRange(prefix.length, prefix.length);
+				}
+			});
+		}
+	});
 
 	// Derived: show slash menu when input starts with '/' and no space yet
 	const showSlashMenu = $derived(input.startsWith('/') && !input.includes(' ') && input.length > 0);
@@ -76,6 +99,11 @@
 		}
 	}
 
+	function setInput(v: string) {
+		if (controlled) onChatInputChange!(v);
+		else internalInput = v;
+	}
+
 	async function send(text: string) {
 		const t = text.trim();
 		if (!t || busy) return;
@@ -86,7 +114,7 @@
 			text: t
 		};
 		messages = [...messages, userMsg];
-		input = '';
+		setInput('');
 		busy = true;
 		scrollToBottom();
 
@@ -129,7 +157,7 @@
 			const col = cols.find(c => c.id === proposal.columnId);
 			if (col) {
 				col.cards.unshift({ ...proposal.card });
-				onStateChange({ columns: cols });
+				onStateChange({ ...boardState, columns: cols });
 				window.dispatchEvent(new CustomEvent('hk-glow', { detail: { ids: [proposal.card.id] } }));
 			}
 		} else if (proposal.type === 'move' && proposal.cardId && proposal.toColumnId) {
@@ -145,7 +173,7 @@
 				const toCol = cols.find(c => c.id === proposal.toColumnId);
 				if (toCol) {
 					toCol.cards.unshift(movedCard);
-					onStateChange({ columns: cols });
+					onStateChange({ ...boardState, columns: cols });
 					window.dispatchEvent(new CustomEvent('hk-glow', { detail: { ids: [movedCard.id] } }));
 				}
 			}
@@ -154,7 +182,7 @@
 				const card = col.cards.find(c => c.id === proposal.cardId);
 				if (card) {
 					card.desc = proposal.text;
-					onStateChange({ columns: cols });
+					onStateChange({ ...boardState, columns: cols });
 					window.dispatchEvent(new CustomEvent('hk-glow', { detail: { ids: [card.id] } }));
 					break;
 				}
@@ -188,7 +216,7 @@
 	}
 
 	function applyQuickReply(value: string) {
-		input = value;
+		setInput(value);
 		setTimeout(() => {
 			if (input.startsWith('/') && !input.endsWith(' ')) {
 				send(input);
@@ -199,12 +227,12 @@
 	}
 
 	function applySlashCmd(cmd: string) {
-		input = cmd + ' ';
+		setInput(cmd + ' ');
 		inputRef?.focus();
 	}
 
 	function applyMention(cardTitle: string) {
-		input = input.replace(/@[\w-]*$/, `@${cardTitle.split(' ').slice(0, 3).join('-').toLowerCase()} `);
+		setInput(input.replace(/@[\w-]*$/, `@${cardTitle.split(' ').slice(0, 3).join('-').toLowerCase()} `));
 		inputRef?.focus();
 	}
 
@@ -306,7 +334,10 @@
 														<DueBadge iso={proposal.card.due} />
 													{/if}
 													{#each proposal.card.labels as lid (lid)}
-														<LabelChip id={lid} />
+														{@const label = boardState.labels.find(l => l.id === lid)}
+														{#if label}
+															<LabelChip {label} />
+														{/if}
 													{/each}
 													{#if proposal.card.assignee}
 														<AvatarChip id={proposal.card.assignee} size={18} />
@@ -405,11 +436,12 @@
 			{/if}
 
 			<textarea
-				bind:value={input}
 				bind:this={inputRef}
+				value={input}
 				placeholder="Ask anything about the board…"
 				rows={1}
 				disabled={busy}
+				oninput={(e) => setInput((e.currentTarget as HTMLTextAreaElement).value)}
 				onkeydown={handleKeydown}
 				aria-label="Chat message"
 			></textarea>

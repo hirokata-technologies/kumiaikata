@@ -1,5 +1,17 @@
-export type LabelId = 'home' | 'health' | 'errand' | 'finance' | 'work' | 'learning' | 'social' | 'creative';
+export type LabelId = string;
 export type AvatarId = 'me' | 'm' | 'd' | 'r';
+
+export interface KataLabel {
+	id: string;
+	name: string;
+	color: string;
+}
+
+export interface KataProject {
+	id: string;
+	name: string;
+	color: string;
+}
 
 export interface LabelDef {
 	name: string;
@@ -17,9 +29,10 @@ export interface KataCard {
 	id: string;
 	title: string;
 	desc: string;
-	labels: LabelId[];
+	labels: string[];
 	assignee: AvatarId;
 	due?: string;
+	projectId?: string | null;
 }
 
 export interface KataColumn {
@@ -30,6 +43,21 @@ export interface KataColumn {
 
 export interface BoardState {
 	columns: KataColumn[];
+	labels: KataLabel[];
+	projects: KataProject[];
+}
+
+export type GroupBy = 'status' | 'project';
+
+/** A column as displayed on the board — extends KataColumn with project-view extras. */
+export interface DisplayColumn extends KataColumn {
+	/** Set in project-group mode; '__none' = unassigned cards */
+	projectId?: string | null;
+	isOrphan?: boolean;
+	project?: KataProject | null;
+	/** Cards currently not in the "done" column */
+	activeCount?: number;
+	doneCount?: number;
 }
 
 export type ProposalType = 'create' | 'move' | 'description';
