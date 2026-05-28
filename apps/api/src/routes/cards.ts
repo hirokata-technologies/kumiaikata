@@ -93,6 +93,7 @@ r.patch(
 			title: z.string().min(1).max(500).optional(),
 			description: z.string().max(50000).nullable().optional(),
 			dueDate: z.string().datetime().nullable().optional(),
+			projectId: z.string().nullable().optional(),
 		}),
 	),
 	async (c) => {

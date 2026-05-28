@@ -53,4 +53,9 @@ export type BoardEvent =
 			type: "label.created" | "label.updated" | "label.deleted";
 			boardId: string;
 			payload: unknown;
+	  }
+	| {
+			type: "project.created" | "project.updated" | "project.deleted";
+			boardId: string;
+			payload: unknown;
 	  };
