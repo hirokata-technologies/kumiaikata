@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { Sparkles } from 'lucide-svelte';
+	import { untrack } from 'svelte';
 	import type { BoardState, GroupBy } from '$lib/types.js';
 	import type { Workspace } from '$lib/components/kata/WorkspaceSwitcher.svelte';
-	import { getPersonalBoard, listLabels, listProjects, subscribeBoard, ApiError, wasClientOp } from '$lib/api';
+	import { getPersonalBoard, getTeamBoard, getMyTeam, listLabels, listProjects, subscribeBoard, ApiError, wasClientOp } from '$lib/api';
+	import type { TeamInfo } from '$lib/api';
 	import {
 		toLocalColumns,
 		applyColumnCreated,
@@ -28,21 +30,25 @@
 	import KanbanBoard from '$lib/components/kata/KanbanBoard.svelte';
 	import ChatPanel from '$lib/components/kata/ChatPanel.svelte';
 	import CardModal from '$lib/components/kata/CardModal.svelte';
+	import { settings, setDensity, setChatPlacement, toggleTheme } from '$lib/settings.svelte.js';
 
 	let { data } = $props();
+
+	type CurrentUser = { name?: string | null; email: string; image?: string | null } | null;
+	let currentUser = $state<CurrentUser>(untrack(() => data?.user ? { name: data.user.name, email: data.user.email, image: data.user.image } : null));
 
 	let boardState: BoardState = $state({ columns: [], labels: [], projects: [] });
 	let boardId: string | null = $state(null);
 	let loading = $state(true);
 	let loadError: string | null = $state(null);
+	let teamInfo = $state<TeamInfo | null>(null);
+	let loadSeq = 0; // plain counter; does NOT need to be reactive
 
 	let query = $state('');
 	let openCardId: string | null = $state(null);
 	let chatVisible = $state(true);
 	let chatInput = $state('');
 	let glowIds: Set<string> = $state(new Set());
-	let dark = $state(false);
-	let accent = $state('#2E3A6B');
 	let groupBy = $state<GroupBy>('status');
 	let activeProjectId = $state<string | null>(null);
 
@@ -62,47 +68,76 @@
 	});
 
 	const totalCount = $derived(boardState.columns.reduce((n, c) => n + c.cards.length, 0));
-	let mist = $state(true);
-	let density = $state('comfortable');
-	let chat_placement = $state('floating');
-	let column_style = $state('tray');
 
-	const workspaces: Workspace[] = [
+	let workspaceId = $state<'personal' | 'team'>('personal');
+
+	const workspaces: Workspace[] = $derived([
 		{ id: 'personal', name: 'Personal', hint: 'Just for you', icon: 'user' },
-		{ id: 'studio', name: 'HiroKata Studio', hint: 'Shared with the team · 4 members', icon: 'users' }
-	];
-	let workspaceId = $state('personal');
+		{
+			id: 'team',
+			name: teamInfo?.name ?? 'Team',
+			hint: teamInfo?.domain ?? '',
+			icon: 'users',
+		},
+	]);
+
 	const workspace = $derived(workspaces.find((w) => w.id === workspaceId) ?? workspaces[0]);
 
-	async function loadBoard() {
+	async function loadBoard(kind: 'personal' | 'team' = workspaceId) {
+		const seq = ++loadSeq;
 		loading = true;
 		loadError = null;
 		try {
-			const api = await getPersonalBoard();
-			boardId = api.id;
+			const api = kind === 'team' ? await getTeamBoard() : await getPersonalBoard();
+			if (seq !== loadSeq) return; // superseded — abandon
 			const [columns, labels, projects] = await Promise.all([
 				Promise.resolve(toLocalColumns(api)),
 				listLabels(api.id),
 				listProjects(api.id),
 			]);
+			if (seq !== loadSeq) return; // superseded after the second await
+			boardId = api.id;
 			boardState = {
 				columns,
-				labels: labels.map(l => ({ id: l.id, name: l.name, color: l.color })),
-				projects: projects.map(p => ({ id: p.id, name: p.name, color: p.color })),
+				labels: labels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
+				projects: projects.map((p) => ({ id: p.id, name: p.name, color: p.color })),
 			};
 		} catch (err) {
+			if (seq !== loadSeq) return; // superseded — don't show a stale error
 			const e = err instanceof ApiError ? err : null;
-			loadError = e?.message ?? (err instanceof Error ? err.message : 'Failed to load board');
+			if (kind === 'team' && e?.status === 404) {
+				loadError = 'Team board not found';
+			} else {
+				loadError = e?.message ?? (err instanceof Error ? err.message : 'Failed to load board');
+			}
 		} finally {
-			loading = false;
+			if (seq === loadSeq) loading = false;
 		}
 	}
+
+	function handleSelectWorkspace(id: string) {
+		if (id !== 'personal' && id !== 'team') return;
+		if (id === workspaceId) return; // no-op on active entry
+		openCardId = null; // close any open card modal
+		activeProjectId = null; // old board's project filter is meaningless on new board
+		workspaceId = id;
+		loadBoard(id);
+	}
+
+	const pageTitle = $derived(
+		workspaceId === 'team'
+			? `Kata — ${teamInfo?.name ?? 'Team'}`
+			: 'Kata — Personal board',
+	);
 
 	let mounted = $state(false);
 	$effect(() => {
 		if (mounted) return;
 		mounted = true;
-		loadBoard();
+		loadBoard('personal');
+		getMyTeam()
+			.then((info) => { teamInfo = info; })
+			.catch(() => { teamInfo = null; }); // fall back to "Team" label, stay usable
 	});
 
 	$effect(() => {
@@ -213,9 +248,9 @@
 		return unsubscribe;
 	});
 
-	// Apply dark theme to document; enable cross-theme transitions after first paint
+	// Apply theme to document; enable cross-theme transitions after first paint
 	$effect(() => {
-		document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+		document.documentElement.dataset.theme = settings.theme;
 		requestAnimationFrame(() => {
 			document.documentElement.classList.add('theme-ready');
 		});
@@ -223,7 +258,7 @@
 
 	// Apply accent color
 	$effect(() => {
-		document.documentElement.style.setProperty('--accent', accent);
+		document.documentElement.style.setProperty('--accent', settings.accent);
 	});
 
 	// Listen for glow events from chat panel
@@ -247,30 +282,31 @@
 	}
 
 	function togglePlacement() {
-		chat_placement = chat_placement === 'side' ? 'floating' : 'side';
+		setChatPlacement(settings.chatPlacement === 'side' ? 'floating' : 'side');
 	}
 </script>
 
 <svelte:head>
-	<title>Kata — Personal board</title>
-	<meta name="description" content="Kata personal Kanban board" />
+	<title>{pageTitle}</title>
+	<meta name="description" content="Kata Kanban board" />
 </svelte:head>
 
 <div class="shell" class:has-chat={chatVisible}>
 	<TopBar
 		{query}
 		onquery={(q) => (query = q)}
-		{density}
-		ondensity={(d) => (density = d)}
+		density={settings.density}
+		ondensity={(d) => setDensity(d as import('$lib/settings.svelte.js').Density)}
 		{chatVisible}
 		onOpenChat={() => (chatVisible = true)}
-		chatPlacement={chat_placement}
-		isDark={dark}
-		ontoggle={() => (dark = !dark)}
+		chatPlacement={settings.chatPlacement}
+		isDark={settings.theme === 'dark'}
+		ontoggle={toggleTheme}
 		{workspace}
 		{workspaces}
-		onselectworkspace={(id) => (workspaceId = id)}
-		user={data?.user}
+		onselectworkspace={handleSelectWorkspace}
+		user={currentUser}
+		onUserUpdate={(patch) => { currentUser = currentUser ? { ...currentUser, ...patch } : currentUser; }}
 	/>
 
 	{#if !loading && !loadError}
@@ -293,7 +329,7 @@
 		<main class="main main-error">
 			<div class="error-banner">
 				<p class="error-message">{loadError}</p>
-				<button class="retry-btn" onclick={loadBoard}>Retry</button>
+				<button class="retry-btn" onclick={() => loadBoard()}>Retry</button>
 			</div>
 		</main>
 	{:else}
@@ -301,10 +337,10 @@
 			<KanbanBoard
 				boardId={boardId ?? ''}
 				state={boardState}
-				{density}
+				density={settings.density}
 				{query}
-				columnStyle={column_style}
-				showMist={mist}
+				columnStyle={settings.columnStyle}
+				showMist={settings.mist}
 				glowCardIds={glowIds}
 				boardLabels={boardState.labels}
 				boardProjects={boardState.projects}
@@ -315,7 +351,7 @@
 				onclearfilter={() => (activeProjectId = null)}
 			/>
 
-			{#if chatVisible && chat_placement === 'side'}
+			{#if chatVisible && settings.chatPlacement === 'side'}
 				<ChatPanel
 					boardState={boardState}
 					selectedCardId={openCardId}
@@ -329,7 +365,7 @@
 			{/if}
 		</main>
 
-		{#if chat_placement === 'floating'}
+		{#if settings.chatPlacement === 'floating'}
 			{#if chatVisible}
 				<div class="floating-chat">
 					<ChatPanel
@@ -355,7 +391,7 @@
 			{/if}
 		{/if}
 
-		{#if chatVisible && chat_placement === 'overlay'}
+		{#if chatVisible && settings.chatPlacement === 'overlay'}
 			<div
 				class="overlay-chat-scrim"
 				onclick={() => (chatVisible = false)}

@@ -18,7 +18,8 @@
 		workspace,
 		workspaces,
 		onselectworkspace,
-		user
+		user,
+		onUserUpdate
 	}: {
 		query: string;
 		onquery: (q: string) => void;
@@ -32,7 +33,8 @@
 		workspace: Workspace;
 		workspaces: Workspace[];
 		onselectworkspace: (id: string) => void;
-		user?: { name?: string | null; email: string } | null;
+		user?: { name?: string | null; email: string; image?: string | null } | null;
+		onUserUpdate?: (patch: { name?: string | null; image?: string | null }) => void;
 	} = $props();
 
 	let searchRef: HTMLInputElement | null = $state(null);
@@ -110,7 +112,7 @@
 			<ThemeToggle {isDark} ontoggle={ontoggle} />
 		{/if}
 
-		<MeMenu {user} />
+		<MeMenu {user} {onUserUpdate} />
 	</div>
 </header>
 
