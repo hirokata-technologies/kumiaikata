@@ -1,6 +1,6 @@
 import { eq, and, count } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { teams, teamMembers } from "../db/schema/index.js";
+import { teams, teamMembers, users } from "../db/schema/index.js";
 import { AppError } from "../http/error.js";
 import type { Role } from "../db/types.js";
 
@@ -47,12 +47,18 @@ export async function getTeamForUser(userId: string): Promise<TeamForUser> {
 
 export async function listMembers(teamId: string): Promise<TeamMemberRow[]> {
 	const rows = await db
-		.select()
+		.select({
+			userId: teamMembers.userId,
+			email: users.email,
+			role: teamMembers.role,
+			joinedAt: teamMembers.joinedAt,
+		})
 		.from(teamMembers)
+		.leftJoin(users, eq(users.id, teamMembers.userId))
 		.where(eq(teamMembers.teamId, teamId));
 	return rows.map((r) => ({
 		userId: r.userId,
-		email: "",
+		email: r.email ?? "",
 		role: r.role as Role,
 		joinedAt: r.joinedAt,
 	}));

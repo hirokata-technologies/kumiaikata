@@ -1,4 +1,4 @@
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, asc, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { newId } from "../db/ids.js";
 import { cards, labels } from "../db/schema/index.js";
@@ -12,6 +12,22 @@ export interface LabelDetail {
 	boardId: string;
 	name: string;
 	color: string;
+}
+
+// ── listLabels ────────────────────────────────────────────────────────────────
+
+export async function listLabels(boardId: string): Promise<LabelDetail[]> {
+	const rows = await db
+		.select()
+		.from(labels)
+		.where(eq(labels.boardId, boardId))
+		.orderBy(asc(labels.name));
+	return rows.map((l) => ({
+		id: l.id,
+		boardId: l.boardId,
+		name: l.name,
+		color: l.color,
+	}));
 }
 
 // ── createLabel ───────────────────────────────────────────────────────────────

@@ -141,11 +141,15 @@ export async function deleteAttachment(
 	cardId: string,
 	attachmentId: string,
 ): Promise<void> {
-	// Find attachment scoped to boardId.
+	// Find attachment scoped to boardId and cardId.
 	const [att] = await db
 		.select()
 		.from(attachments)
-		.where(and(eq(attachments.id, attachmentId), eq(attachments.boardId, boardId)))
+		.where(and(
+			eq(attachments.id, attachmentId),
+			eq(attachments.boardId, boardId),
+			eq(attachments.cardId, cardId),
+		))
 		.limit(1);
 	if (!att) {
 		throw new AppError("NOT_FOUND", "Attachment not found.");

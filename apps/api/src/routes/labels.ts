@@ -4,7 +4,7 @@ import { requireSession, loadBoardAccess, requireBoardAdmin } from "../auth/midd
 import { zValidator, validateId } from "../http/validate.js";
 import { ok, created, noContent } from "../http/responders.js";
 import type { AppVariables } from "../http/types.js";
-import { createLabel, updateLabel, deleteLabel } from "../services/labels.js";
+import { listLabels, createLabel, updateLabel, deleteLabel } from "../services/labels.js";
 
 const hexColor = z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, {
 	message: "Color must be a valid CSS hex color (e.g. #fff or #e11d48).",
@@ -14,6 +14,12 @@ const nameField = z.string().min(1).max(50);
 const r = new Hono<{ Variables: AppVariables }>();
 
 r.use("*", requireSession, loadBoardAccess);
+
+// GET /api/boards/:boardId/labels
+r.get("/", async (c) => {
+	const board = c.get("board");
+	return ok(c, await listLabels(board.id));
+});
 
 // POST /api/boards/:boardId/labels
 r.post(

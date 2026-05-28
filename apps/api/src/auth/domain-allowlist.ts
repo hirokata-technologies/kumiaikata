@@ -10,10 +10,14 @@ export const isAllowedDomain = (email: string): boolean =>
 	allowed.has(domainOf(email));
 
 export function assertAllowedDomain(email: string): void {
+	const domain = domainOf(email);
+	if (!domain) {
+		throw new AppError('VALIDATION_ERROR', 'Invalid email format.');
+	}
 	if (!isAllowedDomain(email)) {
 		throw new AppError(
 			'DOMAIN_NOT_ALLOWED',
-			`Sign-in from domain "${domainOf(email)}" is not permitted.`,
+			`Sign-in from domain "${domain}" is not permitted.`,
 		);
 	}
 }

@@ -10,7 +10,8 @@ export interface BoardEventBus {
 	): () => void;
 }
 
-class InProcessEventBus implements BoardEventBus {
+// Exported for testing only — construct fresh instances in tests to avoid singleton state leakage.
+export class InProcessEventBus implements BoardEventBus {
 	private readonly emitter = new EventEmitter();
 
 	constructor() {

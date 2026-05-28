@@ -19,9 +19,7 @@ r.get(
 
 			const unsubscribe = eventBus.subscribe(boardId, (event) => {
 				try {
-					queue.push(JSON.stringify(event.payload));
-					// tag the message with the event type
-					queue.push(event.type);
+					queue.push(JSON.stringify({ type: event.type, data: event.payload }));
 					resolveNext?.();
 					resolveNext = null;
 				} catch (err) {
@@ -56,10 +54,14 @@ r.get(
 
 			try {
 				while (true) {
-					while (queue.length >= 2) {
-						const data = queue.shift()!;
-						const type = queue.shift()!;
-						await stream.writeSSE({ event: type, data });
+					while (queue.length > 0) {
+						const raw = queue.shift()!;
+						try {
+							const { type, data } = JSON.parse(raw) as { type: string; data: unknown };
+							await stream.writeSSE({ event: type, data: JSON.stringify(data) });
+						} catch (err) {
+							console.error("[SSE] Failed to dequeue event:", err);
+						}
 					}
 					await new Promise<void>((resolve) => {
 						resolveNext = resolve;

@@ -1,9 +1,30 @@
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
+import { generateNKeysBetween } from "fractional-indexing";
 import { db } from "../db/client.js";
 import { newId } from "../db/ids.js";
-import { boards, teams, teamMembers, users } from "../db/schema/index.js";
+import { boards, columns, teams, teamMembers, users } from "../db/schema/index.js";
 import { AppError } from "../http/error.js";
 import { domainOf } from "./domain-allowlist.js";
+
+const DEFAULT_COLUMNS = ["Backlog", "Priorities", "In Progress", "Done"] as const;
+
+async function seedDefaultColumns(
+	tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+	boardId: string,
+	now: Date,
+): Promise<void> {
+	const positions = generateNKeysBetween(null, null, DEFAULT_COLUMNS.length);
+	await tx.insert(columns).values(
+		DEFAULT_COLUMNS.map((title, i) => ({
+			id: newId(),
+			boardId,
+			title,
+			position: positions[i]!,
+			createdAt: now,
+			updatedAt: now,
+		})),
+	);
+}
 
 export async function provisionUser(user: {
 	id: string;
@@ -31,6 +52,7 @@ export async function provisionUser(user: {
 				createdAt: now,
 				updatedAt: now,
 			});
+			await seedDefaultColumns(tx, personalBoardId, now);
 
 			// 2. Denormalised pointer back on the user row.
 			await tx.update(users)
@@ -67,40 +89,47 @@ export async function provisionUser(user: {
 				.limit(1);
 
 			if (!existingTeamBoard) {
+				const teamBoardId = newId();
 				await tx.insert(boards).values({
-					id: newId(),
+					id: teamBoardId,
 					kind: "team",
 					title: `${domain} Board`,
 					teamId: team.id,
 					createdAt: now,
 					updatedAt: now,
 				});
+				await seedDefaultColumns(tx, teamBoardId, now);
 			}
 
-			// 5. Membership — first member is admin, subsequent are members.
-			//    Use ON CONFLICT DO NOTHING to handle concurrent first-sign-ins.
-			const [memberCount] = await tx
-				.select({ value: count() })
-				.from(teamMembers)
-				.where(eq(teamMembers.teamId, team.id));
-
-			const role: "admin" | "member" = (memberCount?.value ?? 0) === 0 ? "admin" : "member";
-
+			// 5. Membership — insert as member, then promote to admin if sole member.
+			//    Promotes after insert to avoid a pre-insert count race where two
+			//    concurrent first-sign-ins both see count=0 and both try to be admin.
 			await tx.insert(teamMembers).values({
 				id: newId(),
 				teamId: team.id,
 				userId: user.id,
-				role,
+				role: "member",
 				joinedAt: now,
 			}).onConflictDoNothing({
 				target: [teamMembers.teamId, teamMembers.userId],
 			});
+
+			const memberCount = await tx
+				.select({ count: sql<number>`count(*)` })
+				.from(teamMembers)
+				.where(eq(teamMembers.teamId, team.id));
+
+			if (Number(memberCount[0]?.count) === 1) {
+				await tx
+					.update(teamMembers)
+					.set({ role: "admin" })
+					.where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, user.id)));
+			}
 		});
 	} catch (err) {
 		console.error("[provisioning] failed to provision user", {
 			userId: user.id,
-			email: user.email,
-			error: err,
+			error: err instanceof Error ? err.message : String(err),
 		});
 		throw err;
 	}

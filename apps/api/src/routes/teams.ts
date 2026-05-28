@@ -2,12 +2,12 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { teams, teamMembers, users } from "../db/schema/index.js";
+import { teams, teamMembers } from "../db/schema/index.js";
 import { AppError } from "../http/error.js";
 import { ok } from "../http/responders.js";
 import { zValidator, validateId } from "../http/validate.js";
 import { requireSession } from "../auth/middleware.js";
-import { setMemberRole } from "../services/teams.js";
+import { listMembers, setMemberRole } from "../services/teams.js";
 import type { AppVariables } from "../http/types.js";
 
 const r = new Hono<{ Variables: AppVariables }>();
@@ -54,27 +54,7 @@ r.get("/:teamId/members", async (c) => {
 		throw new AppError("FORBIDDEN", "Not a member of this team.");
 	}
 
-	// JOIN teamMembers with users to get the email in a single round-trip.
-	const rows = await db
-		.select({
-			userId: teamMembers.userId,
-			email: users.email,
-			role: teamMembers.role,
-			joinedAt: teamMembers.joinedAt,
-		})
-		.from(teamMembers)
-		.leftJoin(users, eq(users.id, teamMembers.userId))
-		.where(eq(teamMembers.teamId, teamId));
-
-	return ok(
-		c,
-		rows.map((r) => ({
-			userId: r.userId,
-			email: r.email ?? "",
-			role: r.role,
-			joinedAt: r.joinedAt,
-		})),
-	);
+	return ok(c, await listMembers(teamId));
 });
 
 r.patch(
