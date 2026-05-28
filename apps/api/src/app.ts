@@ -10,6 +10,7 @@ import teamsRouter from "./routes/teams.js";
 import cardsRouter from "./routes/cards.js";
 import columnsRouter from "./routes/columns.js";
 import labelsRouter from "./routes/labels.js";
+import projectsRouter from "./routes/projects.js";
 import cardLabelsRouter from "./routes/card-labels.js";
 import cardCommentsRouter from "./routes/card-comments.js";
 import cardChecklistsRouter from "./routes/card-checklists.js";
@@ -32,9 +33,18 @@ app.use(
 
 // ── Root: redirect auth errors to the web app ─────────────────────────────────
 app.get("/", (c) => {
-	const error = c.req.query("error");
 	const url = new URL("https://kata.hirokata.dev/login");
-	if (error) url.searchParams.set("error", error);
+	const rawError = c.req.query("error");
+	if (rawError) {
+		const safeError = rawError.slice(0, 100).replace(/[^\w-]/g, "");
+		if (safeError !== rawError) {
+			console.warn("[auth] error param sanitized:", {
+				original: rawError.slice(0, 200),
+				sanitized: safeError,
+			});
+		}
+		url.searchParams.set("error", safeError || "unknown");
+	}
 	return c.redirect(url.toString());
 });
 
@@ -54,6 +64,7 @@ app.route("/api/boards", boardsRouter);
 app.route("/api/teams", teamsRouter);
 app.route("/api/boards/:boardId/columns", columnsRouter);
 app.route("/api/boards/:boardId/labels", labelsRouter);
+app.route("/api/boards/:boardId/projects", projectsRouter);
 app.route("/api/boards/:boardId/cards/:cardId/labels", cardLabelsRouter);
 app.route("/api/boards/:boardId/cards/:cardId/comments", cardCommentsRouter);
 app.route("/api/boards/:boardId/cards/:cardId/checklists", cardChecklistsRouter);

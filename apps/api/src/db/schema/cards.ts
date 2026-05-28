@@ -2,6 +2,7 @@ import { pgTable, text, timestamp, index, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { boards } from "./boards.js";
 import { columns } from "./columns.js";
+import { projects } from "./projects.js";
 
 export interface Comment {
 	id: string;
@@ -49,6 +50,7 @@ export const cards = pgTable(
 			.array()
 			.notNull()
 			.default(sql`'{}'`),
+		projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
 		comments: jsonb("comments").$type<Comment[]>().notNull().default([]),
 		checklists: jsonb("checklists").$type<Checklist[]>().notNull().default([]),
 		createdAt: timestamp("created_at").notNull(),

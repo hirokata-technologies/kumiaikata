@@ -25,6 +25,7 @@ export interface CardSummary {
 	attachmentIds: string[];
 	commentsCount: number;
 	checklistsCount: number;
+	projectId: string | null;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -80,6 +81,7 @@ function toSummary(card: {
 	attachmentIds?: string[] | null;
 	comments?: unknown[] | null;
 	checklists?: unknown[] | null;
+	projectId?: string | null;
 	createdAt: Date;
 	updatedAt: Date;
 }): CardSummary {
@@ -95,6 +97,7 @@ function toSummary(card: {
 		attachmentIds: card.attachmentIds ?? [],
 		commentsCount: (card.comments ?? []).length,
 		checklistsCount: (card.checklists ?? []).length,
+		projectId: card.projectId ?? null,
 		createdAt: card.createdAt,
 		updatedAt: card.updatedAt,
 	};
@@ -248,6 +251,7 @@ export interface UpdateCardInput {
 	title?: string | undefined;
 	description?: string | null | undefined;
 	dueDate?: string | null | undefined;
+	projectId?: string | null | undefined;
 }
 
 export async function updateCard(
@@ -259,6 +263,7 @@ export async function updateCard(
 		title: string;
 		description: string | null;
 		dueDate: Date | null;
+		projectId: string | null;
 		updatedAt: Date;
 	}> = { updatedAt: new Date() };
 
@@ -268,6 +273,7 @@ export async function updateCard(
 		// null means clear the due date; a string means set it.
 		patch.dueDate = input.dueDate === null ? null : new Date(input.dueDate);
 	}
+	if (input.projectId !== undefined) patch.projectId = input.projectId;
 
 	const [card] = await db.update(cards)
 		.set(patch)

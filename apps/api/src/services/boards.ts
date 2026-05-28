@@ -11,6 +11,7 @@ export interface CardSummary {
 	labelIds: string[];
 	assigneeIds: string[];
 	attachmentIds: string[];
+	projectId: string | null;
 	commentsCount: number;
 	checklistsCount: number;
 }
@@ -61,6 +62,7 @@ export async function getBoardWithColumnsAndCards(
 			labelIds: card.labelIds ?? [],
 			assigneeIds: card.assigneeIds ?? [],
 			attachmentIds: card.attachmentIds ?? [],
+			projectId: card.projectId ?? null,
 			commentsCount: (card.comments ?? []).length,
 			checklistsCount: (card.checklists ?? []).length,
 		});
