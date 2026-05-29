@@ -136,10 +136,13 @@
 	}
 
 	async function deleteCard() {
+		// Capture prop values before onClose() nulls them via Svelte 5 reactivity.
+		const bid = boardId;
+		const cid = cardId;
 		const previous = boardState;
 		const cols = deepCloneColumns(boardState.columns);
 		for (const c of cols) {
-			const idx = c.cards.findIndex(ca => ca.id === cardId);
+			const idx = c.cards.findIndex(ca => ca.id === cid);
 			if (idx !== -1) {
 				c.cards.splice(idx, 1);
 				break;
@@ -149,11 +152,10 @@
 		onClose();
 
 		try {
-			markClientOp(`delete:${cardId}`);
-			await apiDeleteCard(boardId, cardId);
+			markClientOp(`delete:${cid}`);
+			await apiDeleteCard(bid, cid);
 		} catch (err) {
 			onStateChange(previous);
-			// Modal is already closed; log the error
 			console.warn('[CardModal] deleteCard error:', err);
 		}
 	}
