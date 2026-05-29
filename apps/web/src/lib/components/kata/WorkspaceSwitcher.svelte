@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { User, Users, ChevronsUpDown, Check, Plus, Settings2 } from 'lucide-svelte';
+	import { User, Users, ChevronsUpDown, Check, Plus, Settings2 } from '@lucide/svelte';
 
 	export type Workspace = {
 		id: string;

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { User, Settings, Keyboard, LogOut } from 'lucide-svelte';
+	import { User, Settings, Keyboard, LogOut } from '@lucide/svelte';
 	import { goto } from '$app/navigation';
 	import { authClient } from '$lib/auth-client';
 	import * as Sentry from '@sentry/sveltekit';

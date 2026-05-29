@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Search, X, Sparkles } from 'lucide-svelte';
+	import { Search, X, Sparkles } from '@lucide/svelte';
 	import MeMenu from './MeMenu.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
 	import WorkspaceSwitcher from './WorkspaceSwitcher.svelte';
