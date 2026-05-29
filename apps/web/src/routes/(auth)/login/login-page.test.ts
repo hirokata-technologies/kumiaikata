@@ -72,12 +72,12 @@ describe("Google button still present after Apple removal", () => {
 		expect(pageSource).toContain("Continue with Google");
 	});
 
-	it("contains a .card-buttons container element", () => {
-		expect(pageSource).toContain("card-buttons");
+	it("contains an aria-label for the Google button", () => {
+		expect(pageSource).toContain('aria-label="Continue with Google"');
 	});
 
-	it("contains a .sso-btn class for the Google button", () => {
-		expect(pageSource).toContain("sso-btn");
+	it("contains a .sso class for the Google button", () => {
+		expect(pageSource).toContain('class="sso"');
 	});
 
 	it("contains the Google SVG viewBox '0 0 18 18'", () => {
