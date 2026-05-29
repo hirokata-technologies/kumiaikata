@@ -1,3 +1,5 @@
+import "./instrument.js";
+import * as Sentry from "@sentry/node";
 import { serve } from "@hono/node-server";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import path from "path";
@@ -31,8 +33,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
+	Sentry.captureException(err);
 	console.error("[server] startup failed:", err);
-	process.exit(1);
+	void Sentry.flush(2000).finally(() => process.exit(1));
 });
 
 async function shutdown(signal: string): Promise<void> {
@@ -40,8 +43,10 @@ async function shutdown(signal: string): Promise<void> {
 	try {
 		await pool.end();
 	} catch (err) {
+		Sentry.captureException(err);
 		console.error("[server] error during shutdown:", err);
 	}
+	await Sentry.flush(2000);
 	process.exit(0);
 }
 

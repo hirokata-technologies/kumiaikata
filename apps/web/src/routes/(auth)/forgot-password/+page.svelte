@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { authClient } from '$lib/auth-client';
+	import * as Sentry from '@sentry/sveltekit';
 
 	let email = $state('');
 	let loading = $state(false);
@@ -32,7 +33,8 @@
 			} else {
 				submitted = true;
 			}
-		} catch {
+		} catch (err) {
+			Sentry.captureException(err);
 			errorMessage = 'Something went wrong. Please try again.';
 		} finally {
 			loading = false;

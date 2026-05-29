@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { authClient } from '$lib/auth-client';
+	import * as Sentry from '@sentry/sveltekit';
 
 	const ERROR_MESSAGES: Record<string, string> = {
 		USER_ALREADY_EXISTS: 'An account with this email already exists.',
@@ -60,11 +61,21 @@
 	async function signUpWithGoogle() {
 		errorCode = null;
 		ssoLoading = true;
+		Sentry.addBreadcrumb({ category: 'auth', message: 'Google SSO sign-up initiated', level: 'info' });
 		try {
-			await authClient.signIn.social({
+			const { error } = await authClient.signIn.social({
 				provider: 'google',
 				callbackURL: window.location.origin + '/',
 			});
+			if (error) {
+				errorCode = error.code ?? 'unknown';
+				errorMessage = ERROR_MESSAGES[errorCode] ?? GENERIC_ERROR;
+				Sentry.addBreadcrumb({ category: 'auth', message: `Google SSO sign-up failed: ${errorCode}`, level: 'warning' });
+			}
+		} catch (err) {
+			errorCode = 'unknown';
+			errorMessage = GENERIC_ERROR;
+			Sentry.captureException(err);
 		} finally {
 			ssoLoading = false;
 		}
@@ -79,6 +90,7 @@
 		errorCode = null;
 		errorMessage = null;
 		loading = true;
+		Sentry.addBreadcrumb({ category: 'auth', message: 'Email sign-up initiated', level: 'info' });
 		try {
 			const { error } = await authClient.signUp.email({
 				name: name.trim(),
@@ -88,12 +100,14 @@
 			if (error) {
 				errorCode = error.code ?? 'unknown';
 				errorMessage = ERROR_MESSAGES[errorCode] ?? GENERIC_ERROR;
+				Sentry.addBreadcrumb({ category: 'auth', message: `Email sign-up failed: ${errorCode}`, level: 'warning' });
 			} else {
 				submitted = true;
 			}
-		} catch {
+		} catch (err) {
 			errorCode = 'unknown';
 			errorMessage = GENERIC_ERROR;
+			Sentry.captureException(err);
 		} finally {
 			loading = false;
 		}
