@@ -131,7 +131,8 @@ describe("POST /api/users/me/avatar", () => {
 
 		expect(typeof body.imageUrl).toBe("string");
 		expect(body.imageUrl).toContain(`/api/users/${user.id}/avatar?v=`);
-		expect(body.imageUrl).toContain("&t=image%2Fjpeg");
+		// MIME type is stored server-side in a companion key; URL no longer embeds &t=
+		expect(body.imageUrl).not.toContain("&t=");
 	});
 
 	it("overwrites the prior avatar on second upload (fixed storage key per user)", async () => {
@@ -145,14 +146,16 @@ describe("POST /api/users/me/avatar", () => {
 		const stored = mockStorage.getStored(`avatars/${user.id}`);
 		expect(stored).toBeDefined();
 		expect(stored?.toString()).toBe("second-image");
-		// put should have been called twice, both times with the same key
-		expect(mockStorage.put).toHaveBeenCalledTimes(2);
-		const [call1, call2] = [
-			(mockStorage.put as ReturnType<typeof vi.fn>).mock.calls[0],
-			(mockStorage.put as ReturnType<typeof vi.fn>).mock.calls[1],
-		];
-		expect(call1?.[0]).toBe(`avatars/${user.id}`);
-		expect(call2?.[0]).toBe(`avatars/${user.id}`);
+		// Each upload writes 2 keys: avatars/<id> (blob) + avatars/<id>.mime (companion).
+		// Two uploads = 4 total put calls.
+		expect(mockStorage.put).toHaveBeenCalledTimes(4);
+		const calls = (mockStorage.put as ReturnType<typeof vi.fn>).mock.calls;
+		// Avatar blob keys (calls 0 and 2)
+		expect(calls[0]?.[0]).toBe(`avatars/${user.id}`);
+		expect(calls[2]?.[0]).toBe(`avatars/${user.id}`);
+		// MIME companion keys (calls 1 and 3)
+		expect(calls[1]?.[0]).toBe(`avatars/${user.id}.mime`);
+		expect(calls[3]?.[0]).toBe(`avatars/${user.id}.mime`);
 	});
 });
 
@@ -179,18 +182,15 @@ describe("GET /api/users/:userId/avatar", () => {
 		expect(res.status).toBe(404);
 	});
 
-	it("streams the avatar with the correct Content-Type from the t query param", async () => {
+	it("streams the avatar with the correct Content-Type from the companion MIME key", async () => {
 		const user = await seedUser();
 		setCurrentUser({ id: user.id, email: user.email });
 
 		const imageContent = "fake-png-bytes";
 		await uploadAvatarViaRoute(user.id, imageContent, "image/png");
 
-		// GET with the MIME type encoded as the t param
-		const res = await apiRequest(
-			"GET",
-			`/api/users/${user.id}/avatar?t=${encodeURIComponent("image/png")}`,
-		);
+		// MIME is read from the server-side companion key; ?t= param is ignored
+		const res = await apiRequest("GET", `/api/users/${user.id}/avatar`);
 		expect(res.status).toBe(200);
 		expect(res.headers.get("Content-Type")).toBe("image/png");
 		expect(res.headers.get("Cache-Control")).toBe("private, max-age=300");
@@ -199,11 +199,15 @@ describe("GET /api/users/:userId/avatar", () => {
 		expect(body).toBe(imageContent);
 	});
 
-	it("defaults Content-Type to application/octet-stream when t param is absent", async () => {
+	it("falls back to application/octet-stream when companion MIME key is missing", async () => {
 		const user = await seedUser();
 		setCurrentUser({ id: user.id, email: user.email });
 
-		await uploadAvatarViaRoute(user.id, "bytes", "image/jpeg");
+		// Simulate: blob exists, but companion MIME key is absent (avatar pre-dates the fix)
+		const { Readable } = await import("node:stream");
+		mockStorage.get
+			.mockResolvedValueOnce(Readable.from(Buffer.from("some-bytes")))
+			.mockRejectedValueOnce(new AppError("NOT_FOUND", "Companion key missing."));
 
 		const res = await apiRequest("GET", `/api/users/${user.id}/avatar`);
 		expect(res.status).toBe(200);
