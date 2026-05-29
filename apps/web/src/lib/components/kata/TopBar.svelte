@@ -231,7 +231,7 @@
 		color: var(--fg-4);
 	}
 
-	.search :global(svg) {
+	.search > :global(svg) {
 		position: absolute;
 		left: 12px;
 		color: var(--fg-3);
