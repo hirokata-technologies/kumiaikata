@@ -1,6 +1,6 @@
 import { zValidator as base } from "@hono/zod-validator";
 import type { ValidationTargets } from "hono";
-import type { ZodSchema } from "zod";
+import { z, type ZodSchema } from "zod";
 import { AppError } from "./error.js";
 
 export const zValidator = <
@@ -15,7 +15,7 @@ export const zValidator = <
 			throw new AppError(
 				"VALIDATION_ERROR",
 				"Request did not match schema",
-				result.error.flatten(),
+				z.flattenError(result.error),
 			);
 		}
 	});

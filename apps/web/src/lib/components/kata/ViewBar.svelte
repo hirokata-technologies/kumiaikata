@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { X } from 'lucide-svelte';
+	import { X } from '@lucide/svelte';
 	import type { KataProject, GroupBy } from '$lib/types.js';
 
 	let {

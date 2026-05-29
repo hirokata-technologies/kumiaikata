@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Plus, FolderMinus } from 'lucide-svelte';
+	import { Plus, FolderMinus } from '@lucide/svelte';
 	import type { DisplayColumn, KataLabel, KataProject } from '$lib/types.js';
 	import KanbanCard from './KanbanCard.svelte';
 

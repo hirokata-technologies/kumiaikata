@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { Eraser, X, ArrowUp, Check, PlusCircle, MoveRight, FileText, Sparkles, Maximize2, Minimize2 } from 'lucide-svelte';
+	import { Eraser, X, ArrowUp, Check, PlusCircle, MoveRight, FileText, Sparkles, Maximize2, Minimize2 } from '@lucide/svelte';
 	import type { BoardState, ChatMessage, MessagePart, KataCard } from '$lib/types.js';
 	import { scriptAI } from '$lib/ai.js';
 	import { deepCloneColumns, QUICK_REPLIES, SLASH_COMMANDS, newCardId } from '$lib/data.js';

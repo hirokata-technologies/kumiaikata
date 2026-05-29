@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Sparkles } from 'lucide-svelte';
+	import { Sparkles } from '@lucide/svelte';
 	import { untrack } from 'svelte';
 	import type { BoardState, GroupBy } from '$lib/types.js';
 	import type { Workspace } from '$lib/components/kata/WorkspaceSwitcher.svelte';

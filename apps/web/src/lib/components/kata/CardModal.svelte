@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Sparkles, X, Trash2 } from 'lucide-svelte';
+	import { Sparkles, X, Trash2 } from '@lucide/svelte';
 	import type { BoardState, KataCard, AvatarId } from '$lib/types.js';
 	import { AVATARS, deepCloneColumns, getPresetDate } from '$lib/data.js';
 	import {

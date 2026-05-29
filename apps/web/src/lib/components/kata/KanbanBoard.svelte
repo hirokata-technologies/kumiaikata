@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Filter } from 'lucide-svelte';
+	import { Filter } from '@lucide/svelte';
 	import type { BoardState, KataCard, KataLabel, KataProject, DisplayColumn, GroupBy } from '$lib/types.js';
 	import { deepCloneColumns } from '$lib/data.js';
 	import {

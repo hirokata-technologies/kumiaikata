@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { AlertCircle } from 'lucide-svelte';
+	import { AlertCircle } from '@lucide/svelte';
 	import { authClient } from '$lib/auth-client';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
