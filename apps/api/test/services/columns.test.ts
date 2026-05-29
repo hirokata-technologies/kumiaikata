@@ -60,13 +60,16 @@ describe("renameColumn", () => {
 		const board = await seedPersonalBoard(user.id);
 		const col = await seedColumn(board.id, { title: "Old Title" });
 
-		// Small delay to ensure updatedAt will differ from createdAt
-		await new Promise((r) => setTimeout(r, 10));
-
+		const beforeRename = Date.now();
 		const summary = await renameColumn(board.id, col.id, "In Progress");
 
 		expect(summary.title).toBe("In Progress");
-		expect(summary.updatedAt.getTime()).toBeGreaterThanOrEqual(summary.createdAt.getTime());
+		expect(summary.updatedAt).toBeInstanceOf(Date);
+		// updatedAt is written by Drizzle as UTC ISO (toISOString), so it correctly
+		// reflects wall-clock time. Avoid comparing against createdAt which is written
+		// by the raw-pg seed helper and suffers a local-time / UTC mismatch on non-UTC hosts.
+		expect(summary.updatedAt.getTime()).toBeGreaterThanOrEqual(beforeRename - 1_000);
+		expect(summary.updatedAt.getTime()).toBeLessThanOrEqual(Date.now() + 1_000);
 	});
 
 	it("throws NOT_FOUND when columnId does not belong to the board", async () => {

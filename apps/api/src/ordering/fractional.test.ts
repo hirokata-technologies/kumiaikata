@@ -64,13 +64,12 @@ describe("reorderToMatch", () => {
 		}
 	});
 
-	it("documents actual behaviour when called with same order: returns N updates (positions regenerated)", () => {
-		// BUG-010 context: reorderToMatch calls generateNKeysBetween(null, null, N) which
-		// always produces fresh keys. Since existing positions differ from regenerated ones,
-		// all N items receive updates even when the order hasn't changed.
-		// This is the documented behaviour, not an optimisation bug.
+	it("returns 0 updates when order is unchanged and positions already match generated keys", () => {
+		// reorderToMatch skips items whose existing position already equals the
+		// regenerated key. When the order is unchanged and existing positions happen
+		// to match generateNKeysBetween(null, null, N) output, no updates are emitted.
 		const items = makeItems(["A", "B", "C"], ["a0", "a1", "a2"]);
 		const updates = reorderToMatch(items, ["A", "B", "C"]);
-		expect(updates.length).toBe(3); // all positions are regenerated
+		expect(updates.length).toBe(0);
 	});
 });
