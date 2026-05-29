@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import type { Context } from "hono";
 
 export type ErrorCode =
@@ -40,11 +41,15 @@ export class AppError extends Error {
 
 export const errorHandler = (err: Error, c: Context) => {
 	if (err instanceof AppError) {
+		if (err.status >= 500) {
+			Sentry.captureException(err, { extra: { code: err.code, details: err.details } });
+		}
 		return c.json(
 			{ error: { code: err.code, message: err.message, details: err.details } },
 			err.status as Parameters<typeof c.json>[1],
 		);
 	}
+	Sentry.captureException(err);
 	console.error("Unhandled error:", err);
 	return c.json(
 		{ error: { code: "INTERNAL_ERROR", message: "Internal server error" } },

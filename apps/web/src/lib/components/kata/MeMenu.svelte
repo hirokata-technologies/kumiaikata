@@ -2,6 +2,7 @@
 	import { User, Settings, Keyboard, LogOut } from 'lucide-svelte';
 	import { goto } from '$app/navigation';
 	import { authClient } from '$lib/auth-client';
+	import * as Sentry from '@sentry/sveltekit';
 	import EditProfileModal from './EditProfileModal.svelte';
 	import SettingsModal from './SettingsModal.svelte';
 
@@ -46,6 +47,7 @@
 		if (isSigningOut) return;
 		isSigningOut = true;
 		signOutError = null;
+		Sentry.addBreadcrumb({ category: 'auth', message: 'Sign-out initiated', level: 'info' });
 		try {
 			const result = await authClient.signOut();
 			if (result?.error) {
@@ -53,7 +55,8 @@
 				return;
 			}
 			await goto('/login');
-		} catch {
+		} catch (err) {
+			Sentry.captureException(err);
 			signOutError = 'Could not sign out. Please try again.';
 		} finally {
 			isSigningOut = false;

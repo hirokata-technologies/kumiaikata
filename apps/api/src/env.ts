@@ -27,6 +27,7 @@ const schema = z.object({
 		.string()
 		.default("26214400")
 		.transform((s) => Number(s)),
+	SENTRY_DSN: z.string().url().optional(),
 	S3_ENDPOINT: z.string().url().optional(),
 	S3_REGION: z.string().default("auto"),
 	S3_BUCKET: z.string().optional(),

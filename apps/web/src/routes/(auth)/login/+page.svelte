@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { authClient } from '$lib/auth-client';
 	import { page } from '$app/state';
+	import * as Sentry from '@sentry/sveltekit';
 
 	const ERROR_MESSAGES: Record<string, string> = {
 		access_denied: 'Sign-in was cancelled. Click below to try again.',
@@ -40,11 +41,19 @@
 	async function signInWithGoogle() {
 		errorCode = null;
 		ssoLoading = true;
+		Sentry.addBreadcrumb({ category: 'auth', message: 'Google SSO sign-in initiated', level: 'info' });
 		try {
-			await authClient.signIn.social({
+			const { error } = await authClient.signIn.social({
 				provider: 'google',
 				callbackURL: window.location.origin + '/',
 			});
+			if (error) {
+				errorCode = error.code ?? 'unknown';
+				Sentry.addBreadcrumb({ category: 'auth', message: `Google SSO failed: ${errorCode}`, level: 'warning' });
+			}
+		} catch (err) {
+			errorCode = 'unknown';
+			Sentry.captureException(err);
 		} finally {
 			ssoLoading = false;
 		}
@@ -54,6 +63,7 @@
 		event.preventDefault();
 		errorCode = null;
 		loading = true;
+		Sentry.addBreadcrumb({ category: 'auth', message: 'Email sign-in initiated', level: 'info' });
 		try {
 			const { error } = await authClient.signIn.email({
 				email,
@@ -63,9 +73,11 @@
 			});
 			if (error) {
 				errorCode = error.code ?? 'unknown';
+				Sentry.addBreadcrumb({ category: 'auth', message: `Email sign-in failed: ${errorCode}`, level: 'warning' });
 			}
-		} catch {
+		} catch (err) {
 			errorCode = 'unknown';
+			Sentry.captureException(err);
 		} finally {
 			loading = false;
 		}
@@ -84,7 +96,8 @@
 			} else {
 				resendSent = true;
 			}
-		} catch {
+		} catch (err) {
+			Sentry.captureException(err);
 			resendError = 'Failed to send verification email. Please try again.';
 		} finally {
 			resendLoading = false;

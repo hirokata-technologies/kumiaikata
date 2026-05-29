@@ -3,6 +3,7 @@
 	import { authClient } from '$lib/auth-client';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import * as Sentry from '@sentry/sveltekit';
 
 	const ERROR_MESSAGES: Record<string, string> = {
 		INVALID_TOKEN: 'This reset link is invalid or has already been used.',
@@ -76,7 +77,8 @@
 			} else {
 				errorCode = error.code ?? 'unknown';
 			}
-		} catch {
+		} catch (err) {
+			Sentry.captureException(err);
 			errorCode = 'unknown';
 		} finally {
 			loading = false;

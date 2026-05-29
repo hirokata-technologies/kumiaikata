@@ -35,6 +35,7 @@ services:
       ALLOWED_ORIGINS: "http://localhost:3000"
       ATTACHMENTS_DIR: "/data/attachments"
       MAX_ATTACHMENT_BYTES: "26214400"
+      SENTRY_DSN: "https://6dca0d8f76424228f21cf76165f68e6f@o4511008752336896.ingest.us.sentry.io/4511472254124033"
       S3_ACCESS_KEY_ID: "tid_GEvsFueCRvfnAe_xfmJjjsJQzVsXpZEiwXMlICcsIYW_AJDQmn"
       S3_BUCKET: "balanced-tupperware-fn2lnt"
       S3_ENDPOINT: "https://t3.storageapi.dev"
@@ -68,6 +69,7 @@ services:
       PORT: "3000"
       PUBLIC_API_URL: "http://localhost:8787"
       API_URL: "http://api:8787"
+      PUBLIC_SENTRY_DSN: "https://4d22ac8e8d57ce38762b5d9a6bd83b6a@o4511008752336896.ingest.us.sentry.io/4511472254124032"
     restart: unless-stopped
     depends_on:
       postgres:
