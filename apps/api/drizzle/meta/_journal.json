@@ -8,6 +8,13 @@
       "when": 1779633455827,
       "tag": "0000_eminent_devos",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780011723883,
+      "tag": "0001_thin_patriot",
+      "breakpoints": true
     }
   ]
 }

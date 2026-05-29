@@ -4,6 +4,17 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<script>
+			(function () {
+				try {
+					var t = localStorage.getItem('kata_theme');
+					document.documentElement.dataset.theme = (t === 'dark' || t === 'light') ? t : 'light';
+					var a = localStorage.getItem('kata_accent');
+					if (a && /^#[0-9A-Fa-f]{6}$/.test(a)) { document.documentElement.style.setProperty('--accent', a); }
+					else { document.documentElement.style.setProperty('--accent', '#2E3A6B'); }
+				} catch (e) { /* storage blocked — defaults apply */ }
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

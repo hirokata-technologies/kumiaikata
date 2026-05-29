@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- REQ-001: Sign Out
+- REQ-002: Workspace Switch (Personal, Team)
+- REQ-003: Edit Profile
+- REQ-004: Settings
 - REQ-002: Add Email and Password Login & Sign Up
 - REQ-003: Use Resend for Email Sending
 - REQ-001: Remove Apple Sign In

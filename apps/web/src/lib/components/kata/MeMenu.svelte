@@ -1,14 +1,32 @@
 <script lang="ts">
 	import { User, Settings, Keyboard, LogOut } from 'lucide-svelte';
+	import { goto } from '$app/navigation';
+	import { authClient } from '$lib/auth-client';
+	import EditProfileModal from './EditProfileModal.svelte';
+	import SettingsModal from './SettingsModal.svelte';
 
 	let {
-		user = null
+		user = null,
+		onUserUpdate
 	}: {
-		user?: { name?: string | null; email: string } | null;
+		user?: { name?: string | null; email: string; image?: string | null } | null;
+		onUserUpdate?: (patch: { name?: string | null; image?: string | null }) => void;
 	} = $props();
 
 	let open = $state(false);
 	let wrapRef: HTMLElement | null = $state(null);
+	let isSigningOut = $state(false);
+	let signOutError = $state<string | null>(null);
+	let imageBroken = $state(false);
+	let editOpen = $state(false);
+	let settingsOpen = $state(false);
+
+	// Reset imageBroken whenever the image URL changes
+	$effect(() => {
+		// Track user.image — when it changes, reset the broken flag
+		void user?.image;
+		imageBroken = false;
+	});
 
 	const initials = $derived.by(() => {
 		if (!user) return 'Y';
@@ -23,6 +41,24 @@
 
 	const displayName = $derived(user?.name?.trim() || user?.email || 'You');
 	const email = $derived(user?.email ?? '');
+
+	async function signOut() {
+		if (isSigningOut) return;
+		isSigningOut = true;
+		signOutError = null;
+		try {
+			const result = await authClient.signOut();
+			if (result?.error) {
+				signOutError = 'Could not sign out. Please try again.';
+				return;
+			}
+			await goto('/login');
+		} catch {
+			signOutError = 'Could not sign out. Please try again.';
+		} finally {
+			isSigningOut = false;
+		}
+	}
 
 	$effect(() => {
 		if (!open) return;
@@ -55,13 +91,33 @@
 		aria-label="Account menu"
 		onclick={() => (open = !open)}
 	>
-		<span class="me-avatar-circle" aria-hidden="true">{initials}</span>
+		{#if user?.image && !imageBroken}
+			<img class="me-avatar-img" src={user.image} alt="" onerror={() => (imageBroken = true)} />
+		{:else}
+			<span class="me-avatar-circle" aria-hidden="true">{initials}</span>
+		{/if}
 	</button>
+
+	{#if editOpen}
+		<EditProfileModal
+			{user}
+			onClose={() => (editOpen = false)}
+			onSaved={(patch: { name?: string | null; image?: string | null }) => { onUserUpdate?.(patch); imageBroken = false; editOpen = false; }}
+		/>
+	{/if}
+
+	{#if settingsOpen}
+		<SettingsModal onClose={() => (settingsOpen = false)} />
+	{/if}
 
 	{#if open}
 		<div class="me-menu" role="menu">
 			<div class="me-menu-id">
-				<span class="me-avatar-circle me-avatar-lg" aria-hidden="true">{initials}</span>
+				{#if user?.image && !imageBroken}
+					<img class="me-avatar-img me-avatar-lg" src={user.image} alt="" onerror={() => (imageBroken = true)} />
+				{:else}
+					<span class="me-avatar-circle me-avatar-lg" aria-hidden="true">{initials}</span>
+				{/if}
 				<div class="me-menu-id-text">
 					<div class="me-menu-id-name">{displayName}</div>
 					<div class="me-menu-id-mail">{email}</div>
@@ -70,11 +126,11 @@
 
 			<div class="me-menu-sep" role="separator"></div>
 
-			<button class="me-menu-item" role="menuitem" onclick={() => (open = false)}>
+			<button class="me-menu-item" role="menuitem" onclick={() => { editOpen = true; open = false; }}>
 				<User size={15} />
 				<span>Edit profile</span>
 			</button>
-			<button class="me-menu-item" role="menuitem" onclick={() => (open = false)}>
+			<button class="me-menu-item" role="menuitem" onclick={() => { open = false; settingsOpen = true; }}>
 				<Settings size={15} />
 				<span>Settings</span>
 			</button>
@@ -86,10 +142,20 @@
 
 			<div class="me-menu-sep" role="separator"></div>
 
-			<a class="me-menu-item" role="menuitem" href="/login" onclick={() => (open = false)}>
+			<button
+				class="me-menu-item"
+				role="menuitem"
+				onclick={signOut}
+				disabled={isSigningOut}
+				aria-busy={isSigningOut}
+			>
 				<LogOut size={15} />
-				<span>Sign out</span>
-			</a>
+				<span>{isSigningOut ? 'Signing out…' : 'Sign out'}</span>
+			</button>
+
+			{#if signOutError}
+				<div class="me-menu-error" role="alert">{signOutError}</div>
+			{/if}
 		</div>
 	{/if}
 </div>
@@ -129,10 +195,24 @@
 		flex-shrink: 0;
 	}
 
+	.me-avatar-img {
+		display: block;
+		width: 32px;
+		height: 32px;
+		border-radius: 999px;
+		object-fit: cover;
+		flex-shrink: 0;
+	}
+
 	.me-avatar-lg {
 		width: 36px;
 		height: 36px;
 		font-size: 14px;
+	}
+
+	.me-avatar-img.me-avatar-lg {
+		width: 36px;
+		height: 36px;
 	}
 
 	.me-menu {
@@ -237,6 +317,18 @@
 		border: 1px solid var(--line-1);
 		border-radius: 4px;
 		padding: 1px 5px;
+		line-height: 1.3;
+	}
+
+	.me-menu-item:disabled {
+		opacity: 0.6;
+		cursor: default;
+	}
+
+	.me-menu-error {
+		padding: 6px 8px;
+		font: 500 12px var(--font-sans);
+		color: var(--danger, #c0392b);
 		line-height: 1.3;
 	}
 </style>
