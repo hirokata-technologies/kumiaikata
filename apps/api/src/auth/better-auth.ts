@@ -18,7 +18,7 @@ export const auth = betterAuth({
 	trustedOrigins: env.ALLOWED_ORIGINS,
 	advanced: {
 		crossSubdomainCookies: {
-			enabled: true,
+			enabled: env.BETTER_AUTH_URL.includes("hirokata.dev"),
 			domain: ".hirokata.dev",
 		},
 		ipAddress: {
