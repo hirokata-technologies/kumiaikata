@@ -235,10 +235,18 @@
 			markClientOp(`create:${created.id}`);
 			const finalCols = deepCloneColumns(boardState.columns);
 			const finalCol = finalCols.find(c => c.id === statusColId);
-			const tempIdx = finalCol?.cards.findIndex(c => c.id === tempId) ?? -1;
-			if (finalCol && tempIdx !== -1) {
-				finalCol.cards[tempIdx] = { ...finalCol.cards[tempIdx]!, id: created.id };
-				onStateChange({ ...boardState, columns: finalCols });
+			if (finalCol) {
+				const tempIdx = finalCol.cards.findIndex(c => c.id === tempId);
+				const realIdx = finalCol.cards.findIndex(c => c.id === created.id);
+				if (tempIdx !== -1) {
+					if (realIdx !== -1) {
+						// SSE already added the real card before we resolved — drop the temp
+						finalCol.cards.splice(tempIdx, 1);
+					} else {
+						finalCol.cards[tempIdx] = { ...finalCol.cards[tempIdx]!, id: created.id };
+					}
+					onStateChange({ ...boardState, columns: finalCols });
+				}
 			}
 		} catch (err) {
 			onStateChange(previous);
