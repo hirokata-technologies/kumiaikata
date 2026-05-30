@@ -26,7 +26,9 @@
 		"docker:local:down": "docker compose -f docker-compose.local.yml down",
 		"test": "pnpm --filter @kata/api test && pnpm --filter @kata/web test",
 		"test:api": "pnpm --filter @kata/api test",
-		"test:web": "pnpm --filter @kata/web test"
+		"test:web": "pnpm --filter @kata/web test",
+		"test:packages": "pnpm --filter @kata/http test && pnpm --filter @kata/auth test && pnpm --filter @kata/db test && pnpm --filter @kata/events test && pnpm --filter @kata/queues test",
+		"test:integration": "pnpm --filter @kata/integration-tests test"
 	},
 	"devDependencies": {
 		"eslint": "^10.4.0",
