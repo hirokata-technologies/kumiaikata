@@ -18,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       api: ${{ steps.filter.outputs.api }}
+      relay: ${{ steps.filter.outputs.relay }}
       web: ${{ steps.filter.outputs.web }}
     steps:
       - name: Checkout code
@@ -30,6 +31,14 @@ jobs:
           filters: |
             api:
               - 'apps/api/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.github/workflows/publish-images.yml'
+            relay:
+              - 'apps/kata-relay-service/**'
+              - 'packages/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -89,6 +98,54 @@ jobs:
         run: |
           npm i -g @railway/cli
           railway redeploy --service kata-api --yes
+
+  build-relay:
+    name: Build & Push Relay Service
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.relay == 'true' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/kata-relay-service
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Relay image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/kata-relay-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Redeploy Relay on Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          npm i -g @railway/cli
+          railway redeploy --service kata-relay-service --yes
 
   build-web:
     name: Build & Push Web
