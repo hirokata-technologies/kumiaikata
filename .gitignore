@@ -8,8 +8,12 @@ node_modules
 apps/web/.svelte-kit
 apps/web/build
 
-# API build output
+# Build output
 apps/api/dist
+apps/kata-relay-service/dist
+packages/*/dist
+packages/*/coverage
+apps/api/coverage
 .output
 .vercel
 .netlify
