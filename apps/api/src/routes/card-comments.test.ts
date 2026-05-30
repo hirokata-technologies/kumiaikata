@@ -141,11 +141,33 @@ describe("POST /api/boards/:boardId/cards/:cardId/comments", () => {
 		const body = await res.json() as { error: { message: string } };
 		expect(body.error.message).toBe("Comment limit reached.");
 	});
+
+	it("returns 404 when card does not exist", async () => {
+		const user = await seedUser();
+		const board = await seedPersonalBoard(user.id);
+		setCurrentUser({ id: user.id, email: user.email });
+
+		const res = await apiRequest(
+			"POST",
+			`/api/boards/${board.id}/cards/nonexistentcard/comments`,
+			{ body: { body: "Hello" } },
+		);
+		expect(res.status).toBe(404);
+	});
 });
 
 // ── PATCH /api/boards/:boardId/cards/:cardId/comments/:commentId ───────────────
 
 describe("PATCH /api/boards/:boardId/cards/:cardId/comments/:commentId", () => {
+	it("returns 401 when no session", async () => {
+		const res = await apiRequest(
+			"PATCH",
+			"/api/boards/fakeid/cards/fakecardid/comments/fakecommentid",
+			{ body: { body: "edit" } },
+		);
+		expect(res.status).toBe(401);
+	});
+
 	it("returns 403 when non-author tries to edit a comment", async () => {
 		const author = await seedUser();
 		const other = await seedUser();
@@ -208,11 +230,47 @@ describe("PATCH /api/boards/:boardId/cards/:cardId/comments/:commentId", () => {
 		const body = await res.json() as { body: string };
 		expect(body.body).toBe("Edited comment");
 	});
+
+	it("returns 404 when card does not exist", async () => {
+		const user = await seedUser();
+		const board = await seedPersonalBoard(user.id);
+		setCurrentUser({ id: user.id, email: user.email });
+
+		const res = await apiRequest(
+			"PATCH",
+			`/api/boards/${board.id}/cards/nonexistentcard/comments/${newId()}`,
+			{ body: { body: "edit" } },
+		);
+		expect(res.status).toBe(404);
+	});
+
+	it("returns 404 when comment does not exist", async () => {
+		const user = await seedUser();
+		const board = await seedPersonalBoard(user.id);
+		const col = await seedColumn(board.id);
+		const card = await seedCard(board.id, col.id);
+		setCurrentUser({ id: user.id, email: user.email });
+
+		const res = await apiRequest(
+			"PATCH",
+			`/api/boards/${board.id}/cards/${card.id}/comments/${newId()}`,
+			{ body: { body: "edit" } },
+		);
+		expect(res.status).toBe(404);
+	});
 });
 
 // ── DELETE /api/boards/:boardId/cards/:cardId/comments/:commentId ──────────────
 
 describe("DELETE /api/boards/:boardId/cards/:cardId/comments/:commentId", () => {
+	it("returns 401 when no session", async () => {
+		const res = await apiRequest(
+			"DELETE",
+			"/api/boards/fakeid/cards/fakecardid/comments/fakecommentid",
+		);
+		expect(res.status).toBe(401);
+	});
+
 	it("returns 204 when author deletes their own comment", async () => {
 		const author = await seedUser();
 		const board = await seedPersonalBoard(author.id);
@@ -297,5 +355,31 @@ describe("DELETE /api/boards/:boardId/cards/:cardId/comments/:commentId", () => 
 			`/api/boards/${board.id}/cards/${card.id}/comments/${commentId}`,
 		);
 		expect(res.status).toBe(403);
+	});
+
+	it("returns 404 when card does not exist", async () => {
+		const user = await seedUser();
+		const board = await seedPersonalBoard(user.id);
+		setCurrentUser({ id: user.id, email: user.email });
+
+		const res = await apiRequest(
+			"DELETE",
+			`/api/boards/${board.id}/cards/nonexistentcard/comments/${newId()}`,
+		);
+		expect(res.status).toBe(404);
+	});
+
+	it("returns 404 when comment does not exist", async () => {
+		const user = await seedUser();
+		const board = await seedPersonalBoard(user.id);
+		const col = await seedColumn(board.id);
+		const card = await seedCard(board.id, col.id);
+		setCurrentUser({ id: user.id, email: user.email });
+
+		const res = await apiRequest(
+			"DELETE",
+			`/api/boards/${board.id}/cards/${card.id}/comments/${newId()}`,
+		);
+		expect(res.status).toBe(404);
 	});
 });

@@ -113,6 +113,21 @@ describe("POST /api/boards/:boardId/cards/:cardId/labels", () => {
 		const body = await res.json() as { error: { message: string } };
 		expect(body.error.message).toBe("Label does not belong to this board.");
 	});
+
+
+	it("returns 404 when card does not exist", async () => {
+		const user = await seedUser();
+		const board = await seedPersonalBoard(user.id);
+		const label = await seedLabel(board.id);
+		setCurrentUser({ id: user.id, email: user.email });
+
+		const res = await apiRequest(
+			"POST",
+			`/api/boards/${board.id}/cards/nonexistentcard/labels`,
+			{ body: { labelId: label.id } },
+		);
+		expect(res.status).toBe(404);
+	});
 });
 
 // ── DELETE /api/boards/:boardId/cards/:cardId/labels/:labelId ─────────────────
@@ -146,6 +161,20 @@ describe("DELETE /api/boards/:boardId/cards/:cardId/labels/:labelId", () => {
 			.from(cards)
 			.where(eq(cards.id, card.id));
 		expect(row?.labelIds ?? []).not.toContain(label.id);
+	});
+
+
+	it("returns 404 when card does not exist", async () => {
+		const user = await seedUser();
+		const board = await seedPersonalBoard(user.id);
+		const label = await seedLabel(board.id);
+		setCurrentUser({ id: user.id, email: user.email });
+
+		const res = await apiRequest(
+			"DELETE",
+			`/api/boards/${board.id}/cards/nonexistentcard/labels/${label.id}`,
+		);
+		expect(res.status).toBe(404);
 	});
 });
 
