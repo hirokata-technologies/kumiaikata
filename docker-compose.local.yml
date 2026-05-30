@@ -16,6 +16,17 @@ services:
       retries: 5
     restart: unless-stopped
 
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   api:
     build:
       context: .
@@ -27,6 +38,7 @@ services:
       NODE_ENV: production
       PORT: "8787"
       DATABASE_URL: "postgresql://kata:kata@postgres:5432/kata"
+      REDIS_URL: "redis://valkey:6379"
       BETTER_AUTH_SECRET: "3mV4fO4rKUXBtOhDVV3FJNhJTtbxZhWBbN52Ci6J6IU="
       BETTER_AUTH_URL: "http://localhost:8787"
       GOOGLE_CLIENT_ID: "581143433345-ppc8men3sjfjb86brrsckvv4pg8oqbh8.apps.googleusercontent.com"
@@ -35,17 +47,50 @@ services:
       ALLOWED_ORIGINS: "http://localhost:3000"
       ATTACHMENTS_DIR: "/data/attachments"
       MAX_ATTACHMENT_BYTES: "26214400"
+      RESEND_API_KEY: "re_CXbqGVMT_861svXUDyyeMwQp4YyAMFS5o"
       SENTRY_DSN: "https://6dca0d8f76424228f21cf76165f68e6f@o4511008752336896.ingest.us.sentry.io/4511472254124033"
       S3_ACCESS_KEY_ID: "tid_GEvsFueCRvfnAe_xfmJjjsJQzVsXpZEiwXMlICcsIYW_AJDQmn"
       S3_BUCKET: "balanced-tupperware-fn2lnt"
       S3_ENDPOINT: "https://t3.storageapi.dev"
       S3_REGION: "auto"
       S3_SECRET_ACCESS_KEY: "tsec_7rUSb9cP-VnKrMIIvH4iC7eoVK4OI6cTvVvhYDxNmpexc1KfehW-3SVuaaT+HFeQhxeykM"
-      RESEND_API_KEY: "re_CXbqGVMT_861svXUDyyeMwQp4YyAMFS5o"
     volumes:
       - attachments:/data/attachments
     depends_on:
       postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --timeout=3 -qO- http://localhost:8787/healthz | grep -q 'ok' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  relay:
+    build:
+      context: .
+      dockerfile: apps/kata-relay-service/Dockerfile
+    image: kata-relay-service:local
+    ports:
+      - "8788:8787"
+    environment:
+      NODE_ENV: production
+      PORT: "8787"
+      DATABASE_URL: "postgresql://kata:kata@postgres:5432/kata"
+      REDIS_URL: "redis://valkey:6379"
+      BETTER_AUTH_SECRET: "3mV4fO4rKUXBtOhDVV3FJNhJTtbxZhWBbN52Ci6J6IU="
+      BETTER_AUTH_URL: "http://localhost:8787"
+      ALLOWED_ORIGINS: "http://localhost:3000"
+      ALLOWED_DOMAINS: "hirokata.dev,edamame.ph,localhost"
+      RESEND_API_KEY: "re_CXbqGVMT_861svXUDyyeMwQp4YyAMFS5o"
+      SENTRY_DSN: "https://6dca0d8f76424228f21cf76165f68e6f@o4511008752336896.ingest.us.sentry.io/4511472254124033"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget --timeout=3 -qO- http://localhost:8787/healthz | grep -q 'ok' || exit 1"]
@@ -68,6 +113,7 @@ services:
       NODE_ENV: production
       PORT: "3000"
       PUBLIC_API_URL: "http://localhost:8787"
+      PUBLIC_REALTIME_URL: "http://localhost:8788"
       API_URL: "http://api:8787"
       PUBLIC_SENTRY_DSN: "https://4d22ac8e8d57ce38762b5d9a6bd83b6a@o4511008752336896.ingest.us.sentry.io/4511472254124032"
     restart: unless-stopped
@@ -76,11 +122,12 @@ services:
         condition: service_healthy
       api:
         condition: service_healthy
+      relay:
+        condition: service_healthy
 
 volumes:
   # WARNING: PostgreSQL 18 cannot read a PG15 data directory.
   # Before upgrading from postgres:15-alpine, remove the existing volume:
   #   docker volume rm $(docker compose ls -q)_postgres_data
-  #   (default project name matches the directory name, e.g. kata_postgres_data)
   postgres_data:
   attachments:
