@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { requireSession, loadBoardAccess } from "../auth/middleware.js";
-import { AppError } from "../http/error.js";
+import { AppError } from "@kata/http";
 import { validateId } from "../http/validate.js";
 import { created, noContent } from "../http/responders.js";
-import type { AppVariables } from "../http/types.js";
+import type { AppVariables } from "@kata/http";
 import { env } from "../env.js";
 import {
 	ALLOWED_MIMES,

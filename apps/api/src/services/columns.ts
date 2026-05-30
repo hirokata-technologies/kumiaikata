@@ -1,10 +1,10 @@
 import { eq, and, asc, desc, count } from "drizzle-orm";
-import { db } from "../db/client.js";
-import { columns, cards } from "../db/schema/index.js";
-import { newId } from "../db/ids.js";
-import { AppError } from "../http/error.js";
+import { db } from "@kata/db";
+import { columns, cards } from "@kata/db";
+import { newId } from "@kata/db";
+import { AppError } from "@kata/http";
 import { appendAfter, reorderToMatch } from "../ordering/fractional.js";
-import { eventBus } from "../events/bus.js";
+import { eventBus } from "@kata/events";
 
 // ── Serialisation shape ───────────────────────────────────────────────────────
 

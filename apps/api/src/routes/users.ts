@@ -3,8 +3,8 @@ import { Hono } from "hono";
 import { requireSession } from "../auth/middleware.js";
 import { validateId } from "../http/validate.js";
 import { ok } from "../http/responders.js";
-import { AppError } from "../http/error.js";
-import type { AppVariables } from "../http/types.js";
+import { AppError } from "@kata/http";
+import type { AppVariables } from "@kata/http";
 import {
 	uploadUserAvatar,
 	streamUserAvatar,

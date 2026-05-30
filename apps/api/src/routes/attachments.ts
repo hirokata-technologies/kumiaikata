@@ -2,7 +2,7 @@ import { Readable } from "node:stream";
 import { Hono } from "hono";
 import { requireSession } from "../auth/middleware.js";
 import { validateId } from "../http/validate.js";
-import type { AppVariables } from "../http/types.js";
+import type { AppVariables } from "@kata/http";
 import { streamAttachment } from "../services/attachments.js";
 
 const r = new Hono<{ Variables: AppVariables }>();

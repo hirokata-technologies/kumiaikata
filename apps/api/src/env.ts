@@ -15,6 +15,7 @@ const schema = z.object({
 		.default("8787")
 		.transform((s) => Number(s)),
 	DATABASE_URL: z.string().url(),
+	REDIS_URL: z.string().url(),
 	BETTER_AUTH_SECRET: z.string().min(1),
 	BETTER_AUTH_URL: z.string().url(),
 	GOOGLE_CLIENT_ID: z.string().min(1),

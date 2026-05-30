@@ -1,14 +1,14 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { eq, and, sql } from "drizzle-orm";
-import { db } from "../db/client.js";
+import { db } from "@kata/db";
 import { requireSession, loadBoardAccess } from "../auth/middleware.js";
 import { zValidator, validateId } from "../http/validate.js";
 import { ok, noContent } from "../http/responders.js";
-import type { AppVariables } from "../http/types.js";
-import { cards, teamMembers } from "../db/schema/index.js";
-import { AppError } from "../http/error.js";
-import { eventBus } from "../events/bus.js";
+import type { AppVariables } from "@kata/http";
+import { cards, teamMembers } from "@kata/db";
+import { AppError } from "@kata/http";
+import { eventBus } from "@kata/events";
 
 const r = new Hono<{ Variables: AppVariables }>();
 

@@ -6,7 +6,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { app } from "./app.js";
 import { env } from "./env.js";
-import { db, pool } from "./db/client.js";
+import { db, pool } from "@kata/db";
 import { cleanStaleTempFiles } from "./storage/disk.js";
 import { storage, DiskStorage } from "./storage/index.js";
 

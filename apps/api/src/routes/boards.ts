@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { eq, and } from "drizzle-orm";
-import { db } from "../db/client.js";
-import { boards, teamMembers, users } from "../db/schema/index.js";
-import { AppError } from "../http/error.js";
+import { db } from "@kata/db";
+import { boards, teamMembers, users } from "@kata/db";
+import { AppError } from "@kata/http";
 import { ok } from "../http/responders.js";
 import { requireSession } from "../auth/middleware.js";
 import { getBoardWithColumnsAndCards } from "../services/boards.js";
-import type { AppVariables } from "../http/types.js";
+import type { AppVariables } from "@kata/http";
 
 const r = new Hono<{ Variables: AppVariables }>();
 r.use("*", requireSession);
