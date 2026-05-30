@@ -1,4 +1,13 @@
-import { vi } from "vitest";
+/**
+ * Auth test helpers.
+ *
+ * The actual vi.mock for better-auth and @kata/events is registered in
+ * test/setup-mocks.ts (a vitest setupFile). It must live there so it is in
+ * place before the test file's static imports resolve — vi.mock inside a
+ * regular function cannot be hoisted past ESM import statements.
+ *
+ * These helpers only manipulate the shared state that the mock factory reads.
+ */
 
 export interface MockUser {
 	id: string;
@@ -6,45 +15,22 @@ export interface MockUser {
 	name?: string;
 }
 
-// Module-level holder for the current test user.
-// Written by setCurrentUser(), read by the mocked getSession().
-let currentUser: MockUser | null = null;
-
-/**
- * Set up vi.mock for apps/api/src/auth/better-auth.ts.
- *
- * Call this at the top of any test file that imports `app` so that
- * `auth.api.getSession` is intercepted before the module graph loads.
- *
- * The mock returns:
- *  - null            when no user is set → routes return 401
- *  - { user, session } when setCurrentUser() has been called
- */
-export function mockBetterAuth(): void {
-	vi.mock("../../src/auth/better-auth.js", () => ({
-		auth: {
-			api: {
-				getSession: vi.fn(async () => {
-					if (!currentUser) return null;
-					return {
-						user: {
-							id: currentUser.id,
-							email: currentUser.email,
-							name: currentUser.name ?? null,
-						},
-						session: { id: "test-session" },
-					};
-				}),
-			},
-			handler: vi.fn(async () => new Response("not implemented", { status: 501 })),
-		},
-	}));
+declare global {
+	// eslint-disable-next-line no-var
+	var __kataTestUser: MockUser | null;
 }
 
 /**
- * Drive the mocked getSession for the current test.
- * Pass null to simulate an unauthenticated request (→ 401).
+ * No-op — kept for backward compatibility with existing test files that call
+ * mockBetterAuth() at the top. The real mock is always active via setup-mocks.ts.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-function
+export function mockBetterAuth(): void {}
+
+/**
+ * Set the user returned by the mocked auth.api.getSession().
+ * Pass null to simulate an unauthenticated request (routes return 401).
  */
 export function setCurrentUser(user: MockUser | null): void {
-	currentUser = user;
+	globalThis.__kataTestUser = user;
 }

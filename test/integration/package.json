@@ -1,0 +1,17 @@
+{
+	"name": "@kata/integration-tests",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"devDependencies": {
+		"@types/node": "^24.12.4",
+		"bullmq": "^5.0.0",
+		"ioredis": "5.10.1",
+		"typescript": "^6.0.3",
+		"vitest": "^4.1.7"
+	}
+}
