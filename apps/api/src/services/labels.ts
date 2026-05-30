@@ -1,9 +1,8 @@
 import { eq, and, asc, sql } from "drizzle-orm";
-import { db } from "../db/client.js";
-import { newId } from "../db/ids.js";
-import { cards, labels } from "../db/schema/index.js";
-import { AppError } from "../http/error.js";
-import { eventBus } from "../events/bus.js";
+import { db, newId } from "@kata/db";
+import { cards, labels } from "@kata/db";
+import { AppError } from "@kata/http";
+import { eventBus } from "@kata/events";
 
 // ── Serialisation shape ───────────────────────────────────────────────────────
 

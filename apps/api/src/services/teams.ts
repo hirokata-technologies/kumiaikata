@@ -1,8 +1,8 @@
 import { eq, and, count } from "drizzle-orm";
-import { db } from "../db/client.js";
-import { teams, teamMembers, users } from "../db/schema/index.js";
-import { AppError } from "../http/error.js";
-import type { Role } from "../db/types.js";
+import { db } from "@kata/db";
+import { teams, teamMembers, users } from "@kata/db";
+import { AppError } from "@kata/http";
+import type { Role } from "@kata/db";
 
 export interface TeamForUser {
 	id: string;

@@ -1,7 +1,7 @@
 import { zValidator as base } from "@hono/zod-validator";
 import type { ValidationTargets } from "hono";
 import { z, type ZodSchema } from "zod";
-import { AppError } from "./error.js";
+import { AppError } from "@kata/http";
 
 export const zValidator = <
 	T extends ZodSchema,

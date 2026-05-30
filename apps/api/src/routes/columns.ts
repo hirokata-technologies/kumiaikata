@@ -7,8 +7,7 @@ import {
 } from "../auth/middleware.js";
 import { zValidator, validateId } from "../http/validate.js";
 import { ok, created, noContent } from "../http/responders.js";
-import type { AppVariables } from "../http/types.js";
-import type { ContextBoard } from "../http/types.js";
+import type { AppVariables, ContextBoard } from "@kata/http";
 import {
 	createColumn,
 	renameColumn,

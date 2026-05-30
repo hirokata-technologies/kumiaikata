@@ -1,14 +1,14 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
-import { db } from "../db/client.js";
-import { teams, teamMembers } from "../db/schema/index.js";
-import { AppError } from "../http/error.js";
+import { db } from "@kata/db";
+import { teams, teamMembers } from "@kata/db";
+import { AppError } from "@kata/http";
 import { ok } from "../http/responders.js";
 import { zValidator, validateId } from "../http/validate.js";
 import { requireSession } from "../auth/middleware.js";
 import { listMembers, setMemberRole } from "../services/teams.js";
-import type { AppVariables } from "../http/types.js";
+import type { AppVariables } from "@kata/http";
 
 const r = new Hono<{ Variables: AppVariables }>();
 

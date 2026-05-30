@@ -1,16 +1,15 @@
 import { Readable } from "node:stream";
 import { eq, and, sql } from "drizzle-orm";
-import { db } from "../db/client.js";
-import { newId } from "../db/ids.js";
-import { attachments, cards } from "../db/schema/index.js";
-import { AppError } from "../http/error.js";
+import { db, newId } from "@kata/db";
+import { attachments, cards } from "@kata/db";
+import { AppError } from "@kata/http";
 import { storage } from "../storage/index.js";
-import { eventBus } from "../events/bus.js";
+import { eventBus } from "@kata/events";
 import {
 	fetchBoardWithMembership,
 	deriveAccess,
 } from "../auth/middleware.js";
-import type { UserSession } from "../http/types.js";
+import type { UserSession } from "@kata/http";
 
 // ── MIME allowlist ─────────────────────────────────────────────────────────────
 

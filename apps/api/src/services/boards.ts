@@ -1,7 +1,7 @@
 import { eq, inArray, asc } from "drizzle-orm";
-import { db } from "../db/client.js";
-import { boards, columns, cards } from "../db/schema/index.js";
-import { AppError } from "../http/error.js";
+import { db } from "@kata/db";
+import { boards, columns, cards } from "@kata/db";
+import { AppError } from "@kata/http";
 
 export interface CardSummary {
 	id: string;

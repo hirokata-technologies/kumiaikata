@@ -1,14 +1,14 @@
 import { eq, and, desc, asc, inArray, ne } from "drizzle-orm";
-import { db } from "../db/client.js";
-import { cards, columns, attachments } from "../db/schema/index.js";
-import { newId } from "../db/ids.js";
-import { AppError } from "../http/error.js";
+import { db } from "@kata/db";
+import { cards, columns, attachments } from "@kata/db";
+import { newId } from "@kata/db";
+import { AppError } from "@kata/http";
 import {
 	appendAfter,
 	insertBetween,
 	reorderToMatch,
 } from "../ordering/fractional.js";
-import { eventBus } from "../events/bus.js";
+import { eventBus } from "@kata/events";
 import { storage } from "../storage/index.js";
 
 // ── Serialisation shapes ──────────────────────────────────────────────────────

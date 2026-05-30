@@ -2,8 +2,8 @@ import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
 import { env } from "./env.js";
-import { pool } from "./db/client.js";
-import { errorHandler } from "./http/error.js";
+import { pool } from "@kata/db";
+import { errorHandler } from "@kata/http";
 import authRouter from "./routes/auth.js";
 import boardsRouter from "./routes/boards.js";
 import teamsRouter from "./routes/teams.js";
@@ -18,8 +18,6 @@ import cardAssigneesRouter from "./routes/card-assignees.js";
 import cardAttachmentsRouter from "./routes/card-attachments.js";
 import attachmentsRouter from "./routes/attachments.js";
 import usersRouter from "./routes/users.js";
-import sseRouter from "./routes/sse.js";
-
 export const app = new Hono();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
@@ -77,8 +75,6 @@ app.route(
 app.route("/api/attachments", attachmentsRouter);
 app.route("/api/users", usersRouter);
 app.route("/api/boards/:boardId", cardsRouter);
-// SSE router mounted last — /:boardId/events does not conflict with other subpaths
-app.route("/api/boards", sseRouter);
 
 // ── Central error handler (registered last so it catches everything) ──────────
 app.onError(errorHandler);

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSession, loadBoardAccess, requireBoardAdmin } from "../auth/middleware.js";
 import { zValidator, validateId } from "../http/validate.js";
 import { ok, created, noContent } from "../http/responders.js";
-import type { AppVariables } from "../http/types.js";
+import type { AppVariables } from "@kata/http";
 import { listProjects, createProject, updateProject, deleteProject } from "../services/projects.js";
 
 const hexColor = z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, {
