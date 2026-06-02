@@ -61,16 +61,36 @@ describe("listMembers", () => {
 
 		expect(aliceRow).toBeDefined();
 		expect(aliceRow!.email).toBe("alice@test.com");
+		expect(aliceRow!.name).toBe("Alice");
+		expect(aliceRow!.imageUrl).toBeNull();
 		expect(aliceRow!.role).toBe("admin");
 
 		expect(bobRow).toBeDefined();
 		expect(bobRow!.email).toBe("bob@test.com");
+		expect(bobRow!.name).toBe("Bob");
+		expect(bobRow!.imageUrl).toBeNull();
 		expect(bobRow!.role).toBe("member");
 
 		// Both emails must be non-empty (BUG-006 regression assertion)
 		for (const member of members) {
 			expect(member.email).toBeTruthy();
 		}
+	});
+
+	it("returns null name and imageUrl when user has no name or image", async () => {
+		const ghost = await seedUser({ email: "ghost@test.com", name: null });
+
+		const { team } = await seedTeamWithBoard({
+			domain: "null-fields.com",
+			members: [{ userId: ghost.id, role: "member" }],
+		});
+
+		const members = await listMembers(team.id);
+		expect(members).toHaveLength(1);
+
+		const ghostRow = members[0]!;
+		expect(ghostRow.name).toBeNull();
+		expect(ghostRow.imageUrl).toBeNull();
 	});
 });
 
