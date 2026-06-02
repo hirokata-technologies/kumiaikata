@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- REQ-002: Flexible Assignee Selection
+- REQ-001: Remember Active Workspace on Switch
 - REQ-001: Sign Out
 - REQ-002: Workspace Switch (Personal, Team)
 - REQ-003: Edit Profile
