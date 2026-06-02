@@ -13,7 +13,9 @@ export interface TeamForUser {
 
 export interface TeamMemberRow {
 	userId: string;
-	email: string;
+	email: string | null;
+	name: string | null;
+	imageUrl: string | null;
 	role: Role;
 	joinedAt: Date;
 }
@@ -50,6 +52,8 @@ export async function listMembers(teamId: string): Promise<TeamMemberRow[]> {
 		.select({
 			userId: teamMembers.userId,
 			email: users.email,
+			name: users.name,
+			imageUrl: users.image,
 			role: teamMembers.role,
 			joinedAt: teamMembers.joinedAt,
 		})
@@ -58,7 +62,9 @@ export async function listMembers(teamId: string): Promise<TeamMemberRow[]> {
 		.where(eq(teamMembers.teamId, teamId));
 	return rows.map((r) => ({
 		userId: r.userId,
-		email: r.email ?? "",
+		email: r.email ?? null,
+		name: r.name ?? null,
+		imageUrl: r.imageUrl ?? null,
 		role: r.role as Role,
 		joinedAt: r.joinedAt,
 	}));

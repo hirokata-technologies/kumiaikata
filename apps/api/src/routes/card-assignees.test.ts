@@ -119,6 +119,101 @@ describe("DELETE /api/boards/:boardId/cards/:cardId/assignees/:userId", () => {
 	});
 });
 
+// ── DELETE authorization tests ────────────────────────────────────────────────
+
+describe("DELETE /api/boards/:boardId/cards/:cardId/assignees/:userId (authorization)", () => {
+	it("returns 403 when a team-member tries to remove another member", async () => {
+		const admin = await seedUser();
+		const member = await seedUser();
+		const { board } = await seedTeamWithBoard({
+			domain: "auth-del-team1.com",
+			members: [
+				{ userId: admin.id, role: "admin" },
+				{ userId: member.id, role: "member" },
+			],
+		});
+		const col = await seedColumn(board.id);
+		const card = await seedCard(board.id, col.id);
+
+		// Assign admin to the card
+		setCurrentUser({ id: admin.id, email: admin.email });
+		await apiRequest(
+			"POST",
+			`/api/boards/${board.id}/cards/${card.id}/assignees`,
+			{ body: { userId: admin.id } },
+		);
+
+		// member tries to remove admin
+		setCurrentUser({ id: member.id, email: member.email });
+		const res = await apiRequest(
+			"DELETE",
+			`/api/boards/${board.id}/cards/${card.id}/assignees/${admin.id}`,
+		);
+		expect(res.status).toBe(403);
+		const body = await res.json() as { error: { code: string } };
+		expect(body.error.code).toBe("FORBIDDEN");
+	});
+
+	it("returns 204 when a team-member removes themselves", async () => {
+		const admin = await seedUser();
+		const member = await seedUser();
+		const { board } = await seedTeamWithBoard({
+			domain: "auth-del-team2.com",
+			members: [
+				{ userId: admin.id, role: "admin" },
+				{ userId: member.id, role: "member" },
+			],
+		});
+		const col = await seedColumn(board.id);
+		const card = await seedCard(board.id, col.id);
+
+		// Assign member to the card (as admin)
+		setCurrentUser({ id: admin.id, email: admin.email });
+		await apiRequest(
+			"POST",
+			`/api/boards/${board.id}/cards/${card.id}/assignees`,
+			{ body: { userId: member.id } },
+		);
+
+		// member removes themselves
+		setCurrentUser({ id: member.id, email: member.email });
+		const res = await apiRequest(
+			"DELETE",
+			`/api/boards/${board.id}/cards/${card.id}/assignees/${member.id}`,
+		);
+		expect(res.status).toBe(204);
+	});
+
+	it("returns 204 when a team-admin removes another member", async () => {
+		const admin = await seedUser();
+		const member = await seedUser();
+		const { board } = await seedTeamWithBoard({
+			domain: "auth-del-team3.com",
+			members: [
+				{ userId: admin.id, role: "admin" },
+				{ userId: member.id, role: "member" },
+			],
+		});
+		const col = await seedColumn(board.id);
+		const card = await seedCard(board.id, col.id);
+
+		// Assign member to the card
+		setCurrentUser({ id: admin.id, email: admin.email });
+		await apiRequest(
+			"POST",
+			`/api/boards/${board.id}/cards/${card.id}/assignees`,
+			{ body: { userId: member.id } },
+		);
+
+		// admin removes member
+		const res = await apiRequest(
+			"DELETE",
+			`/api/boards/${board.id}/cards/${card.id}/assignees/${member.id}`,
+		);
+		expect(res.status).toBe(204);
+	});
+});
+
 // ── Team board assignee tests ──────────────────────────────────────────────────
 
 describe("POST /api/boards/:boardId/cards/:cardId/assignees (team board)", () => {

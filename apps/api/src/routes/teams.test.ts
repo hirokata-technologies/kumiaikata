@@ -85,6 +85,9 @@ describe("GET /api/teams/:teamId/members", () => {
 
 		const body = await res.json() as Array<{
 			userId: string;
+			email: string;
+			name: string | null;
+			imageUrl: string | null;
 			role: string;
 			joinedAt: string;
 		}>;
@@ -93,6 +96,9 @@ describe("GET /api/teams/:teamId/members", () => {
 
 		const memberEntry = body.find((m) => m.userId === member.id);
 		expect(memberEntry?.role).toBe("member");
+		expect(memberEntry?.email).toBe(member.email);
+		expect("name" in (memberEntry ?? {})).toBe(true);
+		expect("imageUrl" in (memberEntry ?? {})).toBe(true);
 	});
 
 	it("returns 403 when user is not a member of the team", async () => {

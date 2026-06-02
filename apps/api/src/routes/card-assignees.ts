@@ -75,28 +75,42 @@ r.post(
 );
 
 // DELETE /api/boards/:boardId/cards/:cardId/assignees/:userId
-r.delete("/:userId", async (c) => {
-	const board = c.get("board");
-	const cardId = validateId(c.req.param("cardId"), "cardId");
-	const userId = c.req.param("userId");
+r.delete(
+	"/:userId",
+	zValidator("param", z.object({ userId: z.string() })),
+	async (c) => {
+		const board = c.get("board");
+		const cardId = validateId(c.req.param("cardId"), "cardId");
+		const { userId } = c.req.valid("param");
+		const user = c.get("user");
+		const access = c.get("access");
 
-	const result = await db
-		.update(cards)
-		.set({ assigneeIds: sql`array_remove(${cards.assigneeIds}, ${userId})` })
-		.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
-		.returning({ id: cards.id });
+		// Only allow: (a) the user removing themselves, or (b) a board owner / team admin.
+		if (access.kind === "team-member" && user.id !== userId) {
+			throw new AppError(
+				"FORBIDDEN",
+				"You are not allowed to remove other members as an assignee.",
+			);
+		}
 
-	if (result.length === 0) {
-		throw new AppError("NOT_FOUND", "Card not found.");
-	}
+		const result = await db
+			.update(cards)
+			.set({ assigneeIds: sql`array_remove(${cards.assigneeIds}, ${userId})` })
+			.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
+			.returning({ id: cards.id });
 
-	eventBus.emit({
-		type: "card.assignee.removed",
-		boardId: board.id,
-		payload: { cardId, userId },
-	});
+		if (result.length === 0) {
+			throw new AppError("NOT_FOUND", "Card not found.");
+		}
 
-	return noContent(c);
-});
+		eventBus.emit({
+			type: "card.assignee.removed",
+			boardId: board.id,
+			payload: { cardId, userId },
+		});
+
+		return noContent(c);
+	},
+);
 
 export default r;
