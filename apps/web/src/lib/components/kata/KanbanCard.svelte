@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { KataCard, KataLabel, KataProject } from '$lib/types.js';
+	import type { KataCard, KataLabel, KataProject, MemberInfo } from '$lib/types.js';
 	import LabelChip from './LabelChip.svelte';
 	import AvatarChip from './AvatarChip.svelte';
 	import DueBadge from './DueBadge.svelte';
@@ -14,6 +14,7 @@
 		columnStyle,
 		boardLabels,
 		boardProjects,
+		boardMembers,
 		/** In project-group mode: the real status column id (e.g. 'backlog', 'doing', 'done') */
 		statusId,
 		/** In project-group mode: the human-readable status title */
@@ -31,6 +32,7 @@
 		columnStyle: string;
 		boardLabels: KataLabel[];
 		boardProjects: KataProject[];
+		boardMembers: MemberInfo[];
 		statusId?: string;
 		statusTitle?: string;
 		onopen: (id: string) => void;
@@ -56,6 +58,17 @@
 
 	// Effective "done" column: in status mode it's columnId; in project mode it's statusId
 	const effectiveColumnId = $derived(statusId ?? columnId);
+
+	const MAX_AVATARS = 3;
+
+	// Build a Map once per boardMembers change for O(1) lookup per assignee.
+	const memberMap = $derived(new Map(boardMembers.map((m) => [m.id, m])));
+
+	const assignedMembers = $derived(
+		card.assignees.map((uid) => memberMap.get(uid) ?? { id: uid, name: 'Unknown', email: '', imageUrl: null as string | null })
+	);
+	const shownMembers = $derived(assignedMembers.slice(0, MAX_AVATARS));
+	const overflow = $derived(Math.max(0, assignedMembers.length - MAX_AVATARS));
 </script>
 
 <div
@@ -103,8 +116,15 @@
 				{/if}
 			{/each}
 		</div>
-		{#if card.assignee}
-			<AvatarChip id={card.assignee} />
+		{#if assignedMembers.length > 0}
+			<div class="kc-assignees">
+				{#each shownMembers as m (m.id)}
+					<span class="kc-av"><AvatarChip id={m.id} name={m.name} imageUrl={m.imageUrl} size={22} /></span>
+				{/each}
+				{#if overflow > 0}
+					<span class="kc-av kc-av-more" title="{overflow} more">+{overflow}</span>
+				{/if}
+			</div>
 		{/if}
 	</div>
 </div>
@@ -269,6 +289,33 @@
 		flex-wrap: wrap;
 		gap: 4px;
 		min-width: 0;
+	}
+
+	.kc-assignees {
+		display: inline-flex;
+		align-items: center;
+		flex-shrink: 0;
+	}
+
+	.kc-av {
+		margin-left: -6px;
+		border-radius: 999px;
+		box-shadow: 0 0 0 2px var(--paper-0);
+	}
+
+	.kc-av:first-child {
+		margin-left: 0;
+	}
+
+	.kc-av-more {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		font: 600 10px var(--font-sans);
+		background: var(--paper-3);
+		color: var(--fg-2);
 	}
 
 	.compact {

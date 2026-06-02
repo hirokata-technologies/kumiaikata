@@ -1,20 +1,36 @@
 <script lang="ts">
-	import { AVATARS } from '$lib/data.js';
-	import type { AvatarId } from '$lib/types.js';
+	import { avatarColor, initials } from '$lib/data.js';
 
-	let { id, size = 22 }: { id: AvatarId; size?: number } = $props();
+	let {
+		id,
+		name,
+		imageUrl = null,
+		size = 22,
+	}: { id: string; name: string; imageUrl?: string | null; size?: number } = $props();
 
-	const A = $derived(AVATARS[id]);
+	let imgFailed = $state(false);
+	const showImage = $derived(!!imageUrl && !imgFailed);
+	const init = $derived(initials(name));
+	const tone = $derived(avatarColor(id));
 </script>
 
-{#if A}
+{#if showImage}
+	<img
+		class="avatar avatar-img"
+		src={imageUrl}
+		alt={name}
+		title={name}
+		width={size}
+		height={size}
+		style="width:{size}px;height:{size}px;"
+		onerror={() => (imgFailed = true)}
+	/>
+{:else}
 	<span
 		class="avatar"
-		style="width: {size}px; height: {size}px; background: {A.tone}; font-size: {size * 0.42}px;"
-		title={A.name}
-	>
-		{A.init}
-	</span>
+		style="width:{size}px;height:{size}px;background:{tone};font-size:{size * 0.42}px;"
+		title={name}
+	>{init}</span>
 {/if}
 
 <style>
@@ -27,5 +43,9 @@
 		font-family: var(--font-sans);
 		font-weight: 600;
 		flex-shrink: 0;
+	}
+
+	.avatar-img {
+		object-fit: cover;
 	}
 </style>

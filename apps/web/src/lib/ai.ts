@@ -80,7 +80,7 @@ export function scriptAI(
 		else if (/done|finished/i.test(raw)) colId = 'done';
 
 		const labels = pickLabels(title);
-		const card: KataCard = { id: newCardId(), title, desc: '', labels, assignee: 'me' };
+		const card: KataCard = { id: newCardId(), title, desc: '', labels, assignees: [] };
 		if (due) card.due = due;
 		const col = state.columns.find(c => c.id === colId);
 		const proposal: Proposal = {

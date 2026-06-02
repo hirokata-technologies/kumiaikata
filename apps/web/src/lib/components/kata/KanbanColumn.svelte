@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Plus, FolderMinus } from '@lucide/svelte';
-	import type { DisplayColumn, KataLabel, KataProject } from '$lib/types.js';
+	import type { DisplayColumn, KataLabel, KataProject, MemberInfo } from '$lib/types.js';
 	import KanbanCard from './KanbanCard.svelte';
 
 	let {
@@ -12,6 +12,7 @@
 		dragging,
 		boardLabels,
 		boardProjects,
+		boardMembers,
 		/** In project-group mode: maps card id → status column id */
 		statusLookup,
 		/** In project-group mode: maps status column id → column title */
@@ -28,6 +29,7 @@
 		dragging: { cardId: string; fromColumnId: string } | null;
 		boardLabels: KataLabel[];
 		boardProjects: KataProject[];
+		boardMembers: MemberInfo[];
 		statusLookup?: Map<string, string>;
 		statusTitles?: Map<string, string>;
 		onCardOpen: (id: string) => void;
@@ -178,6 +180,7 @@
 				{columnStyle}
 				{boardLabels}
 				{boardProjects}
+				{boardMembers}
 				statusId={cardStatusId}
 				statusTitle={cardStatusTitle}
 				onopen={onCardOpen}
