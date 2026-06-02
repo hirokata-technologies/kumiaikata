@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { Sparkles } from '@lucide/svelte';
 	import { untrack } from 'svelte';
-	import type { BoardState, GroupBy } from '$lib/types.js';
+	import type { BoardState, GroupBy, MemberInfo } from '$lib/types.js';
 	import type { Workspace } from '$lib/components/kata/WorkspaceSwitcher.svelte';
-	import { getPersonalBoard, getTeamBoard, getMyTeam, listLabels, listProjects, subscribeBoard, ApiError, wasClientOp } from '$lib/api';
+	import { getPersonalBoard, getTeamBoard, getMyTeam, listTeamMembers, listLabels, listProjects, subscribeBoard, ApiError, wasClientOp } from '$lib/api';
 	import type { TeamInfo } from '$lib/api';
 	import {
 		toLocalColumns,
@@ -31,6 +31,11 @@
 	import ChatPanel from '$lib/components/kata/ChatPanel.svelte';
 	import CardModal from '$lib/components/kata/CardModal.svelte';
 	import { settings, setDensity, setChatPlacement, toggleTheme } from '$lib/settings.svelte.js';
+	import {
+		readWorkspace, writeWorkspace,
+		readContext, writeProjectFilter, writeGroupBy,
+		type WorkspaceId,
+	} from '$lib/workspace.svelte.js';
 
 	let { data } = $props();
 
@@ -39,6 +44,9 @@
 
 	let boardState: BoardState = $state({ columns: [], labels: [], projects: [] });
 	let boardId: string | null = $state(null);
+	let boardMembers = $state<MemberInfo[]>([]);
+	let membersLoading = $state(false);
+	let membersError = $state(false);
 	let loading = $state(true);
 	let loadError: string | null = $state(null);
 	let teamInfo = $state<TeamInfo | null>(null);
@@ -49,8 +57,13 @@
 	let chatVisible = $state(true);
 	let chatInput = $state('');
 	let glowIds: Set<string> = $state(new Set());
-	let groupBy = $state<GroupBy>('status');
-	let activeProjectId = $state<string | null>(null);
+
+	const initialWorkspace = readWorkspace();
+	const initialContext = readContext(initialWorkspace);
+
+	let groupBy = $state<GroupBy>(initialContext.groupBy);
+	let activeProjectId = $state<string | null>(initialContext.activeProjectId);
+	let fallbackMessage = $state<string | null>(null);
 
 	/** Per-project card counts + unassigned count, used by ViewBar chips */
 	const projectCounts = $derived.by(() => {
@@ -69,7 +82,7 @@
 
 	const totalCount = $derived(boardState.columns.reduce((n, c) => n + c.cards.length, 0));
 
-	let workspaceId = $state<'personal' | 'team'>('personal');
+	let workspaceId = $state<WorkspaceId>(initialWorkspace);
 
 	const workspaces: Workspace[] = $derived([
 		{ id: 'personal', name: 'Personal', hint: 'Just for you', icon: 'user' },
@@ -83,10 +96,52 @@
 
 	const workspace = $derived(workspaces.find((w) => w.id === workspaceId) ?? workspaces[0]);
 
+	let restoringTeam = false; // plain flag, not reactive
+
+	function selfMember(): MemberInfo | null {
+		const u = data?.user;
+		if (!u) return null;
+		return { id: u.id, name: (u.name?.trim()) || u.email || 'User', email: u.email, imageUrl: u.image ?? null };
+	}
+
+	async function loadMembers(kind: 'personal' | 'team', teamId: string | undefined, seq: number) {
+		if (kind === 'personal') {
+			const self = selfMember();
+			if (seq === loadSeq) { boardMembers = self ? [self] : []; membersError = false; membersLoading = false; }
+			return;
+		}
+		// team board
+		const tid = teamId ?? teamInfo?.id;
+		if (!tid) {
+			if (seq === loadSeq) { boardMembers = []; membersError = true; membersLoading = false; }
+			return;
+		}
+		if (seq === loadSeq) { membersLoading = true; membersError = false; }
+		try {
+			const rows = await listTeamMembers(tid);
+			if (seq !== loadSeq) return;
+			boardMembers = rows.map((r) => ({
+				id: r.userId,
+				name: (r.name?.trim()) || r.email || 'User',
+				email: r.email ?? '',
+				imageUrl: r.imageUrl,
+			}));
+			membersError = false;
+		} catch {
+			if (seq !== loadSeq) return;
+			boardMembers = [];
+			membersError = true;
+		} finally {
+			if (seq === loadSeq) membersLoading = false;
+		}
+	}
+
 	async function loadBoard(kind: 'personal' | 'team' = workspaceId) {
 		const seq = ++loadSeq;
 		loading = true;
 		loadError = null;
+		boardMembers = [];
+		membersError = false;
 		try {
 			const api = kind === 'team' ? await getTeamBoard() : await getPersonalBoard();
 			if (seq !== loadSeq) return; // superseded — abandon
@@ -97,15 +152,36 @@
 			]);
 			if (seq !== loadSeq) return; // superseded after the second await
 			boardId = api.id;
+			const mappedProjects = projects.map((p) => ({ id: p.id, name: p.name, color: p.color }));
 			boardState = {
 				columns,
 				labels: labels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
-				projects: projects.map((p) => ({ id: p.id, name: p.name, color: p.color })),
+				projects: mappedProjects,
 			};
+			// Clear restoringTeam flag on successful team load so later 404s don't auto-fallback
+			if (kind === 'team') restoringTeam = false;
+			// Validate restored activeProjectId against loaded projects (US-3 AC-5)
+			if (activeProjectId && activeProjectId !== '__none') {
+				const exists = mappedProjects.some((p) => p.id === activeProjectId);
+				if (!exists) activeProjectId = null; // stale filter cleared
+			}
+			// Load member list for the board (personal = self only, team = API call)
+			loadMembers(kind, api.teamId, seq);
 		} catch (err) {
 			if (seq !== loadSeq) return; // superseded — don't show a stale error
 			const e = err instanceof ApiError ? err : null;
 			if (kind === 'team' && e?.status === 404) {
+				if (restoringTeam) {
+					restoringTeam = false; // consume the flag (no repeat)
+					workspaceId = 'personal';
+					writeWorkspace('personal'); // US-4 AC-2 — don't repeat fallback next load
+					const ctx = readContext('personal');
+					groupBy = ctx.groupBy;
+					activeProjectId = ctx.activeProjectId;
+					fallbackMessage = 'Team workspace not available — opened Personal instead';
+					loadBoard('personal'); // bumps loadSeq; banner shows once personal is ready
+					return; // do not set loadError for the fallback path
+				}
 				loadError = 'Team board not found';
 			} else {
 				loadError = e?.message ?? (err instanceof Error ? err.message : 'Failed to load board');
@@ -117,9 +193,12 @@
 
 	function handleSelectWorkspace(id: string) {
 		if (id !== 'personal' && id !== 'team') return;
-		if (id === workspaceId) return; // no-op on active entry
+		if (id === workspaceId) return; // no-op: no write (US-2 AC-3)
 		openCardId = null; // close any open card modal
-		activeProjectId = null; // old board's project filter is meaningless on new board
+		writeWorkspace(id); // US-2 AC-1/2 — write before fetch begins
+		const ctx = readContext(id); // incoming workspace context (US-3 AC-4)
+		groupBy = ctx.groupBy;
+		activeProjectId = ctx.activeProjectId; // may be null; validated after board loads
 		workspaceId = id;
 		loadBoard(id);
 	}
@@ -134,10 +213,18 @@
 	$effect(() => {
 		if (mounted) return;
 		mounted = true;
-		loadBoard('personal');
+		if (workspaceId === 'team') restoringTeam = true;
+		loadBoard(workspaceId);
 		getMyTeam()
 			.then((info) => { teamInfo = info; })
 			.catch(() => { teamInfo = null; }); // fall back to "Team" label, stay usable
+	});
+
+	// Auto-dismiss fallback banner after 5 seconds
+	$effect(() => {
+		if (!fallbackMessage) return;
+		const t = setTimeout(() => { fallbackMessage = null; }, 5000);
+		return () => clearTimeout(t);
 	});
 
 	$effect(() => {
@@ -202,18 +289,18 @@
 						{ ...(data as { cardId: string; labelId: string }), op: 'remove' },
 					);
 					break;
-				case 'card.assignee.added':
-					next = applyCardAssigneeChange(
-						cols,
-						{ ...(data as { cardId: string; userId: string }), op: 'add' },
-					);
+				case 'card.assignee.added': {
+					const d = data as { cardId: string; userId: string };
+					if (wasClientOp(`assignee:${d.cardId}:${d.userId}`)) return;
+					next = applyCardAssigneeChange(cols, { ...d, op: 'add' });
 					break;
-				case 'card.assignee.removed':
-					next = applyCardAssigneeChange(
-						cols,
-						{ ...(data as { cardId: string; userId: string }), op: 'remove' },
-					);
+				}
+				case 'card.assignee.removed': {
+					const d = data as { cardId: string; userId: string };
+					if (wasClientOp(`assignee:${d.cardId}:${d.userId}`)) return;
+					next = applyCardAssigneeChange(cols, { ...d, op: 'remove' });
 					break;
+				}
 				case 'label.created':
 					boardState = { ...boardState, labels: applyLabelCreated(boardState.labels, data as { id: string; name: string; color: string }) };
 					return;
@@ -292,6 +379,13 @@
 </svelte:head>
 
 <div class="shell" class:has-chat={chatVisible}>
+	{#if fallbackMessage}
+		<div class="ws-fallback-banner" role="status" aria-live="polite">
+			<span>{fallbackMessage}</span>
+			<button class="ws-fallback-close" aria-label="Dismiss" onclick={() => (fallbackMessage = null)}>×</button>
+		</div>
+	{/if}
+
 	<TopBar
 		{query}
 		onquery={(q) => (query = q)}
@@ -316,8 +410,16 @@
 			boardProjects={boardState.projects}
 			{projectCounts}
 			{totalCount}
-			ongroupby={(g) => { groupBy = g; activeProjectId = null; }}
-			onprojectfilter={(pid) => (activeProjectId = pid)}
+			ongroupby={(g) => {
+				groupBy = g;
+				activeProjectId = null;
+				writeGroupBy(workspaceId, g);
+				writeProjectFilter(workspaceId, null);
+			}}
+			onprojectfilter={(pid) => {
+				activeProjectId = pid;
+				writeProjectFilter(workspaceId, pid);
+			}}
 		/>
 	{/if}
 
@@ -344,11 +446,12 @@
 				glowCardIds={glowIds}
 				boardLabels={boardState.labels}
 				boardProjects={boardState.projects}
+				{boardMembers}
 				{groupBy}
 				{activeProjectId}
 				onCardOpen={(id) => (openCardId = id)}
 				onStateChange={(s) => (boardState = s)}
-				onclearfilter={() => (activeProjectId = null)}
+				onclearfilter={() => { activeProjectId = null; writeProjectFilter(workspaceId, null); }}
 			/>
 
 			{#if chatVisible && settings.chatPlacement === 'side'}
@@ -425,6 +528,9 @@
 				onClose={() => (openCardId = null)}
 				onAsk={handleAsk}
 				onStateChange={(s) => (boardState = s)}
+				{boardMembers}
+				{membersLoading}
+				{membersError}
 			/>
 		{/if}
 	{/if}
@@ -580,5 +686,39 @@
 	.overlay-chat :global(.chat) {
 		width: 100%;
 		border-left: none;
+	}
+
+	.ws-fallback-banner {
+		position: fixed;
+		top: 12px;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 50;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 8px 16px;
+		background: var(--paper-0);
+		border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+		border-radius: 8px;
+		box-shadow: var(--shadow-lg);
+		font-size: 0.875rem;
+		color: var(--fg-1);
+		max-width: calc(100vw - 32px);
+	}
+
+	.ws-fallback-close {
+		flex-shrink: 0;
+		background: none;
+		border: none;
+		cursor: pointer;
+		font-size: 1rem;
+		line-height: 1;
+		color: var(--fg-2, var(--fg-1));
+		padding: 0 2px;
+	}
+
+	.ws-fallback-close:hover {
+		color: var(--fg-0, var(--fg-1));
 	}
 </style>
