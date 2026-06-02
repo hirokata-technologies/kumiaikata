@@ -1,4 +1,4 @@
-import type { LabelId, AvatarId, LabelDef, AvatarDef, KataColumn } from './types.js';
+import type { LabelId, LabelDef, KataColumn } from './types.js';
 
 export const LABELS: Record<LabelId, LabelDef> = {
 	home:     { name: 'Home',     fg: '#3F6B4A', bg: 'rgba(63,107,74,0.10)' },
@@ -11,12 +11,22 @@ export const LABELS: Record<LabelId, LabelDef> = {
 	creative: { name: 'Creative', fg: '#76716A', bg: 'rgba(118,113,106,0.14)' },
 };
 
-export const AVATARS: Record<AvatarId, AvatarDef> = {
-	me: { name: 'You',  init: 'Y', tone: '#2E3A6B' },
-	m:  { name: 'Maya', init: 'M', tone: '#9B3B2E' },
-	d:  { name: 'Dad',  init: 'D', tone: '#3F6B4A' },
-	r:  { name: 'Ren',  init: 'R', tone: '#B07A2A' },
-};
+const AVATAR_PALETTE = ['#2E3A6B','#9B3B2E','#3F6B4A','#B07A2A','#76716A','#4A463E','#7C3AED','#0891B2'];
+
+export function avatarColor(id: string): string {
+	let h = 0;
+	for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+	return AVATAR_PALETTE[h % AVATAR_PALETTE.length]!;
+}
+
+export function initials(name: string | null | undefined): string {
+	if (name == null || typeof name !== 'string') return '?';
+	const n = name.trim();
+	if (!n) return '?';
+	const parts = n.split(/\s+/);
+	if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
+	return n.length === 1 ? n[0]!.toUpperCase() : n.slice(0, 2).toUpperCase();
+}
 
 let _id = 100;
 export function newCardId(): string { return `c${++_id}`; }
@@ -115,37 +125,37 @@ export const SEED_COLUMNS: KataColumn[] = [
 	{
 		id: 'backlog', title: 'Backlog',
 		cards: [
-			{ id: 'c1', title: 'Plan Kyoto trip itinerary for autumn', desc: 'Three nights minimum. Want to hit Ginkaku-ji and at least one tea house off the tourist track.', labels: ['social','learning'], assignee: 'me', due: '2026-09-15' },
-			{ id: 'c2', title: 'Replace bathroom faucet', desc: '', labels: ['home'], assignee: 'me' },
-			{ id: 'c3', title: 'Start sourdough starter again', desc: 'The last one died in March. Try keeping it in the cooler corner this time.', labels: ['home','creative'], assignee: 'me' },
-			{ id: 'c4', title: "Read 'The Mountain in the Sea'", desc: '', labels: ['learning'], assignee: 'me' },
-			{ id: 'c5', title: 'Look into bike tune-up shops in the East End', desc: '', labels: ['errand'], assignee: 'me' },
+			{ id: 'c1', title: 'Plan Kyoto trip itinerary for autumn', desc: 'Three nights minimum. Want to hit Ginkaku-ji and at least one tea house off the tourist track.', labels: ['social','learning'], assignees: [], due: '2026-09-15' },
+			{ id: 'c2', title: 'Replace bathroom faucet', desc: '', labels: ['home'], assignees: [] },
+			{ id: 'c3', title: 'Start sourdough starter again', desc: 'The last one died in March. Try keeping it in the cooler corner this time.', labels: ['home','creative'], assignees: [] },
+			{ id: 'c4', title: "Read 'The Mountain in the Sea'", desc: '', labels: ['learning'], assignees: [] },
+			{ id: 'c5', title: 'Look into bike tune-up shops in the East End', desc: '', labels: ['errand'], assignees: [] },
 		],
 	},
 	{
 		id: 'priorities', title: 'Priorities',
 		cards: [
-			{ id: 'c10', title: 'Renew passport before May 14', desc: 'Need new photos. Form DS-82 (renewal by mail eligible).', labels: ['errand','finance'], assignee: 'me', due: '2026-05-14' },
-			{ id: 'c11', title: 'Schedule dental cleaning', desc: '', labels: ['health'], assignee: 'me', due: '2026-05-29' },
-			{ id: 'c12', title: 'Reply to Maya about dinner Saturday', desc: 'She suggested the new izakaya on Main. Confirm 7pm or push to 8.', labels: ['social'], assignee: 'm', due: '2026-05-23' },
-			{ id: 'c13', title: 'Order replacement HVAC filter (MERV 11, 16×25×1)', desc: '', labels: ['home'], assignee: 'me', due: '2026-06-05' },
+			{ id: 'c10', title: 'Renew passport before May 14', desc: 'Need new photos. Form DS-82 (renewal by mail eligible).', labels: ['errand','finance'], assignees: [], due: '2026-05-14' },
+			{ id: 'c11', title: 'Schedule dental cleaning', desc: '', labels: ['health'], assignees: [], due: '2026-05-29' },
+			{ id: 'c12', title: 'Reply to Maya about dinner Saturday', desc: 'She suggested the new izakaya on Main. Confirm 7pm or push to 8.', labels: ['social'], assignees: [], due: '2026-05-23' },
+			{ id: 'c13', title: 'Order replacement HVAC filter (MERV 11, 16×25×1)', desc: '', labels: ['home'], assignees: [], due: '2026-06-05' },
 		],
 	},
 	{
 		id: 'in-progress', title: 'In Progress',
 		cards: [
-			{ id: 'c20', title: 'Tax docs — gather 1099s and brokerage statements', desc: 'Have Fidelity, still need Wealthfront and the freelance 1099-NEC from Q3 contract.', labels: ['finance'], assignee: 'me', due: '2026-05-22' },
-			{ id: 'c21', title: 'Sketchbook study #14 — kettle on the stove', desc: 'Stuck on the reflection on the copper. Try a softer pencil pass tomorrow morning.', labels: ['creative','learning'], assignee: 'me' },
-			{ id: 'c22', title: 'Fix leaky kitchen sink', desc: 'New supply line ordered. Arriving Thursday.', labels: ['home'], assignee: 'd', due: '2026-05-28' },
+			{ id: 'c20', title: 'Tax docs — gather 1099s and brokerage statements', desc: 'Have Fidelity, still need Wealthfront and the freelance 1099-NEC from Q3 contract.', labels: ['finance'], assignees: [], due: '2026-05-22' },
+			{ id: 'c21', title: 'Sketchbook study #14 — kettle on the stove', desc: 'Stuck on the reflection on the copper. Try a softer pencil pass tomorrow morning.', labels: ['creative','learning'], assignees: [] },
+			{ id: 'c22', title: 'Fix leaky kitchen sink', desc: 'New supply line ordered. Arriving Thursday.', labels: ['home'], assignees: [], due: '2026-05-28' },
 		],
 	},
 	{
 		id: 'done', title: 'Done',
 		cards: [
-			{ id: 'c30', title: 'Pay quarterly estimated taxes (Q1)', desc: '', labels: ['finance'], assignee: 'me', due: '2026-04-15' },
-			{ id: 'c31', title: 'Pick up dry cleaning', desc: '', labels: ['errand'], assignee: 'me' },
-			{ id: 'c32', title: 'Submit reimbursement for the Tokyo books', desc: '', labels: ['finance','learning'], assignee: 'me' },
-			{ id: 'c33', title: 'Call landlord about radiator', desc: '', labels: ['home'], assignee: 'me' },
+			{ id: 'c30', title: 'Pay quarterly estimated taxes (Q1)', desc: '', labels: ['finance'], assignees: [], due: '2026-04-15' },
+			{ id: 'c31', title: 'Pick up dry cleaning', desc: '', labels: ['errand'], assignees: [] },
+			{ id: 'c32', title: 'Submit reimbursement for the Tokyo books', desc: '', labels: ['finance','learning'], assignees: [] },
+			{ id: 'c33', title: 'Call landlord about radiator', desc: '', labels: ['home'], assignees: [] },
 		],
 	},
 ];
@@ -180,5 +190,8 @@ export function pickLabels(text: string): LabelId[] {
 }
 
 export function deepCloneColumns(columns: KataColumn[]): KataColumn[] {
-	return columns.map(c => ({ ...c, cards: c.cards.map(card => ({ ...card, labels: [...card.labels] })) }));
+	return columns.map(c => ({
+		...c,
+		cards: c.cards.map(card => ({ ...card, labels: [...card.labels], assignees: [...card.assignees] })),
+	}));
 }

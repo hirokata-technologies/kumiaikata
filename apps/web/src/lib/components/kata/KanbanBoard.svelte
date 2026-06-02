@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Filter } from '@lucide/svelte';
-	import type { BoardState, KataCard, KataLabel, KataProject, DisplayColumn, GroupBy } from '$lib/types.js';
+	import type { BoardState, KataCard, KataLabel, KataProject, DisplayColumn, GroupBy, MemberInfo } from '$lib/types.js';
 	import { deepCloneColumns } from '$lib/data.js';
 	import {
 		createCard,
@@ -22,6 +22,7 @@
 		glowCardIds,
 		boardLabels,
 		boardProjects,
+		boardMembers,
 		groupBy = 'status',
 		activeProjectId = null,
 		onCardOpen,
@@ -37,6 +38,7 @@
 		glowCardIds: Set<string>;
 		boardLabels: KataLabel[];
 		boardProjects: KataProject[];
+		boardMembers: MemberInfo[];
 		groupBy?: GroupBy;
 		activeProjectId?: string | null;
 		onCardOpen: (id: string) => void;
@@ -225,7 +227,7 @@
 		const newCols = deepCloneColumns(boardState.columns);
 		const col = newCols.find(c => c.id === statusColId);
 		if (!col) return;
-		const tempCard: KataCard = { id: tempId, title, desc: '', labels: [], assignee: 'me', projectId };
+		const tempCard: KataCard = { id: tempId, title, desc: '', labels: [], assignees: [], projectId };
 		col.cards.push(tempCard);
 		onStateChange({ ...boardState, columns: newCols });
 
@@ -290,6 +292,7 @@
 				{dragging}
 				{boardLabels}
 				{boardProjects}
+				{boardMembers}
 				statusLookup={groupBy === 'project' ? statusLookup : undefined}
 				statusTitles={groupBy === 'project' ? statusTitles : undefined}
 				onCardOpen={onCardOpen}

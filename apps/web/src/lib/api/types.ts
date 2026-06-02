@@ -88,7 +88,9 @@ export interface LabelDetail {
 
 export interface TeamMemberRow {
 	userId: string;
-	email: string;
+	email: string | null;
+	name: string | null;
+	imageUrl: string | null;
 	role: string;
 	joinedAt: string;
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Sparkles, X, Trash2 } from '@lucide/svelte';
-	import type { BoardState, KataCard, AvatarId } from '$lib/types.js';
-	import { AVATARS, deepCloneColumns, getPresetDate } from '$lib/data.js';
+	import type { BoardState, KataCard, MemberInfo } from '$lib/types.js';
+	import { deepCloneColumns, getPresetDate } from '$lib/data.js';
 	import {
 		updateCard as apiUpdateCard,
 		moveCard as apiMoveCard,
@@ -25,7 +25,10 @@
 		state: boardState,
 		onClose,
 		onAsk,
-		onStateChange
+		onStateChange,
+		boardMembers = [],
+		membersLoading = false,
+		membersError = false,
 	}: {
 		boardId: string;
 		cardId: string;
@@ -33,6 +36,9 @@
 		onClose: () => void;
 		onAsk: (prefix: string) => void;
 		onStateChange: (s: BoardState) => void;
+		boardMembers?: MemberInfo[];
+		membersLoading?: boolean;
+		membersError?: boolean;
 	} = $props();
 
 	// Find card and column
@@ -257,16 +263,22 @@
 		}
 	}
 
-	async function setAssignee(avatarId: AvatarId) {
+	async function toggleAssignee(userId: string) {
 		if (!card) return;
 		const previous = boardState;
-		const prevAssignee = card.assignee;
+		const isAssigned = card.assignees.includes(userId);
 		// Optimistic
 		const cols = deepCloneColumns(boardState.columns);
 		for (const c of cols) {
 			const idx = c.cards.findIndex(ca => ca.id === cardId);
 			if (idx !== -1) {
-				c.cards[idx] = { ...c.cards[idx]!, assignee: avatarId };
+				const current = c.cards[idx]!.assignees;
+				c.cards[idx] = {
+					...c.cards[idx]!,
+					assignees: isAssigned
+						? current.filter(id => id !== userId)
+						: [...current, userId],
+				};
 				break;
 			}
 		}
@@ -274,16 +286,16 @@
 
 		modalError = null;
 		try {
-			markClientOp(`assignee:${cardId}`);
-			// Unassign previous if different
-			if (prevAssignee && prevAssignee !== avatarId && prevAssignee !== 'me') {
-				await unassignUser(boardId, cardId, prevAssignee);
+			markClientOp(`assignee:${cardId}:${userId}`);
+			if (isAssigned) {
+				await unassignUser(boardId, cardId, userId);
+			} else {
+				await assignUser(boardId, cardId, userId);
 			}
-			await assignUser(boardId, cardId, avatarId);
 		} catch (err) {
 			onStateChange(previous);
 			modalError = err instanceof ApiError ? err.message : 'Failed to update assignee';
-			console.warn('[CardModal] setAssignee error:', err);
+			console.warn('[CardModal] toggleAssignee error:', err);
 		}
 	}
 
@@ -512,22 +524,32 @@
 						</div>
 					</div>
 
-					<!-- Assignee -->
+					<!-- Assignee picker -->
 					<div class="modal-side-sec">
-						<span class="eyebrow">Assignee</span>
-						<div class="modal-assignees">
-							{#each Object.entries(AVATARS) as [avatarId, avatarDef] (avatarId)}
-								<button
-									class="modal-assignee"
-									class:is-on={card.assignee === avatarId}
-									onclick={() => setAssignee(avatarId as AvatarId)}
-									aria-pressed={card.assignee === avatarId}
-								>
-									<AvatarChip id={avatarId as AvatarId} size={22} />
-									{avatarDef.name}
-								</button>
-							{/each}
-						</div>
+						<span class="eyebrow">Assignees</span>
+						{#if membersLoading}
+							<p class="assignee-status">Loading members…</p>
+						{:else if membersError}
+							<p class="assignee-status assignee-error">Couldn't load members</p>
+						{:else}
+							<div class="modal-assignees">
+								{#each boardMembers as m (m.id)}
+									{@const isOn = card.assignees.includes(m.id)}
+									<button
+										class="modal-assignee"
+										class:is-on={isOn}
+										onclick={() => toggleAssignee(m.id)}
+										aria-pressed={isOn}
+									>
+										<AvatarChip id={m.id} name={m.name} imageUrl={m.imageUrl} size={22} />
+										{m.name}
+									</button>
+								{/each}
+								{#if boardMembers.length === 0}
+									<span class="modal-no-assignees">No members found</span>
+								{/if}
+							</div>
+						{/if}
 					</div>
 
 					<!-- Delete -->
@@ -777,30 +799,53 @@
 		gap: 2px;
 	}
 
+	.modal-no-assignees {
+		font: 400 12.5px var(--font-sans);
+		color: var(--fg-3);
+		padding: 4px 8px;
+	}
+
+	.assignee-status {
+		font: 400 12.5px var(--font-sans);
+		color: var(--fg-4);
+		font-style: italic;
+		margin: 0;
+		padding: 4px 8px;
+	}
+
+	.assignee-error {
+		color: #9B3B2E;
+		font-style: normal;
+	}
+
 	.modal-assignee {
 		display: flex;
 		align-items: center;
-		gap: 10px;
+		gap: 8px;
+		width: 100%;
 		padding: 5px 8px;
 		background: transparent;
-		border: none;
-		border-radius: 6px;
-		cursor: pointer;
+		border: 1px solid transparent;
+		border-radius: 8px;
 		font: 500 13px var(--font-sans);
 		color: var(--fg-2);
+		cursor: pointer;
 		text-align: left;
 		transition: all 140ms;
+		opacity: 0.6;
 	}
 
 	.modal-assignee:hover {
 		background: var(--paper-0);
 		color: var(--fg-1);
+		opacity: 1;
 	}
 
 	.modal-assignee.is-on {
 		background: var(--paper-0);
+		border-color: var(--line-2);
 		color: var(--fg-1);
-		outline: 1px solid var(--line-2);
+		opacity: 1;
 	}
 
 	.btn-danger {

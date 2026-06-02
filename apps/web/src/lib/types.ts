@@ -1,5 +1,4 @@
 export type LabelId = string;
-export type AvatarId = 'me' | 'm' | 'd' | 'r';
 
 export interface KataLabel {
 	id: string;
@@ -19,10 +18,11 @@ export interface LabelDef {
 	bg: string;
 }
 
-export interface AvatarDef {
-	name: string;
-	init: string;
-	tone: string;
+export interface MemberInfo {
+	id: string;
+	name: string;       // resolved display name (never empty — caller falls back to email)
+	email: string;
+	imageUrl: string | null;
 }
 
 export interface KataCard {
@@ -30,7 +30,7 @@ export interface KataCard {
 	title: string;
 	desc: string;
 	labels: string[];
-	assignee: AvatarId;
+	assignees: string[]; // real user IDs
 	due?: string;
 	projectId?: string | null;
 }

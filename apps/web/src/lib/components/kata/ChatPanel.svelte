@@ -5,7 +5,6 @@
 	import { scriptAI } from '$lib/ai.js';
 	import { deepCloneColumns, QUICK_REPLIES, SLASH_COMMANDS, newCardId } from '$lib/data.js';
 	import LabelChip from './LabelChip.svelte';
-	import AvatarChip from './AvatarChip.svelte';
 	import DueBadge from './DueBadge.svelte';
 
 	let {
@@ -354,9 +353,6 @@
 															<LabelChip {label} />
 														{/if}
 													{/each}
-													{#if proposal.card.assignee}
-														<AvatarChip id={proposal.card.assignee} size={18} />
-													{/if}
 												</div>
 											</div>
 										{/if}

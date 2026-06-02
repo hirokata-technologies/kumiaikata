@@ -1,6 +1,5 @@
 import type { BoardWithColumnsAndCards, CardSummary } from './types.js';
-import type { KataCard, KataColumn, KataLabel, KataProject, AvatarId } from '$lib/types.js';
-import { AVATARS } from '$lib/data.js';
+import type { KataCard, KataColumn, KataLabel, KataProject } from '$lib/types.js';
 
 // --- Client op dedup helpers (TTL-based, used to suppress own SSE echo) ---
 const recentOps = new Map<string, number>();
@@ -24,22 +23,13 @@ export function wasClientOp(key: string): boolean {
 	return true;
 }
 
-const KNOWN_AVATAR_IDS = new Set(Object.keys(AVATARS)) as Set<string>;
-
 function mapCard(c: CardSummary): KataCard {
-	// Labels: accept all label IDs from the API; KanbanCard looks them up from boardState.labels
-	const labels = c.labelIds ?? [];
-
-	// Assignee: local type is a single value; API has an array. Show the first known assignee.
-	const firstKnown = (c.assigneeIds ?? []).find((id) => KNOWN_AVATAR_IDS.has(id));
-	const assignee = (firstKnown ?? 'me') as AvatarId;
-
 	return {
 		id: c.id,
 		title: c.title,
 		desc: '', // CardSummary doesn't include description; CardModal will fetch detail on open
-		labels,
-		assignee,
+		labels: c.labelIds ?? [],
+		assignees: c.assigneeIds ?? [],
 		projectId: c.projectId ?? null,
 		...(c.dueDate && { due: c.dueDate.slice(0, 10) }), // local type uses YYYY-MM-DD
 	};
@@ -239,16 +229,17 @@ export function applyCardAssigneeChange(
 	cols: KataColumn[],
 	data: { cardId: string; userId: string; op: 'add' | 'remove' },
 ): KataColumn[] {
-	const knownAvatars = new Set(Object.keys(AVATARS));
-	if (!knownAvatars.has(data.userId)) return cols;
 	return cols.map((c) => ({
 		...c,
 		cards: c.cards.map((card) => {
 			if (card.id !== data.cardId) return card;
-			if (data.op === 'add') return { ...card, assignee: data.userId as AvatarId };
-			// On remove: clear back to 'me' if this was the current assignee
-			if (card.assignee === data.userId) return { ...card, assignee: 'me' as AvatarId };
-			return card;
+			const assignees =
+				data.op === 'add'
+					? card.assignees.includes(data.userId)
+						? card.assignees
+						: [...card.assignees, data.userId]
+					: card.assignees.filter((id) => id !== data.userId);
+			return { ...card, assignees };
 		}),
 	}));
 }
