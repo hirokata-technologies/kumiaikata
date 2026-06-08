@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- REQ-001: AI Chat Assist with Anthropic SDK using Minimax Model
 - REQ-002: Flexible Assignee Selection
 - REQ-001: Remember Active Workspace on Switch
 - REQ-001: Sign Out
