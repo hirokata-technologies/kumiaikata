@@ -1,36 +1,30 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { Eraser, X, ArrowUp, Check, PlusCircle, MoveRight, FileText, Sparkles, Maximize2, Minimize2 } from '@lucide/svelte';
-	import type { BoardState, ChatMessage, MessagePart, KataCard } from '$lib/types.js';
-	import { scriptAI } from '$lib/ai.js';
-	import { deepCloneColumns, QUICK_REPLIES, SLASH_COMMANDS, newCardId } from '$lib/data.js';
-	import LabelChip from './LabelChip.svelte';
-	import DueBadge from './DueBadge.svelte';
+	import { Eraser, X, ArrowUp, Sparkles, Maximize2, Minimize2 } from '@lucide/svelte';
+	import type { BoardState, ChatMessage } from '$lib/types.js';
+	import { QUICK_REPLIES } from '$lib/data.js';
+	import { serializeBoardContext, countCards } from '$lib/ai/board-context.js';
 
 	let {
 		boardState,
-		selectedCardId,
 		placement,
 		chatInput,
 		onChatInputChange,
 		onClose,
-		onStateChange,
 		onTogglePlacement
 	}: {
 		boardState: BoardState;
-		selectedCardId: string | null;
 		placement: string;
 		chatInput?: string;
 		onChatInputChange?: (v: string) => void;
 		onClose: () => void;
-		onStateChange: (s: BoardState) => void;
 		onTogglePlacement?: () => void;
 	} = $props();
 
 	const GREETING: ChatMessage = {
 		id: 'm-greet',
 		role: 'ai',
-		parts: [{ kind: 'text', streamed: true, text: "Hi — I'm here to help keep this board moving. Try one of the chips below, or type **/** for commands." }]
+		parts: [{ kind: 'text', streamed: true, text: "Hi — I'm here to help keep this board moving. Click **Analyze all Tasks** below to get AI-powered insights about your board." }]
 	};
 
 	let messages: ChatMessage[] = $state([GREETING]);
@@ -43,6 +37,10 @@
 	const controlled = $derived(chatInput !== undefined && onChatInputChange !== undefined);
 	// The effective input value — either the external prop or the internal state.
 	const input = $derived(controlled ? chatInput! : internalInput);
+
+	// Derived: board has at least one card
+	const boardContext = $derived(serializeBoardContext(boardState));
+	const hasCards = $derived(countCards(boardContext) > 0);
 
 	// Focus the textarea and move the caret to the end whenever a non-empty prefix arrives.
 	$effect(() => {
@@ -57,47 +55,10 @@
 		}
 	});
 
-	// Derived: show slash menu when input starts with '/' and no space yet
-	const showSlashMenu = $derived(input.startsWith('/') && !input.includes(' ') && input.length > 0);
-
-	// Derived: show mention menu
-	const mentionMatch = $derived(input.match(/@([\w-]*)$/));
-	const showMentionMenu = $derived(!!mentionMatch);
-
-	const mentionCards = $derived(() => {
-		if (!mentionMatch) return [];
-		const needle = (mentionMatch[1] || '').toLowerCase();
-		const results: { card: KataCard; colTitle: string }[] = [];
-		for (const col of boardState.columns) {
-			for (const card of col.cards) {
-				if (!needle || card.title.toLowerCase().includes(needle)) {
-					results.push({ card, colTitle: col.title });
-				}
-			}
-		}
-		return results.slice(0, 6);
-	});
-
-	const filteredSlashCommands = $derived(() => {
-		const prefix = input.slice(1).toLowerCase();
-		return SLASH_COMMANDS.filter(c => c.cmd.slice(1).startsWith(prefix));
-	});
-
-	const selectedCard = $derived(() => {
-		if (!selectedCardId) return null;
-		for (const col of boardState.columns) {
-			const found = col.cards.find(c => c.id === selectedCardId);
-			if (found) return found;
-		}
-		return null;
-	});
-
 	function scrollToBottom() {
-		if (scrollRef) {
-			setTimeout(() => {
-				if (scrollRef) scrollRef.scrollTop = scrollRef.scrollHeight;
-			}, 10);
-		}
+		setTimeout(() => {
+			if (scrollRef) scrollRef.scrollTop = scrollRef.scrollHeight;
+		}, 10);
 	}
 
 	function setInput(v: string) {
@@ -105,39 +66,164 @@
 		else internalInput = v;
 	}
 
-	async function send(text: string) {
-		const t = text.trim();
-		if (!t || busy) return;
+	function updateAiBubble(aiId: string, text: string) {
+		messages = messages.map((m) => {
+			if (m.id !== aiId || !m.parts) return m;
+			return {
+				...m,
+				parts: m.parts.map((p) => {
+					if (p.kind !== 'text') return p;
+					return { ...p, text };
+				})
+			};
+		});
+		scrollToBottom();
+	}
+
+	async function analyze() {
+		// Fix #3: Set busy synchronously before any await to prevent duplicate concurrent requests.
+		if (busy || !hasCards) return;
+		busy = true;
 
 		const userMsg: ChatMessage = {
 			id: `m-${Date.now()}-u`,
 			role: 'user',
-			text: t
+			text: 'Analyze all Tasks'
 		};
-		messages = [...messages, userMsg];
-		setInput('');
-		busy = true;
-		scrollToBottom();
 
-		await new Promise(r => setTimeout(r, 280));
-
-		const parts = scriptAI(t, boardState, { selectedCard: selectedCard() });
+		const aiId = `m-${Date.now()}-a`;
 		const aiMsg: ChatMessage = {
-			id: `m-${Date.now()}-a`,
+			id: aiId,
 			role: 'ai',
-			parts
+			parts: [{ kind: 'text', streamed: true, text: '' }]
 		};
-		messages = [...messages, aiMsg];
+
+		messages = [...messages, userMsg, aiMsg];
 		scrollToBottom();
 
-		await new Promise(r => setTimeout(r, 60));
-		busy = false;
+		let acc = '';
+		let sawDone = false;
+		let interrupted = false;
+
+		// Fix #1: AbortController with a 60-second timeout.
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), 60_000);
+
+		try {
+			const res = await fetch('/api/ai/analyze', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ board: boardContext }),
+				signal: controller.signal
+			});
+
+			// Non-stream error or JSON error response
+			if (!res.ok || res.headers.get('content-type')?.includes('application/json')) {
+				let errMsg = 'Analysis failed. Please try again.';
+				try {
+					const body = await res.json();
+					if (body?.error) errMsg = body.error;
+				} catch {
+					// ignore parse errors
+				}
+				updateAiBubble(aiId, errMsg);
+				return;
+			}
+
+			// Fix #2: Guard against a null response body.
+			if (!res.body) {
+				updateAiBubble(aiId, 'Analysis failed: server returned an empty response. Please try again.');
+				return;
+			}
+
+			// SSE read loop — we POSTed a body so EventSource is not an option.
+			// Fix #4: Stateful line accumulator — buffer incomplete lines across chunks
+			// and only parse when a complete `data: ...` line is received.
+			const reader = res.body.getReader();
+			const decoder = new TextDecoder();
+			// `lineBuf` holds a partial line carried over from the previous chunk.
+			let lineBuf = '';
+
+			while (true) {
+				const { value, done } = await reader.read();
+				if (done) break;
+
+				// Append the decoded chunk to any leftover partial line.
+				lineBuf += decoder.decode(value, { stream: true });
+
+				// Split on newlines; the last element is an incomplete (or empty) line fragment.
+				const rawLines = lineBuf.split('\n');
+				// Keep the trailing fragment for the next iteration.
+				lineBuf = rawLines.pop() ?? '';
+
+				for (const rawLine of rawLines) {
+					const line = rawLine.trimEnd();
+					// SSE: blank lines separate events — skip them.
+					if (!line) continue;
+					// Only handle `data:` fields.
+					if (!line.startsWith('data:')) continue;
+
+					const data = line.slice(5).trimStart();
+					if (data === '[DONE]') {
+						sawDone = true;
+						continue;
+					}
+					try {
+						const payload = JSON.parse(data);
+						// Fix #5: Validate error field is a non-empty string before using it.
+						if (typeof payload.error === 'string' && payload.error.trim().length > 0) {
+							interrupted = true;
+							acc += `\n\n_${payload.error}_`;
+						} else if (payload.text) {
+							acc += payload.text;
+							updateAiBubble(aiId, acc);
+						}
+					} catch {
+						// ignore malformed frames
+					}
+				}
+			}
+
+			// If the stream ended without a [DONE] frame or an error frame arrived, append notice
+			if (!sawDone && !interrupted) {
+				acc += '\n\n_Response was cut short — the stream ended unexpectedly._';
+				updateAiBubble(aiId, acc);
+			} else if (interrupted && !sawDone) {
+				acc += '\n\n_Response was cut short — please try again._';
+				updateAiBubble(aiId, acc);
+			}
+
+			// Ensure final text is flushed
+			if (acc) updateAiBubble(aiId, acc);
+		} catch (err) {
+			if (err instanceof DOMException && err.name === 'AbortError') {
+				updateAiBubble(aiId, 'Analysis timed out. Please try again.');
+			} else {
+				const errText = err instanceof Error ? err.message : 'Network error';
+				updateAiBubble(aiId, `Analysis failed: ${errText}. Please try again.`);
+			}
+		} finally {
+			clearTimeout(timeoutId);
+			busy = false;
+		}
+	}
+
+	async function send(text: string) {
+		const t = text.trim();
+		if (!t || busy) return;
+		setInput('');
+		// Route free-text through the analyze flow with the board as context
+		await analyze();
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
-			send(input);
+			if (input.trim()) {
+				send(input);
+			} else {
+				analyze();
+			}
 		}
 	}
 
@@ -145,96 +231,13 @@
 		messages = [GREETING];
 	}
 
-	function acceptProposal(msgId: string, partIndex: number) {
-		const msg = messages.find(m => m.id === msgId);
-		if (!msg?.parts) return;
-		const part = msg.parts[partIndex];
-		if (part.kind !== 'proposal') return;
-		const { proposal } = part;
-
-		const cols = deepCloneColumns(boardState.columns);
-
-		if (proposal.type === 'create' && proposal.card && proposal.columnId) {
-			const col = cols.find(c => c.id === proposal.columnId);
-			if (col) {
-				col.cards.unshift({ ...proposal.card });
-				onStateChange({ ...boardState, columns: cols });
-				window.dispatchEvent(new CustomEvent('hk-glow', { detail: { ids: [proposal.card.id] } }));
-			}
-		} else if (proposal.type === 'move' && proposal.cardId && proposal.toColumnId) {
-			let movedCard: KataCard | null = null;
-			for (const col of cols) {
-				const idx = col.cards.findIndex(c => c.id === proposal.cardId);
-				if (idx !== -1) {
-					[movedCard] = col.cards.splice(idx, 1);
-					break;
-				}
-			}
-			if (movedCard) {
-				const toCol = cols.find(c => c.id === proposal.toColumnId);
-				if (toCol) {
-					toCol.cards.unshift(movedCard);
-					onStateChange({ ...boardState, columns: cols });
-					window.dispatchEvent(new CustomEvent('hk-glow', { detail: { ids: [movedCard.id] } }));
-				}
-			}
-		} else if (proposal.type === 'description' && proposal.cardId && proposal.text != null) {
-			for (const col of cols) {
-				const card = col.cards.find(c => c.id === proposal.cardId);
-				if (card) {
-					card.desc = proposal.text;
-					onStateChange({ ...boardState, columns: cols });
-					window.dispatchEvent(new CustomEvent('hk-glow', { detail: { ids: [card.id] } }));
-					break;
-				}
-			}
-		}
-
-		// Mark as accepted
-		messages = messages.map(m => {
-			if (m.id !== msgId || !m.parts) return m;
-			return {
-				...m,
-				parts: m.parts.map((p, i) => {
-					if (i !== partIndex || p.kind !== 'proposal') return p;
-					return { ...p, accepted: true };
-				})
-			};
-		});
-	}
-
-	function rejectProposal(msgId: string, partIndex: number) {
-		messages = messages.map(m => {
-			if (m.id !== msgId || !m.parts) return m;
-			return {
-				...m,
-				parts: m.parts.map((p, i) => {
-					if (i !== partIndex || p.kind !== 'proposal') return p;
-					return { ...p, rejected: true };
-				})
-			};
-		});
-	}
-
 	function applyQuickReply(value: string) {
-		setInput(value);
-		setTimeout(() => {
-			if (input.startsWith('/') && !input.endsWith(' ')) {
-				send(input);
-			} else {
-				inputRef?.focus();
-			}
-		}, 50);
-	}
-
-	function applySlashCmd(cmd: string) {
-		setInput(cmd + ' ');
-		inputRef?.focus();
-	}
-
-	function applyMention(cardTitle: string) {
-		setInput(input.replace(/@[\w-]*$/, `@${cardTitle.split(' ').slice(0, 3).join('-').toLowerCase()} `));
-		inputRef?.focus();
+		if (value === '__analyze__') {
+			analyze();
+		} else {
+			setInput(value);
+			setTimeout(() => inputRef?.focus(), 50);
+		}
 	}
 
 	function renderMd(text: string): string {
@@ -248,29 +251,10 @@
 			.replace(/\*(.+?)\*/g, '<em>$1</em>')
 			.replace(/`(.+?)`/g, '<code>$1</code>')
 			.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>')
+			.replace(/_(.+?)_/g, '<em>$1</em>')
 			.replace(/\n/g, '<br/>');
 	}
-
-	function getProposalLabel(type: string) {
-		if (type === 'create') return 'New card';
-		if (type === 'move') return 'Move card';
-		if (type === 'description') return 'Update description';
-		return 'Suggestion';
-	}
 </script>
-
-<!-- Streaming text sub-component handled inline via $state -->
-{#snippet streamingText(text: string, streamed: boolean)}
-	{#if streamed}
-		{@const { shown } = (() => {
-			// We use a simple approach: render full text since streaming is simulated
-			return { shown: text.length };
-		})()}
-		<span>{@html renderMd(text.slice(0, shown))}</span>
-	{:else}
-		<span>{@html renderMd(text)}</span>
-	{/if}
-{/snippet}
 
 <aside class="chat chat-{placement}">
 	<header class="chat-head">
@@ -321,65 +305,6 @@
 									<div class="msg-body">
 										{@html renderMd(part.text)}
 									</div>
-								{:else if part.kind === 'proposal'}
-									{@const proposal = part.proposal}
-									{@const isAccepted = !!part.accepted}
-									{@const isRejected = !!part.rejected}
-									<div class="proposal" class:is-accepted={isAccepted} class:is-rejected={isRejected}>
-										<div class="proposal-head">
-											{#if proposal.type === 'create'}
-												<PlusCircle size={14} />
-											{:else if proposal.type === 'move'}
-												<MoveRight size={14} />
-											{:else if proposal.type === 'description'}
-												<FileText size={14} />
-											{:else}
-												<Sparkles size={14} />
-											{/if}
-											<span class="proposal-kind">{getProposalLabel(proposal.type)}</span>
-										</div>
-										<div class="proposal-body">{@html renderMd(proposal.summary)}</div>
-
-										{#if proposal.type === 'create' && proposal.card}
-											<div class="proposal-preview-card">
-												<div class="preview-title">{proposal.card.title}</div>
-												<div class="preview-meta">
-													{#if proposal.card.due}
-														<DueBadge iso={proposal.card.due} />
-													{/if}
-													{#each proposal.card.labels as lid (lid)}
-														{@const label = boardState.labels.find(l => l.id === lid)}
-														{#if label}
-															<LabelChip {label} />
-														{/if}
-													{/each}
-												</div>
-											</div>
-										{/if}
-
-										{#if proposal.type === 'description' && proposal.text}
-											<div class="proposal-text">{proposal.text}</div>
-										{/if}
-
-										{#if !isAccepted && !isRejected}
-											<div class="proposal-actions">
-												<button class="btn-accept" onclick={() => acceptProposal(msg.id, partIdx)}>
-													<Check size={13} />
-													Accept
-												</button>
-												<button class="btn-dismiss" onclick={() => rejectProposal(msg.id, partIdx)}>
-													Dismiss
-												</button>
-											</div>
-										{:else if isAccepted}
-											<div class="proposal-status proposal-status-ok">
-												<Check size={13} />
-												Applied
-											</div>
-										{:else}
-											<div class="proposal-status">Dismissed</div>
-										{/if}
-									</div>
 								{/if}
 							{/each}
 						{/if}
@@ -406,7 +331,11 @@
 		{#if messages.length <= 1}
 			<div class="quick-replies">
 				{#each QUICK_REPLIES as qr (qr.value)}
-					<button class="qr-chip" onclick={() => applyQuickReply(qr.value)}>
+					<button
+						class="qr-chip"
+						disabled={busy || (qr.value === '__analyze__' && !hasCards)}
+						onclick={() => applyQuickReply(qr.value)}
+					>
 						{qr.label}
 					</button>
 				{/each}
@@ -414,38 +343,6 @@
 		{/if}
 
 		<div class="chat-input">
-			{#if showSlashMenu && filteredSlashCommands().length}
-				<div class="slash-menu" role="listbox">
-					{#each filteredSlashCommands() as item (item.cmd)}
-						<button
-							class="slash-item"
-							role="option"
-							aria-selected="false"
-							onclick={() => applySlashCmd(item.cmd)}
-						>
-							<code>{item.cmd}</code>
-							<span class="hint">{item.hint}</span>
-						</button>
-					{/each}
-				</div>
-			{/if}
-
-			{#if showMentionMenu && mentionCards().length}
-				<div class="slash-menu" role="listbox">
-					{#each mentionCards() as { card, colTitle } (card.id)}
-						<button
-							class="slash-item"
-							role="option"
-							aria-selected="false"
-							onclick={() => applyMention(card.title)}
-						>
-							<span>{card.title}</span>
-							<span class="hint">{colTitle}</span>
-						</button>
-					{/each}
-				</div>
-			{/if}
-
 			<textarea
 				bind:this={inputRef}
 				value={input}
@@ -458,8 +355,8 @@
 			></textarea>
 			<button
 				class="chat-send"
-				disabled={!input.trim() || busy}
-				onclick={() => send(input)}
+				disabled={(!input.trim() && !hasCards) || busy}
+				onclick={() => (input.trim() ? send(input) : analyze())}
 				aria-label="Send message"
 			>
 				<ArrowUp size={16} />
@@ -467,8 +364,7 @@
 		</div>
 
 		<div class="chat-hint">
-			<span>⌨ / commands</span>
-			<span>@ mention cards</span>
+			<span>⌨ type a question</span>
 			<span>⏎ send</span>
 		</div>
 	</div>
@@ -644,138 +540,6 @@
 		30% { transform: translateY(-3px); opacity: 1; }
 	}
 
-	.proposal {
-		border: 1px solid var(--accent);
-		background: var(--accent-soft);
-		border-radius: 12px;
-		padding: 12px 14px;
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-
-	.proposal.is-accepted {
-		background: rgba(63, 107, 74, 0.08);
-		border-color: rgba(63, 107, 74, 0.3);
-	}
-
-	.proposal.is-rejected {
-		opacity: 0.5;
-		background: var(--paper-1);
-		border-color: var(--line-2);
-	}
-
-	.proposal-head {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: 12px;
-		color: var(--accent);
-	}
-
-	.is-accepted .proposal-head {
-		color: #3F6B4A;
-	}
-
-	.is-rejected .proposal-head {
-		color: var(--fg-3);
-	}
-
-	.proposal-kind {
-		font: 600 11px var(--font-sans);
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
-
-	.proposal-body {
-		font-size: 13.5px;
-		color: var(--fg-1);
-		line-height: 1.45;
-	}
-
-	.proposal-preview-card {
-		background: var(--paper-0);
-		border: 1px solid var(--line-1);
-		border-radius: 8px;
-		padding: 10px 12px;
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-
-	.preview-title {
-		font: 500 13.5px/1.4 var(--font-sans);
-		color: var(--fg-1);
-	}
-
-	.preview-meta {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 4px;
-		align-items: center;
-	}
-
-	.proposal-text {
-		background: var(--paper-0);
-		border: 1px solid var(--line-1);
-		border-radius: 8px;
-		padding: 10px 12px;
-		font-size: 13px;
-		color: var(--fg-2);
-		line-height: 1.55;
-		white-space: pre-wrap;
-	}
-
-	.proposal-actions {
-		display: flex;
-		gap: 8px;
-	}
-
-	.proposal-status {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		font: 500 12px var(--font-sans);
-		color: var(--fg-3);
-	}
-
-	.proposal-status-ok {
-		color: #3F6B4A;
-	}
-
-	.btn-accept {
-		background: var(--ink-0);
-		color: var(--paper-0);
-		border: none;
-		border-radius: 6px;
-		padding: 7px 12px;
-		font: 500 13px var(--font-sans);
-		cursor: pointer;
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		transition: background 140ms;
-	}
-
-	.btn-accept:hover {
-		background: var(--ink-1);
-	}
-
-	.btn-dismiss {
-		background: transparent;
-		color: var(--fg-1);
-		border: 1px solid var(--line-3);
-		border-radius: 6px;
-		padding: 7px 12px;
-		font: 500 13px var(--font-sans);
-		cursor: pointer;
-		transition: background 140ms;
-	}
-
-	.btn-dismiss:hover {
-		background: var(--paper-1);
-	}
-
 	.chat-input-wrap {
 		padding: 10px 14px 14px;
 		border-top: 1px solid var(--line-1);
@@ -800,10 +564,15 @@
 		transition: all 140ms;
 	}
 
-	.qr-chip:hover {
+	.qr-chip:hover:not(:disabled) {
 		border-color: var(--accent);
 		color: var(--accent);
 		background: var(--accent-soft);
+	}
+
+	.qr-chip:disabled {
+		opacity: 0.4;
+		cursor: default;
 	}
 
 	.chat-input {
@@ -870,63 +639,5 @@
 		gap: 14px;
 		font: 400 11px var(--font-sans);
 		color: var(--fg-4);
-	}
-
-	.slash-menu {
-		position: absolute;
-		bottom: calc(100% + 6px);
-		left: 0;
-		right: 0;
-		background: var(--paper-0);
-		border: 1px solid var(--line-2);
-		border-radius: 10px;
-		box-shadow: var(--shadow-lg);
-		padding: 4px;
-		display: flex;
-		flex-direction: column;
-		max-height: 240px;
-		overflow-y: auto;
-		z-index: 5;
-	}
-
-	.slash-item {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		padding: 8px 10px;
-		background: transparent;
-		border: none;
-		border-radius: 6px;
-		font: 500 13px var(--font-sans);
-		color: var(--fg-1);
-		cursor: pointer;
-		text-align: left;
-	}
-
-	.slash-item:hover {
-		background: var(--paper-1);
-	}
-
-	.slash-item :global(code) {
-		font-family: var(--font-mono);
-		font-size: 12px;
-		color: var(--accent);
-		background: var(--accent-soft);
-		padding: 1px 6px;
-		border-radius: 4px;
-	}
-
-	.slash-item code {
-		font-family: var(--font-mono);
-		font-size: 12px;
-		color: var(--accent);
-		background: var(--accent-soft);
-		padding: 1px 6px;
-		border-radius: 4px;
-	}
-
-	.slash-item .hint {
-		font-weight: 400;
-		color: var(--fg-3);
 	}
 </style>

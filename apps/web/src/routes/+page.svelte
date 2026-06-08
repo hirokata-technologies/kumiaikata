@@ -457,12 +457,10 @@
 			{#if chatVisible && settings.chatPlacement === 'side'}
 				<ChatPanel
 					boardState={boardState}
-					selectedCardId={openCardId}
 					placement="side"
 					chatInput={chatInput}
 					onChatInputChange={(v) => (chatInput = v)}
 					onClose={() => (chatVisible = false)}
-					onStateChange={(s) => (boardState = s)}
 					onTogglePlacement={togglePlacement}
 				/>
 			{/if}
@@ -473,12 +471,10 @@
 				<div class="floating-chat">
 					<ChatPanel
 						boardState={boardState}
-						selectedCardId={openCardId}
 						placement="floating"
 						chatInput={chatInput}
 						onChatInputChange={(v) => (chatInput = v)}
 						onClose={() => (chatVisible = false)}
-						onStateChange={(s) => (boardState = s)}
 						onTogglePlacement={togglePlacement}
 					/>
 				</div>
@@ -509,12 +505,10 @@
 				<div class="overlay-chat" onclick={(e) => e.stopPropagation()} role="presentation">
 					<ChatPanel
 						boardState={boardState}
-						selectedCardId={openCardId}
 						placement="overlay"
 						chatInput={chatInput}
 						onChatInputChange={(v) => (chatInput = v)}
 						onClose={() => (chatVisible = false)}
-						onStateChange={(s) => (boardState = s)}
 					/>
 				</div>
 			</div>
