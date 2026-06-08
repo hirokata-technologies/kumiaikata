@@ -74,7 +74,8 @@ export interface Proposal {
 
 export type MessagePart =
 	| { kind: 'text'; text: string; streamed: boolean }
-	| { kind: 'proposal'; proposal: Proposal; accepted?: boolean; rejected?: boolean };
+	| { kind: 'proposal'; proposal: Proposal; accepted?: boolean; rejected?: boolean }
+	| { kind: 'tool_status'; tool: string; status: 'calling' | 'done' | 'error' };
 
 export interface ChatMessage {
 	id: string;

@@ -11,7 +11,9 @@
 		chatInput,
 		onChatInputChange,
 		onClose,
-		onTogglePlacement
+		onTogglePlacement,
+		boardId,
+		boardType
 	}: {
 		boardState: BoardState;
 		placement: string;
@@ -19,6 +21,8 @@
 		onChatInputChange?: (v: string) => void;
 		onClose: () => void;
 		onTogglePlacement?: () => void;
+		boardId: string;
+		boardType: 'personal' | 'team';
 	} = $props();
 
 	const GREETING: ChatMessage = {
@@ -80,7 +84,18 @@
 		scrollToBottom();
 	}
 
-	async function analyze() {
+	function updateAiParts(
+		aiId: string,
+		updater: (parts: NonNullable<ChatMessage['parts']>) => NonNullable<ChatMessage['parts']>
+	) {
+		messages = messages.map((m) => {
+			if (m.id !== aiId || !m.parts) return m;
+			return { ...m, parts: updater(m.parts!) };
+		});
+		scrollToBottom();
+	}
+
+	async function analyze(text: string = 'Analyze all Tasks') {
 		// Fix #3: Set busy synchronously before any await to prevent duplicate concurrent requests.
 		if (busy || !hasCards) return;
 		busy = true;
@@ -88,7 +103,7 @@
 		const userMsg: ChatMessage = {
 			id: `m-${Date.now()}-u`,
 			role: 'user',
-			text: 'Analyze all Tasks'
+			text
 		};
 
 		const aiId = `m-${Date.now()}-a`;
@@ -113,7 +128,7 @@
 			const res = await fetch('/api/ai/analyze', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ board: boardContext }),
+				body: JSON.stringify({ board: boardContext, message: text, boardId, boardType }),
 				signal: controller.signal
 			});
 
@@ -177,6 +192,33 @@
 						} else if (payload.text) {
 							acc += payload.text;
 							updateAiBubble(aiId, acc);
+						} else if (typeof payload.tool_call === 'string') {
+							updateAiParts(aiId, (parts) => [
+								...parts,
+								{ kind: 'tool_status', tool: payload.tool_call, status: 'calling' }
+							]);
+						} else if (typeof payload.tool_done === 'string') {
+							updateAiParts(aiId, (parts) => {
+								const idx = [...parts].reverse().findIndex(
+									(p) => p.kind === 'tool_status' && p.tool === payload.tool_done && p.status === 'calling'
+								);
+								if (idx === -1) return parts;
+								const realIdx = parts.length - 1 - idx;
+								return parts.map((p, i) =>
+									i === realIdx ? { ...p, status: 'done' } : p
+								);
+							});
+						} else if (typeof payload.tool_error === 'string') {
+							updateAiParts(aiId, (parts) => {
+								const idx = [...parts].reverse().findIndex(
+									(p) => p.kind === 'tool_status' && p.tool === payload.tool_error && p.status === 'calling'
+								);
+								if (idx === -1) return parts;
+								const realIdx = parts.length - 1 - idx;
+								return parts.map((p, i) =>
+									i === realIdx ? { ...p, status: 'error' } : p
+								);
+							});
 						}
 					} catch {
 						// ignore malformed frames
@@ -213,7 +255,7 @@
 		if (!t || busy) return;
 		setInput('');
 		// Route free-text through the analyze flow with the board as context
-		await analyze();
+		await analyze(t);
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -304,6 +346,10 @@
 								{#if part.kind === 'text'}
 									<div class="msg-body">
 										{@html renderMd(part.text)}
+									</div>
+								{:else if part.kind === 'tool_status'}
+									<div class="msg-tool-status msg-tool-status-{part.status}">
+										{part.tool.replace(/_/g, ' ')}{' '}{part.status === 'calling' ? '⏳' : part.status === 'done' ? '✓' : '✗'}
 									</div>
 								{/if}
 							{/each}
@@ -639,5 +685,21 @@
 		gap: 14px;
 		font: 400 11px var(--font-sans);
 		color: var(--fg-4);
+	}
+
+	.msg-tool-status {
+		display: block;
+		font-size: 12px;
+		font-style: italic;
+		color: var(--fg-3);
+		margin-top: 4px;
+	}
+
+	.msg-tool-status-done {
+		color: var(--fg-3);
+	}
+
+	.msg-tool-status-error {
+		color: #e11d48;
 	}
 </style>

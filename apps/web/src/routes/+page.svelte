@@ -462,6 +462,8 @@
 					onChatInputChange={(v) => (chatInput = v)}
 					onClose={() => (chatVisible = false)}
 					onTogglePlacement={togglePlacement}
+					boardId={boardId ?? ''}
+					boardType={workspaceId}
 				/>
 			{/if}
 		</main>
@@ -476,6 +478,8 @@
 						onChatInputChange={(v) => (chatInput = v)}
 						onClose={() => (chatVisible = false)}
 						onTogglePlacement={togglePlacement}
+						boardId={boardId ?? ''}
+						boardType={workspaceId}
 					/>
 				</div>
 			{:else}
@@ -509,6 +513,8 @@
 						chatInput={chatInput}
 						onChatInputChange={(v) => (chatInput = v)}
 						onClose={() => (chatVisible = false)}
+						boardId={boardId ?? ''}
+						boardType={workspaceId}
 					/>
 				</div>
 			</div>
