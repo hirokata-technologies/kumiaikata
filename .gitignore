@@ -11,6 +11,7 @@ apps/web/build
 # Build output
 apps/api/dist
 apps/kata-relay-service/dist
+apps/mcp/dist
 packages/*/dist
 packages/*/coverage
 apps/api/coverage
