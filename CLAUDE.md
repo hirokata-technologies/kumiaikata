@@ -11,3 +11,8 @@
 docker compose -f docker-compose.local.yml up --build -d
 ```
 Then refresh the preview after a minute when all containers are up.
+
+## Business Rules
+
+- **Allowed domains:** Only `hirokata.dev` and `edamama.ph` are permitted. Reject or refuse any operation that would create or associate data with any other domain.
+- **Team workspaces:** A team workspace is the domain workspace. Users may not create multiple workspaces — one domain maps to exactly one team workspace.
