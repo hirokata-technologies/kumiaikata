@@ -94,25 +94,32 @@ export async function uploadAttachment({
 	await storage.put(storageKey, nodeStream, file.size, file.type);
 
 	// Storage write succeeded — persist the DB record inside a transaction.
-	await db.transaction(async (tx) => {
-		await tx.insert(attachments).values({
-			id: attachmentId,
-			cardId: card.id,
-			boardId,
-			filename: file.name,
-			mimeType: file.type,
-			sizeBytes: file.size,
-			storageKey,
-			uploadedBy: user.id,
-			createdAt: now,
+	// If the transaction fails the storage object would be permanently orphaned,
+	// so we compensate with a best-effort delete before re-throwing.
+	try {
+		await db.transaction(async (tx) => {
+			await tx.insert(attachments).values({
+				id: attachmentId,
+				cardId: card.id,
+				boardId,
+				filename: file.name,
+				mimeType: file.type,
+				sizeBytes: file.size,
+				storageKey,
+				uploadedBy: user.id,
+				createdAt: now,
+			});
+			await tx
+				.update(cards)
+				.set({
+					attachmentIds: sql`array_append(${cards.attachmentIds}, ${attachmentId})`,
+				})
+				.where(eq(cards.id, card.id));
 		});
-		await tx
-			.update(cards)
-			.set({
-				attachmentIds: sql`array_append(${cards.attachmentIds}, ${attachmentId})`,
-			})
-			.where(eq(cards.id, card.id));
-	});
+	} catch (err) {
+		await storage.delete(storageKey).catch(() => {});
+		throw err;
+	}
 
 	const response: AttachmentResponse = {
 		id: attachmentId,

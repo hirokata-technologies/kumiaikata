@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { db } from "@kata/db";
 import { boards, teamMembers, users } from "@kata/db";
 import { AppError } from "@kata/http";
@@ -35,7 +35,8 @@ r.get("/personal", async (c) => {
 r.get("/team", async (c) => {
 	const user = c.get("user");
 	const [membership] = await db.select({ teamId: teamMembers.teamId })
-		.from(teamMembers).where(eq(teamMembers.userId, user.id)).limit(1);
+		.from(teamMembers).where(eq(teamMembers.userId, user.id))
+		.orderBy(asc(teamMembers.joinedAt)).limit(1);
 	if (!membership) throw new AppError("NOT_FOUND", "No team membership found.");
 	const [board] = await db.select({ id: boards.id }).from(boards)
 		.where(and(eq(boards.kind, "team"), eq(boards.teamId, membership.teamId)))

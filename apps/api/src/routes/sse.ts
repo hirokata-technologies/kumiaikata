@@ -36,13 +36,17 @@ r.get(
 			const sessionWatch = setInterval(async () => {
 				const s = await auth.api.getSession({ headers: c.req.raw.headers });
 				if (!s) {
-					await stream
+					// Fire-and-forget: do NOT await writeSSE before calling abort().
+					// Awaiting can block indefinitely when the client has stopped
+					// reading (backpressure), which would prevent abort() from running
+					// and leave the subscription and timers permanently leaked.
+					stream
 						.writeSSE({
 							event: "error",
 							data: JSON.stringify({ code: "UNAUTHENTICATED" }),
 						})
 						.catch(() => {});
-					stream.close();
+					stream.abort();
 				}
 			}, 10_000);
 

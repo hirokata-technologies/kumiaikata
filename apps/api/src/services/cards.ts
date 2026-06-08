@@ -114,40 +114,45 @@ export async function createCard({
 	columnId: string;
 	title: string;
 }): Promise<CardSummary> {
-	// Verify the column exists and belongs to the board.
-	const [column] = await db.select()
-		.from(columns)
-		.where(and(eq(columns.id, columnId), eq(columns.boardId, boardId)))
-		.limit(1);
-	if (!column) {
-		throw new AppError("NOT_FOUND", "Column not found.");
-	}
+	// Lock the column row for the duration of the position-read + insert so that
+	// concurrent createCard calls on the same column serialize here. Without this
+	// lock, two concurrent requests both read the same lastCard.position and call
+	// appendAfter() with the same argument, producing duplicate fractional keys.
+	const [card] = await db.transaction(async (tx) => {
+		const [column] = await tx.select()
+			.from(columns)
+			.where(and(eq(columns.id, columnId), eq(columns.boardId, boardId)))
+			.for("update")
+			.limit(1);
+		if (!column) {
+			throw new AppError("NOT_FOUND", "Column not found.");
+		}
 
-	// Find the last card in the column to compute the new position.
-	const [lastCard] = await db.select({ position: cards.position })
-		.from(cards)
-		.where(eq(cards.columnId, column.id))
-		.orderBy(desc(cards.position))
-		.limit(1);
-	const position = appendAfter(lastCard?.position ?? null);
+		const [lastCard] = await tx.select({ position: cards.position })
+			.from(cards)
+			.where(eq(cards.columnId, column.id))
+			.orderBy(desc(cards.position))
+			.limit(1);
+		const position = appendAfter(lastCard?.position ?? null);
 
-	const now = new Date();
-	const [card] = await db.insert(cards).values({
-		id: newId(),
-		boardId,
-		columnId: column.id,
-		title,
-		position,
-		description: null,
-		dueDate: null,
-		labelIds: [],
-		assigneeIds: [],
-		attachmentIds: [],
-		comments: [],
-		checklists: [],
-		createdAt: now,
-		updatedAt: now,
-	}).returning();
+		const now = new Date();
+		return tx.insert(cards).values({
+			id: newId(),
+			boardId,
+			columnId: column.id,
+			title,
+			position,
+			description: null,
+			dueDate: null,
+			labelIds: [],
+			assigneeIds: [],
+			attachmentIds: [],
+			comments: [],
+			checklists: [],
+			createdAt: now,
+			updatedAt: now,
+		}).returning();
+	});
 
 	if (!card) throw new AppError("INTERNAL_ERROR", "Card was created but could not be fetched.");
 	const summary = toSummary(card);

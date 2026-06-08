@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { db } from "@kata/db";
 import { teams, teamMembers } from "@kata/db";
 import { AppError } from "@kata/http";
@@ -20,6 +20,7 @@ r.get("/mine", async (c) => {
 		.select()
 		.from(teamMembers)
 		.where(eq(teamMembers.userId, user.id))
+		.orderBy(asc(teamMembers.joinedAt))
 		.limit(1);
 	if (!m) {
 		throw new AppError("NOT_FOUND", "No team membership.");

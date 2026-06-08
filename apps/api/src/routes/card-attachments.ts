@@ -1,4 +1,7 @@
 import { Hono } from "hono";
+import { eq, and } from "drizzle-orm";
+import { db } from "@kata/db";
+import { attachments } from "@kata/db";
 import { requireSession, loadBoardAccess } from "../auth/middleware.js";
 import { AppError } from "@kata/http";
 import { validateId } from "../http/validate.js";
@@ -54,8 +57,34 @@ r.post("/", async (c) => {
 // DELETE /api/boards/:boardId/cards/:cardId/attachments/:attachmentId
 r.delete("/:attachmentId", async (c) => {
 	const board = c.get("board");
+	const user = c.get("user");
+	const access = c.get("access");
 	const cardId = validateId(c.req.param("cardId"), "cardId");
 	const attachmentId = validateId(c.req.param("attachmentId"), "attachmentId");
+
+	// Resolve the attachment to check ownership before deleting.
+	const [att] = await db
+		.select({ uploadedBy: attachments.uploadedBy })
+		.from(attachments)
+		.where(
+			and(
+				eq(attachments.id, attachmentId),
+				eq(attachments.boardId, board.id),
+				eq(attachments.cardId, cardId),
+			),
+		)
+		.limit(1);
+	if (!att) throw new AppError("NOT_FOUND", "Attachment not found.");
+
+	const isUploader = att.uploadedBy === user.id;
+	const isAdmin = access.kind === "team-admin" || access.kind === "personal-owner";
+	if (!isUploader && !isAdmin) {
+		throw new AppError(
+			"FORBIDDEN",
+			"Only the uploader or a board admin may delete this attachment.",
+		);
+	}
+
 	await deleteAttachment(board.id, cardId, attachmentId);
 	return noContent(c);
 });

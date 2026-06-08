@@ -93,15 +93,27 @@ r.delete(
 			);
 		}
 
-		const result = await db
-			.update(cards)
-			.set({ assigneeIds: sql`array_remove(${cards.assigneeIds}, ${userId})` })
+		// Fetch current state first so we know whether the user is actually assigned.
+		// Emitting card.assignee.removed for a userId not in the array would send
+		// phantom events that desync SSE clients.
+		const [current] = await db
+			.select({ id: cards.id, assigneeIds: cards.assigneeIds })
+			.from(cards)
 			.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
-			.returning({ id: cards.id });
+			.limit(1);
 
-		if (result.length === 0) {
+		if (!current) {
 			throw new AppError("NOT_FOUND", "Card not found.");
 		}
+
+		if (!current.assigneeIds.includes(userId)) {
+			return noContent(c); // idempotent — userId was not assigned, no event
+		}
+
+		await db
+			.update(cards)
+			.set({ assigneeIds: sql`array_remove(${cards.assigneeIds}, ${userId})` })
+			.where(eq(cards.id, cardId));
 
 		eventBus.emit({
 			type: "card.assignee.removed",
