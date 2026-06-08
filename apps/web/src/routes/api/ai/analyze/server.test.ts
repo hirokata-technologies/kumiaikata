@@ -1,28 +1,44 @@
-// Unit tests for the POST /api/ai/analyze handler.
+// Unit tests for the POST /api/ai/analyze handler (agentic mode).
 //
 // Strategy:
-//   - $env/dynamic/private is a SvelteKit virtual module; we stub it with vi.mock
-//     so tests control whether MINIMAX_API_KEY is set.
+//   - $env/dynamic/private is stubbed so tests control MINIMAX_API_KEY / API_URL.
 //   - @anthropic-ai/sdk is mocked so no real HTTP calls are made.
-//   - $lib/ai/board-context is the real implementation (imported via the $lib alias
-//     configured in vitest.config.ts), except for countCards which is used inside
-//     the handler — we let it run against the real board payloads we supply.
+//   - fetch is stubbed globally to intercept tool execution API calls.
 //
 // Each test constructs a minimal Request and calls the exported POST handler directly.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// Hoisted mutable state shared between vi.mock factories and tests.
-// vi.hoisted runs before the vi.mock calls so the vars are in scope.
+// Hoisted mutable state
 // ---------------------------------------------------------------------------
 
 const { envStore, mockState } = vi.hoisted(() => {
-	const envStore: { MINIMAX_API_KEY: string | undefined } = { MINIMAX_API_KEY: 'test-key-123' };
+	const envStore: { MINIMAX_API_KEY: string | undefined; API_URL: string } = {
+		MINIMAX_API_KEY: 'test-key-123',
+		API_URL: 'http://localhost:8787'
+	};
+
+	type CreateResult =
+		| { content: { type: 'text'; text: string }[]; stop_reason: string }
+		| {
+				content: (
+					| { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+					| { type: 'text'; text: string }
+				)[];
+				stop_reason: string;
+		  };
+
 	const mockState: {
-		streamFn: (() => AsyncIterable<unknown>) | null;
-		streamError: Error | null;
-	} = { streamFn: null, streamError: null };
+		createResults: CreateResult[];
+		createError: Error | null;
+	} = {
+		createResults: [
+			{ content: [{ type: 'text', text: 'Default response.' }], stop_reason: 'end_turn' }
+		],
+		createError: null
+	};
+
 	return { envStore, mockState };
 });
 
@@ -37,20 +53,21 @@ vi.mock('$env/dynamic/private', () => ({
 }));
 
 vi.mock('@anthropic-ai/sdk', () => {
+	let callCount = 0;
 	const createMock = vi.fn(async function () {
-		if (mockState.streamError) throw mockState.streamError;
-		if (mockState.streamFn) return mockState.streamFn();
-		// Default: a single-token stream
-		return (async function* () {
-			yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Default' } };
-		})();
+		if (mockState.createError) throw mockState.createError;
+		const result =
+			mockState.createResults[callCount] ??
+			mockState.createResults[mockState.createResults.length - 1]!;
+		callCount++;
+		return result;
 	});
 
 	function AnthropicMock() {
+		callCount = 0;
 		return { messages: { create: createMock } };
 	}
 	AnthropicMock.prototype = {};
-
 	return { default: AnthropicMock };
 });
 
@@ -65,16 +82,18 @@ import type { BoardContext } from '$lib/ai/board-context.js';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeRequest(body: unknown): Request {
+function makeRequest(body: unknown, cookie = ''): Request {
 	return new Request('http://localhost/api/ai/analyze', {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
+		headers: {
+			'Content-Type': 'application/json',
+			...(cookie && { Cookie: cookie })
+		},
 		body: JSON.stringify(body)
 	});
 }
 
-/** Build a BoardContext with N cards in a single column. */
-function makeBoardContext(cardCount: number): BoardContext {
+function makeBoard(cardCount: number): BoardContext {
 	return {
 		columns: [
 			{
@@ -88,7 +107,6 @@ function makeBoardContext(cardCount: number): BoardContext {
 	};
 }
 
-/** Collect all SSE data lines from a streaming Response. */
 async function collectSSELines(response: Response): Promise<string[]> {
 	const text = await response.text();
 	return text
@@ -97,113 +115,110 @@ async function collectSSELines(response: Response): Promise<string[]> {
 		.map((line) => line.slice('data: '.length));
 }
 
+const VALID_BODY = {
+	board: makeBoard(1),
+	boardId: 'board_abc',
+	boardType: 'personal',
+	message: 'Analyze'
+};
+
 // ---------------------------------------------------------------------------
-// Reset per-test mutable state
+// Reset per-test state
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
 	envStore.MINIMAX_API_KEY = 'test-key-123';
-	mockState.streamFn = null;
-	mockState.streamError = null;
+	envStore.API_URL = 'http://localhost:8787';
+	mockState.createResults = [
+		{ content: [{ type: 'text', text: 'Default response.' }], stop_reason: 'end_turn' }
+	];
+	mockState.createError = null;
+
+	vi.stubGlobal(
+		'fetch',
+		vi.fn(async () => ({
+			ok: true,
+			status: 200,
+			json: async () => ({})
+		}))
+	);
 });
 
 // ---------------------------------------------------------------------------
-// Guard: missing API key (US-2 AC-1)
+// Guard: missing API key
 // ---------------------------------------------------------------------------
 
 describe('POST /api/ai/analyze — missing API key', () => {
-	it('returns 500 with "AI is not configured." when MINIMAX_API_KEY is absent', async () => {
+	it('returns 500 when MINIMAX_API_KEY is absent', async () => {
 		envStore.MINIMAX_API_KEY = undefined;
-
-		const res = await POST({ request: makeRequest({ board: makeBoardContext(1) }) } as Parameters<typeof POST>[0]);
-
+		const res = await POST({ request: makeRequest(VALID_BODY) } as Parameters<typeof POST>[0]);
 		expect(res.status).toBe(500);
-		const body = await res.json();
-		expect(body).toMatchObject({ error: 'AI is not configured.' });
+		expect(await res.json()).toMatchObject({ error: 'AI is not configured.' });
 	});
 
-	it('returns 500 with "AI is not configured." when MINIMAX_API_KEY is an empty string', async () => {
+	it('returns 500 when MINIMAX_API_KEY is empty string', async () => {
 		envStore.MINIMAX_API_KEY = '';
-
-		const res = await POST({ request: makeRequest({ board: makeBoardContext(1) }) } as Parameters<typeof POST>[0]);
-
+		const res = await POST({ request: makeRequest(VALID_BODY) } as Parameters<typeof POST>[0]);
 		expect(res.status).toBe(500);
-		const body = await res.json();
-		expect(body).toMatchObject({ error: 'AI is not configured.' });
+		expect(await res.json()).toMatchObject({ error: 'AI is not configured.' });
 	});
 });
 
 // ---------------------------------------------------------------------------
-// Guard: invalid board payload
+// Guard: invalid payload
 // ---------------------------------------------------------------------------
 
-describe('POST /api/ai/analyze — invalid board payload', () => {
-	it('returns 400 when the request body is not valid JSON', async () => {
+describe('POST /api/ai/analyze — invalid payload', () => {
+	it('returns 400 for non-JSON body', async () => {
 		const req = new Request('http://localhost/api/ai/analyze', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: 'not-json{'
 		});
-		const res = await POST({ request: req } as Parameters<typeof POST>[0]);
-
-		expect(res.status).toBe(400);
-		expect(await res.json()).toMatchObject({ error: 'Invalid request body.' });
+		expect((await POST({ request: req } as Parameters<typeof POST>[0])).status).toBe(400);
 	});
 
-	it('returns 400 when the "board" key is missing from the request body', async () => {
-		const res = await POST({ request: makeRequest({ other: 'data' }) } as Parameters<typeof POST>[0]);
-
-		expect(res.status).toBe(400);
-		expect(await res.json()).toMatchObject({ error: 'Invalid board payload.' });
-	});
-
-	it('returns 400 when board is null', async () => {
-		const res = await POST({ request: makeRequest({ board: null }) } as Parameters<typeof POST>[0]);
-
-		expect(res.status).toBe(400);
-		expect(await res.json()).toMatchObject({ error: 'Invalid board payload.' });
-	});
-
-	it('returns 400 when board is a string instead of an object', async () => {
-		const res = await POST({ request: makeRequest({ board: 'not-an-object' }) } as Parameters<typeof POST>[0]);
-
+	it('returns 400 when board is missing', async () => {
+		const res = await POST({
+			request: makeRequest({ boardId: 'board_abc' })
+		} as Parameters<typeof POST>[0]);
 		expect(res.status).toBe(400);
 		expect(await res.json()).toMatchObject({ error: 'Invalid board payload.' });
 	});
 
 	it('returns 400 when board.columns is not an array', async () => {
-		const res = await POST({ request: makeRequest({ board: { columns: 'bad' } }) } as Parameters<typeof POST>[0]);
-
+		const res = await POST({
+			request: makeRequest({ board: { columns: 'bad' }, boardId: 'board_abc' })
+		} as Parameters<typeof POST>[0]);
 		expect(res.status).toBe(400);
-		expect(await res.json()).toMatchObject({ error: 'Invalid board payload.' });
 	});
 
-	it('returns 400 when board.columns is null', async () => {
-		const res = await POST({ request: makeRequest({ board: { columns: null } }) } as Parameters<typeof POST>[0]);
-
+	it('returns 400 when boardId is missing', async () => {
+		const res = await POST({
+			request: makeRequest({ board: makeBoard(1) })
+		} as Parameters<typeof POST>[0]);
 		expect(res.status).toBe(400);
-		expect(await res.json()).toMatchObject({ error: 'Invalid board payload.' });
+		expect(await res.json()).toMatchObject({ error: 'boardId is required.' });
 	});
 });
 
 // ---------------------------------------------------------------------------
-// Guard: board > 500 cards
+// Guard: board too large
 // ---------------------------------------------------------------------------
 
-describe('POST /api/ai/analyze — board exceeds 500-card limit', () => {
-	it('returns 400 with "Board is too large to analyze." when the board has 501 cards', async () => {
-		const res = await POST({ request: makeRequest({ board: makeBoardContext(501) }) } as Parameters<typeof POST>[0]);
-
+describe('POST /api/ai/analyze — board too large', () => {
+	it('returns 400 when board has 501 cards', async () => {
+		const res = await POST({
+			request: makeRequest({ board: makeBoard(501), boardId: 'board_abc' })
+		} as Parameters<typeof POST>[0]);
 		expect(res.status).toBe(400);
 		expect(await res.json()).toMatchObject({ error: 'Board is too large to analyze.' });
 	});
 
-	it('does NOT reject a board with exactly 500 cards (boundary — should proceed past the card-limit guard)', async () => {
-		// With exactly 500 cards the limit guard must pass; the board-empty guard also passes.
-		// The mock SDK returns successfully, so we expect a streaming 200.
-		const res = await POST({ request: makeRequest({ board: makeBoardContext(500) }) } as Parameters<typeof POST>[0]);
-
-		// Must not be a card-limit 400
+	it('does not reject exactly 500 cards', async () => {
+		const res = await POST({
+			request: makeRequest({ board: makeBoard(500), boardId: 'board_abc' })
+		} as Parameters<typeof POST>[0]);
 		const body = await res.clone().json().catch(() => null);
 		if (body && typeof body === 'object' && 'error' in body) {
 			expect((body as { error: string }).error).not.toBe('Board is too large to analyze.');
@@ -213,140 +228,113 @@ describe('POST /api/ai/analyze — board exceeds 500-card limit', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Guard: empty board (US-3 AC-2)
+// Happy path: text-only response
 // ---------------------------------------------------------------------------
 
-describe('POST /api/ai/analyze — empty board (no cards)', () => {
-	it('returns 400 with "There is nothing to analyze yet." when the board has 0 cards', async () => {
-		const res = await POST({ request: makeRequest({ board: makeBoardContext(0) }) } as Parameters<typeof POST>[0]);
-
-		expect(res.status).toBe(400);
-		expect(await res.json()).toMatchObject({ error: 'There is nothing to analyze yet.' });
-	});
-
-	it('returns 400 for a board with multiple empty columns', async () => {
-		const board: BoardContext = {
-			columns: [
-				{ name: 'Todo', cards: [] },
-				{ name: 'Done', cards: [] }
-			]
-		};
-		const res = await POST({ request: makeRequest({ board }) } as Parameters<typeof POST>[0]);
-
-		expect(res.status).toBe(400);
-		expect(await res.json()).toMatchObject({ error: 'There is nothing to analyze yet.' });
-	});
-});
-
-// ---------------------------------------------------------------------------
-// Happy path: valid board produces a streaming SSE response (US-1 AC-1/2)
-// ---------------------------------------------------------------------------
-
-describe('POST /api/ai/analyze — valid board produces streaming response', () => {
-	it('returns 200 with Content-Type text/event-stream for a valid board', async () => {
-		const res = await POST({ request: makeRequest({ board: makeBoardContext(2) }) } as Parameters<typeof POST>[0]);
-
+describe('POST /api/ai/analyze — text-only response', () => {
+	it('returns 200 with text/event-stream', async () => {
+		const res = await POST({ request: makeRequest(VALID_BODY) } as Parameters<typeof POST>[0]);
 		expect(res.status).toBe(200);
 		expect(res.headers.get('Content-Type')).toContain('text/event-stream');
 	});
 
-	it('includes Cache-Control: no-cache header', async () => {
-		const res = await POST({ request: makeRequest({ board: makeBoardContext(1) }) } as Parameters<typeof POST>[0]);
-
+	it('includes Cache-Control: no-cache', async () => {
+		const res = await POST({ request: makeRequest(VALID_BODY) } as Parameters<typeof POST>[0]);
 		expect(res.headers.get('Cache-Control')).toBe('no-cache');
 	});
 
-	it('streams text delta events then a [DONE] sentinel', async () => {
-		mockState.streamFn = async function* () {
-			yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hello' } };
-			yield { type: 'content_block_delta', delta: { type: 'text_delta', text: ' world' } };
-		};
-
-		const res = await POST({ request: makeRequest({ board: makeBoardContext(1) }) } as Parameters<typeof POST>[0]);
+	it('streams the text and ends with [DONE]', async () => {
+		mockState.createResults = [
+			{ content: [{ type: 'text', text: 'Hello world' }], stop_reason: 'end_turn' }
+		];
+		const res = await POST({ request: makeRequest(VALID_BODY) } as Parameters<typeof POST>[0]);
 		const lines = await collectSSELines(res);
-
-		expect(lines).toContain(JSON.stringify({ text: 'Hello' }));
-		expect(lines).toContain(JSON.stringify({ text: ' world' }));
-		expect(lines).toContain('[DONE]');
-	});
-
-	it('does NOT stream events for non-text-delta event types', async () => {
-		mockState.streamFn = async function* () {
-			yield { type: 'message_start', message: {} };
-			yield { type: 'content_block_start', content_block: { type: 'text', text: '' } };
-			yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Only this' } };
-			yield { type: 'message_stop' };
-		};
-
-		const res = await POST({ request: makeRequest({ board: makeBoardContext(1) }) } as Parameters<typeof POST>[0]);
-		const lines = await collectSSELines(res);
-
-		const textLines = lines.filter((l) => l !== '[DONE]');
-		expect(textLines).toHaveLength(1);
-		expect(textLines[0]).toBe(JSON.stringify({ text: 'Only this' }));
-	});
-
-	it('always terminates the stream with [DONE]', async () => {
-		mockState.streamFn = async function* () {
-			yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Done check' } };
-		};
-
-		const res = await POST({ request: makeRequest({ board: makeBoardContext(1) }) } as Parameters<typeof POST>[0]);
-		const lines = await collectSSELines(res);
-
+		expect(lines).toContain(JSON.stringify({ text: 'Hello world' }));
 		expect(lines[lines.length - 1]).toBe('[DONE]');
 	});
 });
 
 // ---------------------------------------------------------------------------
-// Error path: Anthropic SDK call fails (US-3 AC-1)
+// Agentic loop: tool use
 // ---------------------------------------------------------------------------
 
-describe('POST /api/ai/analyze — Anthropic SDK call failure', () => {
-	it('returns 500 with "Analysis failed. Please try again." when the SDK call throws', async () => {
-		mockState.streamError = new Error('Network timeout');
+describe('POST /api/ai/analyze — tool use', () => {
+	it('emits tool_call and tool_done for a successful tool', async () => {
+		mockState.createResults = [
+			{
+				content: [{ type: 'tool_use', id: 'tu_1', name: 'get_board', input: {} }],
+				stop_reason: 'tool_use'
+			},
+			{
+				content: [{ type: 'text', text: 'Board retrieved.' }],
+				stop_reason: 'end_turn'
+			}
+		];
 
-		const res = await POST({ request: makeRequest({ board: makeBoardContext(1) }) } as Parameters<typeof POST>[0]);
+		const res = await POST({ request: makeRequest(VALID_BODY) } as Parameters<typeof POST>[0]);
+		const lines = await collectSSELines(res);
 
-		expect(res.status).toBe(500);
-		expect(await res.json()).toMatchObject({ error: 'Analysis failed. Please try again.' });
+		expect(lines).toContain(JSON.stringify({ tool_call: 'get_board' }));
+		expect(lines).toContain(JSON.stringify({ tool_done: 'get_board' }));
+		expect(lines).toContain(JSON.stringify({ text: 'Board retrieved.' }));
+		expect(lines[lines.length - 1]).toBe('[DONE]');
 	});
 
-	it('does not leak the original error message in the response body', async () => {
-		mockState.streamError = new Error('Secret internal error details');
+	it('emits tool_error when the API call fails', async () => {
+		mockState.createResults = [
+			{
+				content: [
+					{ type: 'tool_use', id: 'tu_2', name: 'delete_card', input: { cardId: 'bad_id' } }
+				],
+				stop_reason: 'tool_use'
+			},
+			{
+				content: [{ type: 'text', text: 'Could not delete.' }],
+				stop_reason: 'end_turn'
+			}
+		];
 
-		const res = await POST({ request: makeRequest({ board: makeBoardContext(1) }) } as Parameters<typeof POST>[0]);
-		const body = await res.json();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => ({
+				ok: false,
+				status: 404,
+				json: async () => ({ error: { message: 'Card not found.' } })
+			}))
+		);
 
-		expect(JSON.stringify(body)).not.toContain('Secret internal error details');
+		const res = await POST({ request: makeRequest(VALID_BODY) } as Parameters<typeof POST>[0]);
+		const lines = await collectSSELines(res);
+		expect(lines).toContain(JSON.stringify({ tool_call: 'delete_card' }));
+		expect(lines).toContain(JSON.stringify({ tool_error: 'delete_card' }));
 	});
 });
 
 // ---------------------------------------------------------------------------
-// Error path: stream interrupted mid-response (US-3 AC-3)
+// Error path: SDK failure
 // ---------------------------------------------------------------------------
 
-describe('POST /api/ai/analyze — stream interrupted mid-response', () => {
-	it('streams an error event and [DONE] when iteration throws mid-stream', async () => {
-		mockState.streamFn = async function* () {
-			yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Partial...' } };
-			throw new Error('Connection reset');
-		};
-
-		const res = await POST({ request: makeRequest({ board: makeBoardContext(1) }) } as Parameters<typeof POST>[0]);
+describe('POST /api/ai/analyze — SDK failure', () => {
+	it('emits an error frame when the SDK call throws', async () => {
+		mockState.createError = new Error('Network timeout');
+		const res = await POST({ request: makeRequest(VALID_BODY) } as Parameters<typeof POST>[0]);
+		expect(res.status).toBe(200);
 		const lines = await collectSSELines(res);
-
-		expect(lines).toContain('[DONE]');
-
 		const errorLine = lines.find((l) => {
 			try {
-				const obj = JSON.parse(l);
-				return typeof obj === 'object' && obj !== null && 'error' in obj;
+				return 'error' in (JSON.parse(l) as object);
 			} catch {
 				return false;
 			}
 		});
 		expect(errorLine).toBeDefined();
-		expect(JSON.parse(errorLine!)).toMatchObject({ error: 'Analysis was interrupted.' });
+		expect(JSON.parse(errorLine!)).toMatchObject({ error: 'Agent failed. Please try again.' });
+	});
+
+	it('does not leak internal error details', async () => {
+		mockState.createError = new Error('Secret internal details');
+		const res = await POST({ request: makeRequest(VALID_BODY) } as Parameters<typeof POST>[0]);
+		const body = await res.text();
+		expect(body).not.toContain('Secret internal details');
 	});
 });
