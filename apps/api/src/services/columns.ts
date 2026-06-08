@@ -103,19 +103,29 @@ export async function deleteColumn(
 	boardId: string,
 	columnId: string,
 ): Promise<void> {
-	const [{ value: cardCount } = { value: 0 }] = await db.select({ value: count() })
-		.from(cards)
-		.where(eq(cards.columnId, columnId));
-	if (cardCount > 0) {
-		throw new AppError("CONFLICT", "Column must be empty before deletion.");
-	}
+	// Lock the column row so that a concurrent createCard cannot insert a card
+	// between the empty-check and the delete. Without this lock, the count check
+	// and the delete are two separate READ COMMITTED statements; a card inserted
+	// in that window would be silently cascade-deleted, violating the invariant.
+	await db.transaction(async (tx) => {
+		const [col] = await tx.select({ id: columns.id })
+			.from(columns)
+			.where(and(eq(columns.id, columnId), eq(columns.boardId, boardId)))
+			.for("update")
+			.limit(1);
+		if (!col) {
+			throw new AppError("NOT_FOUND", "Column not found.");
+		}
 
-	const deleted = await db.delete(columns)
-		.where(and(eq(columns.id, columnId), eq(columns.boardId, boardId)))
-		.returning({ id: columns.id });
-	if (deleted.length === 0) {
-		throw new AppError("NOT_FOUND", "Column not found.");
-	}
+		const [{ value: cardCount } = { value: 0 }] = await tx.select({ value: count() })
+			.from(cards)
+			.where(eq(cards.columnId, columnId));
+		if (cardCount > 0) {
+			throw new AppError("CONFLICT", "Column must be empty before deletion.");
+		}
+
+		await tx.delete(columns).where(eq(columns.id, columnId));
+	});
 
 	eventBus.emit({
 		type: "column.deleted",

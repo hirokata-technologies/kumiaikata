@@ -92,12 +92,23 @@ export class DiskStorage implements StorageAdapter {
 
 	async get(key: string): Promise<Readable> {
 		const filePath = this.resolvePath(key);
-		try {
-			return createReadStream(filePath);
-		} catch (err) {
-			console.error(`DiskStorage.get failed for key "${key}":`, err);
-			throw new AppError("INTERNAL_ERROR", "Failed to read file");
-		}
+		// createReadStream is lazy — it does not open the file until data is requested,
+		// so a try/catch around the constructor never catches ENOENT. Instead, listen
+		// for the "open" event (file successfully opened) and reject on "error" so
+		// callers receive an AppError before consuming any bytes.
+		return new Promise<Readable>((resolve, reject) => {
+			const stream = createReadStream(filePath);
+			stream.once("open", () => resolve(stream));
+			stream.once("error", (err) => {
+				const nodeErr = err as NodeJS.ErrnoException;
+				if (nodeErr.code === "ENOENT") {
+					reject(new AppError("NOT_FOUND", "File not found"));
+				} else {
+					console.error(`DiskStorage.get failed for key "${key}":`, err);
+					reject(new AppError("INTERNAL_ERROR", "Failed to read file"));
+				}
+			});
+		});
 	}
 
 	async delete(key: string): Promise<void> {
