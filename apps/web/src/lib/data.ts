@@ -161,20 +161,10 @@ export const SEED_COLUMNS: KataColumn[] = [
 ];
 
 export const QUICK_REPLIES = [
-	{ label: 'Summarize today', value: '/summarize' },
-	{ label: "What's blocked?", value: "What's blocked right now?" },
-	{ label: 'Prioritize this week', value: '/prioritize' },
-	{ label: 'Add a task…', value: '/add ' },
+	{ label: 'Analyze all Tasks', value: '__analyze__' },
 ];
 
-export const SLASH_COMMANDS = [
-	{ cmd: '/summarize',  hint: 'Summarize the board state' },
-	{ cmd: '/prioritize', hint: 'Suggest what to do first' },
-	{ cmd: '/add',        hint: 'Create a new card from a description' },
-	{ cmd: '/move',       hint: 'Move a card to another column' },
-	{ cmd: '/break',      hint: 'Break a card into steps' },
-	{ cmd: '/draft',      hint: 'Draft a card description' },
-];
+export const SLASH_COMMANDS: { cmd: string; hint: string }[] = [];
 
 export function pickLabels(text: string): LabelId[] {
 	const t = text.toLowerCase();
