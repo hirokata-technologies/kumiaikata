@@ -16,6 +16,7 @@
 		markClientOp,
 		ApiError,
 	} from '$lib/api';
+	import { marked } from 'marked';
 	import AvatarChip from './AvatarChip.svelte';
 	import DueBadge from './DueBadge.svelte';
 
@@ -54,6 +55,11 @@
 	const col = $derived(found?.col ?? null);
 
 	let modalError: string | null = $state(null);
+	let descEditing = $state(false);
+
+	function focusOnMount(node: HTMLElement) {
+		node.focus();
+	}
 
 	// Fetch card detail (description etc.) on open
 	$effect(() => {
@@ -357,13 +363,32 @@
 
 					<div class="modal-sec">
 						<span class="eyebrow">Description</span>
-						<textarea
-							class="modal-desc"
-							value={card.desc}
-							placeholder="Add a description…"
-							onchange={(e) => updateCardField({ desc: (e.currentTarget as HTMLTextAreaElement).value })}
-							aria-label="Card description"
-						></textarea>
+						{#if descEditing || !card.desc}
+							<textarea
+								use:focusOnMount
+								class="modal-desc"
+								value={card.desc}
+								placeholder="Add a description…"
+								onblur={(e) => {
+									const val = (e.currentTarget as HTMLTextAreaElement).value;
+									descEditing = false;
+									updateCardField({ desc: val });
+								}}
+								onkeydown={(e) => { if (e.key === 'Escape') descEditing = false; }}
+								aria-label="Card description"
+							></textarea>
+						{:else}
+							<div
+								class="modal-desc modal-desc-md"
+								onclick={() => { descEditing = true; }}
+								onkeydown={(e) => { if (e.key === 'Enter') descEditing = true; }}
+								role="button"
+								tabindex="0"
+								title="Click to edit"
+							>
+								{@html marked.parse(card.desc)}
+							</div>
+						{/if}
 					</div>
 				</div>
 
@@ -725,6 +750,87 @@
 	.modal-desc:focus {
 		border-color: var(--line-3);
 		background: var(--paper-0);
+	}
+
+	.modal-desc-md {
+		cursor: text;
+		min-height: 120px;
+	}
+
+	.modal-desc-md:hover {
+		border-color: var(--line-3);
+		background: var(--paper-0);
+	}
+
+	.modal-desc-md :global(p) {
+		margin: 0 0 8px;
+		line-height: 1.6;
+	}
+
+	.modal-desc-md :global(p:last-child) {
+		margin-bottom: 0;
+	}
+
+	.modal-desc-md :global(strong) {
+		font-weight: 600;
+		color: var(--fg-1);
+	}
+
+	.modal-desc-md :global(ul),
+	.modal-desc-md :global(ol) {
+		padding-left: 18px;
+		margin: 0 0 8px;
+	}
+
+	.modal-desc-md :global(li) {
+		margin-bottom: 4px;
+		line-height: 1.6;
+	}
+
+	.modal-desc-md :global(input[type='checkbox']) {
+		margin-right: 6px;
+		accent-color: var(--accent);
+	}
+
+	.modal-desc-md :global(code) {
+		font-family: var(--font-mono);
+		font-size: 13px;
+		background: var(--paper-2);
+		padding: 2px 5px;
+		border-radius: 3px;
+	}
+
+	.modal-desc-md :global(pre) {
+		background: var(--paper-2);
+		padding: 10px 14px;
+		border-radius: 6px;
+		overflow-x: auto;
+		margin: 0 0 8px;
+	}
+
+	.modal-desc-md :global(pre code) {
+		background: none;
+		padding: 0;
+	}
+
+	.modal-desc-md :global(h1),
+	.modal-desc-md :global(h2),
+	.modal-desc-md :global(h3) {
+		font: 600 14px var(--font-sans);
+		color: var(--fg-1);
+		margin: 0 0 6px;
+	}
+
+	.modal-desc-md :global(blockquote) {
+		border-left: 3px solid var(--line-3);
+		padding-left: 12px;
+		color: var(--fg-3);
+		margin: 0 0 8px;
+	}
+
+	.modal-desc-md :global(a) {
+		color: var(--accent);
+		text-decoration: underline;
 	}
 
 	.modal-side-sec {

@@ -1,5 +1,18 @@
 <script lang="ts">
 	import type { KataCard, KataLabel, KataProject, MemberInfo } from '$lib/types.js';
+
+	function stripMarkdown(text: string): string {
+		return text
+			.replace(/#{1,6}\s+/gm, '')
+			.replace(/\*\*(.+?)\*\*/gs, '$1')
+			.replace(/\*(.+?)\*/gs, '$1')
+			.replace(/`{1,3}[^`]*`{1,3}/g, '')
+			.replace(/\[(.+?)\]\(.+?\)/g, '$1')
+			.replace(/^[-*+]\s+/gm, '')
+			.replace(/^>\s+/gm, '')
+			.replace(/\n+/g, ' ')
+			.trim();
+	}
 	import LabelChip from './LabelChip.svelte';
 	import AvatarChip from './AvatarChip.svelte';
 	import DueBadge from './DueBadge.svelte';
@@ -95,7 +108,7 @@
 	<div class="kc-title">{card.title}</div>
 
 	{#if card.desc && density !== 'compact'}
-		<div class="kc-desc">{card.desc}</div>
+		<div class="kc-desc">{stripMarkdown(card.desc)}</div>
 	{/if}
 
 	<div class="kc-meta">
