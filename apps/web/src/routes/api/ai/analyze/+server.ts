@@ -40,13 +40,13 @@ Communicate in a clear, direct, and structured way. Be brief. Use bullet points 
 These rules are absolute. Never bypass them.
 
 **Destructive actions**
-- Never delete a card without first stating exactly what will be deleted and receiving explicit confirmation from the user.
+- Never delete a card or project without first stating exactly what will be deleted and receiving explicit confirmation from the user. Deleting a project unassigns it from every card that references it.
 - Always warn that deletions are permanent and cannot be undone.
 - Treat bulk operations (moving, updating, or deleting multiple cards at once) the same as destructive actions — confirm before executing.
 
 **Data integrity**
-- When updating a card, only change the fields explicitly requested. Never overwrite the title, description, labels, assignees, or any other field unless the user specifically asked for it.
-- Never fabricate card IDs, column IDs, label IDs, or user IDs. Only use values retrieved from tool results. If a referenced card or column cannot be found, stop and report it instead of guessing.
+- When updating a card or project, only change the fields explicitly requested. Never overwrite the title, description, labels, assignees, or any other field unless the user specifically asked for it.
+- Never fabricate card IDs, column IDs, label IDs, project IDs, or user IDs. Only use values retrieved from tool results. If a referenced card, project, or column cannot be found, stop and report it instead of guessing.
 
 **Scope**
 - You are a board assistant only. Decline any request unrelated to project and task management (writing code, answering general knowledge questions, generating content unrelated to the board). Politely redirect the user back to board-related tasks.
@@ -76,6 +76,7 @@ If a column name is ambiguous and placement matters, ask before acting.`;
 
 type ToolName =
 	| 'get_board' | 'list_labels' | 'list_projects'
+	| 'create_project' | 'update_project' | 'delete_project'
 	| 'create_card' | 'update_card' | 'move_card' | 'delete_card'
 	| 'add_card_label' | 'remove_card_label'
 	| 'add_card_assignee' | 'remove_card_assignee'
@@ -106,6 +107,42 @@ const TOOLS: Anthropic.Tool[] = [
 		name: 'list_projects',
 		description: 'List all projects defined on the board.',
 		input_schema: { type: 'object' as const, properties: {}, required: [] }
+	},
+	{
+		name: 'create_project',
+		description: 'Create a new project on the board.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				name: { type: 'string', description: 'Project name (1-50 chars)' },
+				color: { type: 'string', description: 'CSS hex color, e.g. #e11d48 or #fff' }
+			},
+			required: ['name', 'color']
+		}
+	},
+	{
+		name: 'update_project',
+		description: 'Update a project\'s name or color.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				projectId: { type: 'string', description: 'Project ID' },
+				name: { type: 'string', description: 'New project name (1-50 chars)' },
+				color: { type: 'string', description: 'New CSS hex color, e.g. #e11d48 or #fff' }
+			},
+			required: ['projectId']
+		}
+	},
+	{
+		name: 'delete_project',
+		description: 'Delete a project from the board. Cards assigned to it keep their reference cleared.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				projectId: { type: 'string', description: 'Project ID' }
+			},
+			required: ['projectId']
+		}
 	},
 	{
 		name: 'create_card',
@@ -261,6 +298,19 @@ async function executeTool(
 			return get(`/api/boards/${boardId}/labels`);
 		case 'list_projects':
 			return get(`/api/boards/${boardId}/projects`);
+		case 'create_project':
+			return post(`/api/boards/${boardId}/projects`, {
+				name: input['name'],
+				color: input['color']
+			});
+		case 'update_project': {
+			const fields: Record<string, unknown> = {};
+			if (input['name'] !== undefined) fields['name'] = input['name'];
+			if (input['color'] !== undefined) fields['color'] = input['color'];
+			return patch(`/api/boards/${boardId}/projects/${String(input['projectId'])}`, fields);
+		}
+		case 'delete_project':
+			return del(`/api/boards/${boardId}/projects/${String(input['projectId'])}`);
 		case 'create_card':
 			return post(`/api/boards/${boardId}/columns/${String(input['columnId'])}/cards`, {
 				title: input['title']
