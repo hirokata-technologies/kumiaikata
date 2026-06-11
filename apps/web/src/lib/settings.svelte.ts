@@ -4,6 +4,7 @@ export type Theme = 'light' | 'dark';
 export type Density = 'compact' | 'comfortable' | 'spacious';
 export type ColumnStyle = 'tray' | 'minimal';
 export type ChatPlacement = 'floating' | 'side' | 'overlay';
+export type BoardView = 'board' | 'roadmap';
 
 const KEYS = {
 	theme: 'kata_theme',
@@ -13,6 +14,7 @@ const KEYS = {
 	accent: 'kata_accent',
 	chatPlacement: 'kata_chat_placement',
 	notificationsInApp: 'kata_notifications_inapp',
+	view: 'kata_view',
 } as const;
 
 // --- safe storage helpers (US-9.3 / quota edge) ---
@@ -61,6 +63,7 @@ export const settings = $state({
 	accent:             parseAccent(readRaw(KEYS.accent)),
 	chatPlacement:      oneOf<ChatPlacement>(readRaw(KEYS.chatPlacement), ['floating', 'side', 'overlay'], 'floating'),
 	notificationsInApp: parseBool(readRaw(KEYS.notificationsInApp), true),
+	view:               oneOf<BoardView>(readRaw(KEYS.view), ['board', 'roadmap'], 'board'),
 });
 
 export function setTheme(v: Theme): void {
@@ -96,6 +99,11 @@ export function setChatPlacement(v: ChatPlacement): void {
 export function setNotificationsInApp(v: boolean): void {
 	settings.notificationsInApp = v;
 	writeRaw(KEYS.notificationsInApp, String(v));
+}
+
+export function setView(v: BoardView): void {
+	settings.view = v;
+	writeRaw(KEYS.view, v);
 }
 
 export function toggleTheme(): void {
