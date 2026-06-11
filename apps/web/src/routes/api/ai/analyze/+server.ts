@@ -304,6 +304,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	let message: string;
 	let boardId: string;
 	let boardType: 'personal' | 'team';
+	let history: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
 	try {
 		const body = (await request.json()) as {
@@ -311,11 +312,13 @@ export const POST: RequestHandler = async ({ request }) => {
 			message?: string;
 			boardId: string;
 			boardType?: 'personal' | 'team';
+			history?: Array<{ role: 'user' | 'assistant'; content: string }>;
 		};
 		board = body.board;
 		message = body.message?.trim() || 'Analyze all Tasks';
 		boardId = body.boardId;
 		boardType = body.boardType ?? 'personal';
+		history = body.history ?? [];
 
 		if (!board || typeof board !== 'object' || !Array.isArray(board.columns)) {
 			return new Response(JSON.stringify({ error: 'Invalid board payload.' }), {
@@ -362,6 +365,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 				try {
 					const messages: Anthropic.MessageParam[] = [
+						...history.map((h) => ({ role: h.role, content: h.content }) satisfies Anthropic.MessageParam),
 						{
 							role: 'user',
 							content: `${message}\n\nCurrent board snapshot:\n${JSON.stringify(board, null, 2)}`
