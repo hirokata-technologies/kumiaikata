@@ -58,7 +58,7 @@ describe("POST /api/boards/:boardId/columns", () => {
 		expect(res.status).toBe(422);
 	});
 
-	it("returns 403 when called by a team member (not admin)", async () => {
+	it("returns 201 when called by any team member", async () => {
 		const admin = await seedUser();
 		const member = await seedUser();
 		const { board } = await seedTeamWithBoard({
@@ -72,9 +72,9 @@ describe("POST /api/boards/:boardId/columns", () => {
 		setCurrentUser({ id: member.id, email: member.email });
 
 		const res = await apiRequest("POST", `/api/boards/${board.id}/columns`, {
-			body: { title: "Only Admins" },
+			body: { title: "Member Column" },
 		});
-		expect(res.status).toBe(403);
+		expect(res.status).toBe(201);
 	});
 
 	it("returns 404 when boardId does not exist", async () => {
