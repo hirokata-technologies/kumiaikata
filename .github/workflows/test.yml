@@ -50,8 +50,18 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+      valkey:
+        image: valkey/valkey:8-alpine
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
     env:
       DATABASE_URL: postgresql://kata:kata@localhost:5432/kata_test
+      REDIS_URL: redis://localhost:6379
       BETTER_AUTH_SECRET: test-secret-value-at-least-32-characters-long
       BETTER_AUTH_URL: http://localhost:8787
       GOOGLE_CLIENT_ID: test-google-client-id
