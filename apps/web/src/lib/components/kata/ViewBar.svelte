@@ -3,6 +3,7 @@
 	import type { KataProject, GroupBy } from '$lib/types.js';
 
 	let {
+		variant = 'board',
 		groupBy,
 		activeProjectId,
 		boardProjects,
@@ -11,6 +12,7 @@
 		ongroupby,
 		onprojectfilter,
 	}: {
+		variant?: 'board' | 'roadmap';
 		groupBy: GroupBy;
 		activeProjectId: string | null;
 		boardProjects: KataProject[];
@@ -25,23 +27,25 @@
 
 <div class="viewbar">
 	<div class="viewbar-l">
-		<!-- Group by segmented control -->
-		<span class="viewbar-label">Group by</span>
-		<div class="viewbar-seg" role="tablist">
-			{#each [{ value: 'status', label: 'Status' }, { value: 'project', label: 'Project' }] as opt (opt.value)}
-				<button
-					role="tab"
-					aria-selected={groupBy === opt.value}
-					class="viewbar-seg-btn"
-					class:is-on={groupBy === opt.value}
-					onclick={() => ongroupby(opt.value as GroupBy)}
-				>
-					{opt.label}
-				</button>
-			{/each}
-		</div>
+		{#if variant === 'board'}
+			<!-- Group by segmented control -->
+			<span class="viewbar-label">Group by</span>
+			<div class="viewbar-seg" role="tablist">
+				{#each [{ value: 'status', label: 'Status' }, { value: 'project', label: 'Project' }] as opt (opt.value)}
+					<button
+						role="tab"
+						aria-selected={groupBy === opt.value}
+						class="viewbar-seg-btn"
+						class:is-on={groupBy === opt.value}
+						onclick={() => ongroupby(opt.value as GroupBy)}
+					>
+						{opt.label}
+					</button>
+				{/each}
+			</div>
 
-		<span class="viewbar-sep" aria-hidden="true"></span>
+			<span class="viewbar-sep" aria-hidden="true"></span>
+		{/if}
 
 		<!-- Project filter chips -->
 		<span class="viewbar-label">Project</span>
@@ -86,6 +90,13 @@
 	</div>
 
 	<div class="viewbar-r">
+		{#if variant === 'roadmap'}
+			<div class="rm-bar-legend">
+				<span class="rm-legend-item"><span class="rm-legend-dot is-todo"></span>Scheduled</span>
+				<span class="rm-legend-item"><span class="rm-legend-dot is-doing"></span>In progress</span>
+				<span class="rm-legend-item"><span class="rm-legend-dot is-done"></span>Done</span>
+			</div>
+		{/if}
 		{#if activeProjectId}
 			<button class="viewbar-clear" onclick={() => onprojectfilter(null)}>
 				<X size={12} />
@@ -271,4 +282,31 @@
 		color: var(--fg-1);
 		border-color: var(--line-3);
 	}
+
+	/* Roadmap legend */
+	.rm-bar-legend {
+		display: inline-flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.rm-legend-item {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font: 500 11.5px var(--font-sans);
+		color: var(--fg-3);
+		white-space: nowrap;
+	}
+
+	.rm-legend-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 999px;
+		flex: 0 0 auto;
+	}
+
+	.rm-legend-dot.is-todo { background: var(--accent); }
+	.rm-legend-dot.is-doing { background: var(--warning); }
+	.rm-legend-dot.is-done { background: var(--success); }
 </style>
