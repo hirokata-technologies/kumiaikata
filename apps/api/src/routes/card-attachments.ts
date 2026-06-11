@@ -57,12 +57,10 @@ r.post("/", async (c) => {
 // DELETE /api/boards/:boardId/cards/:cardId/attachments/:attachmentId
 r.delete("/:attachmentId", async (c) => {
 	const board = c.get("board");
-	const user = c.get("user");
-	const access = c.get("access");
 	const cardId = validateId(c.req.param("cardId"), "cardId");
 	const attachmentId = validateId(c.req.param("attachmentId"), "attachmentId");
 
-	// Resolve the attachment to check ownership before deleting.
+	// Resolve the attachment to confirm it exists before deleting.
 	const [att] = await db
 		.select({ uploadedBy: attachments.uploadedBy })
 		.from(attachments)
@@ -75,15 +73,6 @@ r.delete("/:attachmentId", async (c) => {
 		)
 		.limit(1);
 	if (!att) throw new AppError("NOT_FOUND", "Attachment not found.");
-
-	const isUploader = att.uploadedBy === user.id;
-	const isAdmin = access.kind === "team-admin" || access.kind === "personal-owner";
-	if (!isUploader && !isAdmin) {
-		throw new AppError(
-			"FORBIDDEN",
-			"Only the uploader or a board admin may delete this attachment.",
-		);
-	}
 
 	await deleteAttachment(board.id, cardId, attachmentId);
 	return noContent(c);

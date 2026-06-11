@@ -166,19 +166,3 @@ export const loadBoardAccess = createMiddleware<{ Variables: AppVariables }>(
 		await next();
 	},
 );
-
-// ── requireBoardAdmin ─────────────────────────────────────────────────────────
-
-/**
- * Allows `personal-owner` and `team-admin`. Rejects `team-member` with 403.
- * Must be used after `loadBoardAccess`.
- */
-export const requireBoardAdmin = createMiddleware<{ Variables: AppVariables }>(
-	async (c, next) => {
-		const access = c.get("access");
-		if (access.kind === "team-member") {
-			throw new AppError("FORBIDDEN", "Admins or owners only.");
-		}
-		await next();
-	},
-);

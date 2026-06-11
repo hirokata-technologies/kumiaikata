@@ -156,8 +156,6 @@ r.patch(
 // DELETE /api/boards/:boardId/cards/:cardId/comments/:commentId
 r.delete("/:commentId", async (c) => {
 	const board = c.get("board");
-	const user = c.get("user");
-	const access = c.get("access");
 	const cardId = validateId(c.req.param("cardId"), "cardId");
 	const commentId = validateId(c.req.param("commentId"), "commentId");
 
@@ -175,17 +173,6 @@ r.delete("/:commentId", async (c) => {
 		const comment = (card.comments ?? []).find((c) => c.id === commentId);
 		if (!comment) {
 			throw new AppError("NOT_FOUND", "Comment not found.");
-		}
-
-		const isAuthor = comment.authorId === user.id;
-		const isAdmin =
-			access.kind === "team-admin" || access.kind === "personal-owner";
-
-		if (!isAuthor && !isAdmin) {
-			throw new AppError(
-				"FORBIDDEN",
-				"Only the comment author or a board admin may delete this comment.",
-			);
 		}
 
 		const next = (card.comments ?? []).filter((c) => c.id !== commentId);

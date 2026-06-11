@@ -170,21 +170,16 @@ describe("Finding 1 — SSE: stream.close() replaced with stream.abort()", () =>
 	});
 });
 
-// ── Finding 2: DELETE attachment — missing uploader-or-admin guard ────────────
+// ── Finding 2: DELETE attachment — any board member may delete ────────────────
 //
-// BUG:
-//   DELETE /api/boards/:boardId/cards/:cardId/attachments/:attachmentId applied
-//   only loadBoardAccess — any team-member could delete any attachment regardless
-//   of who uploaded it. Contrast with card-comments DELETE which gates on
-//   isAuthor || isAdmin.
-//
-// FIX (routes/card-attachments.ts):
-//   The DELETE handler now resolves the attachment row first and checks
-//   att.uploadedBy === user.id (uploader) or access.kind is team-admin /
-//   personal-owner (admin). Non-uploading team-members receive 403 FORBIDDEN.
+// BUSINESS RULE:
+//   Boards have no admin tier. Every board member has full permissions, so any
+//   member may delete any attachment on the board (not just the uploader). The
+//   DELETE handler resolves the attachment row only to confirm it exists before
+//   deleting; there is no uploader-or-admin guard.
 
-describe("Finding 2 — DELETE attachment: uploader-or-admin guard added", () => {
-	it("team-member who did not upload the attachment receives 403", async () => {
+describe("Finding 2 — DELETE attachment: any board member may delete", () => {
+	it("team-member who did not upload the attachment can delete it", async () => {
 		const uploader = await seedUser({ email: "uploader@finding2.com" });
 		const peer = await seedUser({ email: "peer@finding2.com" });
 		const { board } = await seedTeamWithBoard({
@@ -214,7 +209,7 @@ describe("Finding 2 — DELETE attachment: uploader-or-admin guard added", () =>
 			"DELETE",
 			`/api/boards/${board.id}/cards/${card.id}/attachments/${att.id}`,
 		);
-		expect(deleteRes.status).toBe(403);
+		expect(deleteRes.status).toBe(204);
 	});
 
 	it("uploader can delete their own attachment", async () => {
@@ -241,7 +236,7 @@ describe("Finding 2 — DELETE attachment: uploader-or-admin guard added", () =>
 		expect(deleteRes.status).toBe(204);
 	});
 
-	it("team-admin can delete any attachment", async () => {
+	it("another member can delete any attachment", async () => {
 		const admin = await seedUser({ email: "admin@finding2b.com" });
 		const uploader = await seedUser({ email: "uploader@finding2b.com" });
 		const { board } = await seedTeamWithBoard({

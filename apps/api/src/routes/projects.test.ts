@@ -133,7 +133,7 @@ describe("POST /api/boards/:boardId/projects", () => {
 		expect(res.status).toBe(201);
 	});
 
-	it("returns 403 when team member (non-admin) tries to create", async () => {
+	it("returns 201 when any team member creates a project", async () => {
 		const admin = await seedUser();
 		const member = await seedUser();
 		const { board } = await seedTeamWithBoard({
@@ -146,9 +146,9 @@ describe("POST /api/boards/:boardId/projects", () => {
 		setCurrentUser({ id: member.id, email: member.email });
 
 		const res = await apiRequest("POST", `/api/boards/${board.id}/projects`, {
-			body: { name: "Forbidden", color: "#ff0000" },
+			body: { name: "Member Project", color: "#ff0000" },
 		});
-		expect(res.status).toBe(403);
+		expect(res.status).toBe(201);
 	});
 
 	it("returns 201 when team admin creates a project", async () => {
@@ -242,7 +242,7 @@ describe("PATCH /api/boards/:boardId/projects/:projectId", () => {
 		expect(res.status).toBe(422);
 	});
 
-	it("returns 403 when team member (non-admin) tries to update", async () => {
+	it("returns 200 when any team member updates a project", async () => {
 		const admin = await seedUser();
 		const member = await seedUser();
 		const { board } = await seedTeamWithBoard({
@@ -253,19 +253,19 @@ describe("PATCH /api/boards/:boardId/projects/:projectId", () => {
 			],
 		});
 
-		// Admin creates project
+		// One member creates the project
 		setCurrentUser({ id: admin.id, email: admin.email });
 		const createRes = await apiRequest("POST", `/api/boards/${board.id}/projects`, {
-			body: { name: "Admin Created", color: "#112233" },
+			body: { name: "Initial Name", color: "#112233" },
 		});
 		const { id: projectId } = await createRes.json() as { id: string };
 
-		// Member tries to update
+		// Another member updates it
 		setCurrentUser({ id: member.id, email: member.email });
 		const res = await apiRequest("PATCH", `/api/boards/${board.id}/projects/${projectId}`, {
-			body: { name: "Member Attempt" },
+			body: { name: "Member Update" },
 		});
-		expect(res.status).toBe(403);
+		expect(res.status).toBe(200);
 	});
 });
 
@@ -300,7 +300,7 @@ describe("DELETE /api/boards/:boardId/projects/:projectId", () => {
 		expect(res.status).toBe(404);
 	});
 
-	it("returns 403 when team member (non-admin) tries to delete", async () => {
+	it("returns 204 when any team member deletes a project", async () => {
 		const admin = await seedUser();
 		const member = await seedUser();
 		const { board } = await seedTeamWithBoard({
@@ -313,13 +313,13 @@ describe("DELETE /api/boards/:boardId/projects/:projectId", () => {
 
 		setCurrentUser({ id: admin.id, email: admin.email });
 		const createRes = await apiRequest("POST", `/api/boards/${board.id}/projects`, {
-			body: { name: "Protected", color: "#445566" },
+			body: { name: "Deletable", color: "#445566" },
 		});
 		const { id: projectId } = await createRes.json() as { id: string };
 
 		setCurrentUser({ id: member.id, email: member.email });
 		const res = await apiRequest("DELETE", `/api/boards/${board.id}/projects/${projectId}`);
-		expect(res.status).toBe(403);
+		expect(res.status).toBe(204);
 	});
 
 	it("returns 204 when team admin deletes a project", async () => {

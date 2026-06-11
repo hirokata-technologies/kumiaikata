@@ -326,7 +326,7 @@ describe("DELETE /api/boards/:boardId/cards/:cardId/comments/:commentId", () => 
 		expect(res.status).toBe(204);
 	});
 
-	it("returns 403 when non-author non-admin tries to delete a comment", async () => {
+	it("returns 204 when any member deletes a comment they did not author", async () => {
 		const author = await seedUser();
 		const other = await seedUser();
 		const { board } = await seedTeamWithBoard({
@@ -354,7 +354,7 @@ describe("DELETE /api/boards/:boardId/cards/:cardId/comments/:commentId", () => 
 			"DELETE",
 			`/api/boards/${board.id}/cards/${card.id}/comments/${commentId}`,
 		);
-		expect(res.status).toBe(403);
+		expect(res.status).toBe(204);
 	});
 
 	it("returns 404 when card does not exist", async () => {
