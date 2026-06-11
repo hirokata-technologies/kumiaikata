@@ -708,7 +708,7 @@
 
 	.rm-today-pill {
 		position: absolute;
-		top: 60%;
+		top: 38%;
 		transform: translate(-50%, -50%);
 		z-index: 2;
 		display: inline-flex;

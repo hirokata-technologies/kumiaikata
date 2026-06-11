@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { Eraser, X, ArrowUp, Sparkles, Maximize2, Minimize2 } from '@lucide/svelte';
-	import type { BoardState, ChatMessage } from '$lib/types.js';
+	import type { BoardState, ChatMessage, MessagePart } from '$lib/types.js';
 	import { QUICK_REPLIES } from '$lib/data.js';
 	import { serializeBoardContext, countCards } from '$lib/ai/board-context.js';
 
@@ -36,6 +36,10 @@
 	let busy = $state(false);
 	let scrollRef: HTMLElement | null = $state(null);
 	let inputRef: HTMLTextAreaElement | null = $state(null);
+	let streamingAiId = $state<string | null>(null);
+	let charQueue = '';
+	let charDisplayed = '';
+	let flushTimerId: ReturnType<typeof setInterval> | null = null;
 
 	// When both chatInput and onChatInputChange are provided the textarea is controlled externally.
 	const controlled = $derived(chatInput !== undefined && onChatInputChange !== undefined);
@@ -95,6 +99,29 @@
 		scrollToBottom();
 	}
 
+	function startCharFlush(aiId: string) {
+		if (flushTimerId !== null) return;
+		flushTimerId = setInterval(() => {
+			if (!charQueue) return;
+			const batch = charQueue.slice(0, 4);
+			charQueue = charQueue.slice(4);
+			charDisplayed += batch;
+			updateAiBubble(aiId, charDisplayed);
+		}, 16);
+	}
+
+	function stopCharFlush(aiId: string) {
+		if (flushTimerId !== null) {
+			clearInterval(flushTimerId);
+			flushTimerId = null;
+		}
+		if (charQueue) {
+			charDisplayed += charQueue;
+			charQueue = '';
+			updateAiBubble(aiId, charDisplayed);
+		}
+	}
+
 	async function analyze(text: string = 'Analyze all Tasks') {
 		// Fix #3: Set busy synchronously before any await to prevent duplicate concurrent requests.
 		if (busy || !hasCards) return;
@@ -113,7 +140,25 @@
 			parts: [{ kind: 'text', streamed: true, text: '' }]
 		};
 
+		// Snapshot prior turns before appending the new pair — used to give the API session context.
+		type HistoryTurn = { role: 'user' | 'assistant'; content: string };
+		const historyForApi: HistoryTurn[] = messages
+			.filter((m) => m.id !== 'm-greet')
+			.flatMap((m): HistoryTurn[] => {
+				if (m.role === 'user') {
+					return m.text?.trim() ? [{ role: 'user', content: m.text }] : [];
+				}
+				const text = m.parts
+					?.filter((p: MessagePart) => p.kind === 'text')
+					.map((p: MessagePart) => (p.kind === 'text' ? p.text : ''))
+					.join('') ?? '';
+				return text.trim() ? [{ role: 'assistant', content: text }] : [];
+			});
+
 		messages = [...messages, userMsg, aiMsg];
+		streamingAiId = aiId;
+		charQueue = '';
+		charDisplayed = '';
 		scrollToBottom();
 
 		let acc = '';
@@ -128,7 +173,7 @@
 			const res = await fetch('/api/ai/analyze', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ board: boardContext, message: text, boardId, boardType }),
+				body: JSON.stringify({ board: boardContext, message: text, boardId, boardType, history: historyForApi }),
 				signal: controller.signal
 			});
 
@@ -191,7 +236,8 @@
 							acc += `\n\n_${payload.error}_`;
 						} else if (payload.text) {
 							acc += payload.text;
-							updateAiBubble(aiId, acc);
+							charQueue += payload.text;
+							startCharFlush(aiId);
 						} else if (typeof payload.tool_call === 'string') {
 							updateAiParts(aiId, (parts) => [
 								...parts,
@@ -246,6 +292,10 @@
 			}
 		} finally {
 			clearTimeout(timeoutId);
+			stopCharFlush(aiId);
+			// Flush any trailing text (errors, cut-short notices) that bypassed the queue
+			if (acc) updateAiBubble(aiId, acc);
+			streamingAiId = null;
 			busy = false;
 		}
 	}
@@ -341,7 +391,13 @@
 						<Sparkles size={14} />
 					</div>
 					<div class="msg-content">
-						{#if msg.parts}
+						{#if msg.id === streamingAiId && busy && !msg.parts?.some((p: MessagePart) => (p.kind === 'text' && p.text.length > 0) || p.kind === 'tool_status')}
+							<div class="typing" aria-label="Thinking…">
+								<span></span>
+								<span></span>
+								<span></span>
+							</div>
+						{:else if msg.parts}
 							{#each msg.parts as part, partIdx (partIdx)}
 								{#if part.kind === 'text'}
 									<div class="msg-body">
@@ -359,7 +415,7 @@
 			{/if}
 		{/each}
 
-		{#if busy}
+		{#if busy && !streamingAiId}
 			<div class="msg">
 				<div class="msg-avatar" aria-hidden="true">
 					<Sparkles size={14} />
