@@ -82,5 +82,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The API imports internal workspace packages (@kata/db, @kata/http, …)
+      # via their built `dist/` entry points, so they must be compiled first.
+      - name: Build workspace packages
+        run: pnpm --filter "./packages/*" build
+
       - name: Run API tests
         run: pnpm test:api
