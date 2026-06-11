@@ -11,6 +11,12 @@ import type { AppVariables } from "@kata/http";
 const r = new Hono<{ Variables: AppVariables }>();
 r.use("*", requireSession);
 
+function parseColumnIds(raw: string | undefined): string[] | undefined {
+	if (!raw) return undefined;
+	const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
+	return ids.length > 0 ? ids : undefined;
+}
+
 r.get("/personal", async (c) => {
 	const user = c.get("user");
 	// Use the denormalised pointer first — single-row lookup.
@@ -29,7 +35,8 @@ r.get("/personal", async (c) => {
 	if (!boardId) {
 		throw new AppError("NOT_FOUND", "Personal board missing — provisioning may have failed.");
 	}
-	return ok(c, await getBoardWithColumnsAndCards(boardId));
+	const columnIds = parseColumnIds(c.req.query("column_ids"));
+	return ok(c, await getBoardWithColumnsAndCards(boardId, { columnIds }));
 });
 
 r.get("/team", async (c) => {
@@ -42,7 +49,8 @@ r.get("/team", async (c) => {
 		.where(and(eq(boards.kind, "team"), eq(boards.teamId, membership.teamId)))
 		.limit(1);
 	if (!board) throw new AppError("NOT_FOUND", "Team board missing.");
-	return ok(c, await getBoardWithColumnsAndCards(board.id));
+	const columnIds = parseColumnIds(c.req.query("column_ids"));
+	return ok(c, await getBoardWithColumnsAndCards(board.id, { columnIds }));
 });
 
 export default r;

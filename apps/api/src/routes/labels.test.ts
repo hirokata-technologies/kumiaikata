@@ -119,7 +119,7 @@ describe("POST /api/boards/:boardId/labels", () => {
 		expect(res.status).toBe(422);
 	});
 
-	it("returns 403 when called by a team member (not admin)", async () => {
+	it("returns 201 when called by any team member", async () => {
 		const admin = await seedUser();
 		const member = await seedUser();
 		const { board } = await seedTeamWithBoard({
@@ -134,7 +134,7 @@ describe("POST /api/boards/:boardId/labels", () => {
 		const res = await apiRequest("POST", `/api/boards/${board.id}/labels`, {
 			body: { name: "Member Label", color: "#6366f1" },
 		});
-		expect(res.status).toBe(403);
+		expect(res.status).toBe(201);
 	});
 });
 

@@ -82,16 +82,6 @@ r.delete(
 		const board = c.get("board");
 		const cardId = validateId(c.req.param("cardId"), "cardId");
 		const { userId } = c.req.valid("param");
-		const user = c.get("user");
-		const access = c.get("access");
-
-		// Only allow: (a) the user removing themselves, or (b) a board owner / team admin.
-		if (access.kind === "team-member" && user.id !== userId) {
-			throw new AppError(
-				"FORBIDDEN",
-				"You are not allowed to remove other members as an assignee.",
-			);
-		}
 
 		// Fetch current state first so we know whether the user is actually assigned.
 		// Emitting card.assignee.removed for a userId not in the array would send

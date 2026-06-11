@@ -45,7 +45,7 @@ server.tool(
 
 server.tool(
 	"create_column",
-	"Create a new column on a board. Requires board admin access.",
+	"Create a new column on a board.",
 	{
 		boardId: z.string().describe("Board ID"),
 		title: z.string().min(1).max(120).describe("Column title"),
@@ -55,7 +55,7 @@ server.tool(
 
 server.tool(
 	"rename_column",
-	"Rename an existing column. Requires board admin access.",
+	"Rename an existing column.",
 	{
 		boardId: z.string().describe("Board ID"),
 		columnId: z.string().describe("Column ID"),
@@ -67,7 +67,7 @@ server.tool(
 
 server.tool(
 	"delete_column",
-	"Delete a column and all its cards. Requires board admin access.",
+	"Delete a column and all its cards.",
 	{
 		boardId: z.string().describe("Board ID"),
 		columnId: z.string().describe("Column ID"),
@@ -78,7 +78,7 @@ server.tool(
 
 server.tool(
 	"reorder_columns",
-	"Reorder all columns by providing an ordered array of column IDs. Requires board admin access.",
+	"Reorder all columns by providing an ordered array of column IDs.",
 	{
 		boardId: z.string().describe("Board ID"),
 		orderedIds: z.array(z.string()).min(1).describe("Column IDs in the desired order"),
@@ -174,7 +174,7 @@ server.tool(
 
 server.tool(
 	"create_label",
-	"Create a new label on a board. Requires board admin access.",
+	"Create a new label on a board.",
 	{
 		boardId: z.string().describe("Board ID"),
 		name: z.string().min(1).max(50).describe("Label name"),
@@ -186,7 +186,7 @@ server.tool(
 
 server.tool(
 	"update_label",
-	"Update a label's name or color. Requires board admin access.",
+	"Update a label's name or color.",
 	{
 		boardId: z.string().describe("Board ID"),
 		labelId: z.string().describe("Label ID"),
@@ -199,7 +199,7 @@ server.tool(
 
 server.tool(
 	"delete_label",
-	"Delete a label from a board. Requires board admin access.",
+	"Delete a label from a board.",
 	{
 		boardId: z.string().describe("Board ID"),
 		labelId: z.string().describe("Label ID"),
@@ -243,7 +243,7 @@ server.tool(
 
 server.tool(
 	"create_project",
-	"Create a new project on a board. Requires board admin access.",
+	"Create a new project on a board.",
 	{
 		boardId: z.string().describe("Board ID"),
 		name: z.string().min(1).max(50).describe("Project name"),
@@ -255,7 +255,7 @@ server.tool(
 
 server.tool(
 	"update_project",
-	"Update a project's name or color. Requires board admin access.",
+	"Update a project's name or color.",
 	{
 		boardId: z.string().describe("Board ID"),
 		projectId: z.string().describe("Project ID"),
@@ -268,7 +268,7 @@ server.tool(
 
 server.tool(
 	"delete_project",
-	"Delete a project from a board. Requires board admin access.",
+	"Delete a project from a board. Cards assigned to it have their project reference cleared.",
 	{
 		boardId: z.string().describe("Board ID"),
 		projectId: z.string().describe("Project ID"),
@@ -332,7 +332,7 @@ server.tool(
 
 server.tool(
 	"delete_card_comment",
-	"Delete a comment. The comment author or a board admin may delete.",
+	"Delete a comment. Any board member may delete.",
 	{
 		boardId: z.string().describe("Board ID"),
 		cardId: z.string().describe("Card ID"),

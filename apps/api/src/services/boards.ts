@@ -35,6 +35,7 @@ export interface BoardWithColumnsAndCards {
 
 export async function getBoardWithColumnsAndCards(
 	boardId: string,
+	options?: { columnIds?: string[] | undefined },
 ): Promise<BoardWithColumnsAndCards> {
 	const [board] = await db.select().from(boards).where(eq(boards.id, boardId)).limit(1);
 	if (!board) throw new AppError("NOT_FOUND", "Board not found.");
@@ -43,10 +44,13 @@ export async function getBoardWithColumnsAndCards(
 		.where(eq(columns.boardId, board.id))
 		.orderBy(asc(columns.position));
 
-	const columnIds = cols.map((c) => c.id);
-	const cardDocs = columnIds.length > 0
+	const fetchableIds = options?.columnIds
+		? cols.map((c) => c.id).filter((id) => options.columnIds!.includes(id))
+		: cols.map((c) => c.id);
+
+	const cardDocs = fetchableIds.length > 0
 		? await db.select().from(cards)
-				.where(inArray(cards.columnId, columnIds))
+				.where(inArray(cards.columnId, fetchableIds))
 				.orderBy(asc(cards.position))
 		: [];
 

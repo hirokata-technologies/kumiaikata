@@ -122,7 +122,7 @@ describe("DELETE /api/boards/:boardId/cards/:cardId/assignees/:userId", () => {
 // ── DELETE authorization tests ────────────────────────────────────────────────
 
 describe("DELETE /api/boards/:boardId/cards/:cardId/assignees/:userId (authorization)", () => {
-	it("returns 403 when a team-member tries to remove another member", async () => {
+	it("returns 204 when any member removes another member as assignee", async () => {
 		const admin = await seedUser();
 		const member = await seedUser();
 		const { board } = await seedTeamWithBoard({
@@ -143,15 +143,13 @@ describe("DELETE /api/boards/:boardId/cards/:cardId/assignees/:userId (authoriza
 			{ body: { userId: admin.id } },
 		);
 
-		// member tries to remove admin
+		// member removes admin — any board member may now manage assignees
 		setCurrentUser({ id: member.id, email: member.email });
 		const res = await apiRequest(
 			"DELETE",
 			`/api/boards/${board.id}/cards/${card.id}/assignees/${admin.id}`,
 		);
-		expect(res.status).toBe(403);
-		const body = await res.json() as { error: { code: string } };
-		expect(body.error.code).toBe("FORBIDDEN");
+		expect(res.status).toBe(204);
 	});
 
 	it("returns 204 when a team-member removes themselves", async () => {
