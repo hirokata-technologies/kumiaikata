@@ -35,7 +35,7 @@ export interface BoardWithColumnsAndCards {
 
 export async function getBoardWithColumnsAndCards(
 	boardId: string,
-	options?: { columnIds?: string[] },
+	options?: { columnIds?: string[] | undefined },
 ): Promise<BoardWithColumnsAndCards> {
 	const [board] = await db.select().from(boards).where(eq(boards.id, boardId)).limit(1);
 	if (!board) throw new AppError("NOT_FOUND", "Board not found.");
