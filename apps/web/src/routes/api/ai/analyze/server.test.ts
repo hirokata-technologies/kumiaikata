@@ -280,6 +280,40 @@ describe('POST /api/ai/analyze — tool use', () => {
 		expect(lines[lines.length - 1]).toBe('[DONE]');
 	});
 
+	it('routes create_project to POST /projects with name and color', async () => {
+		mockState.createResults = [
+			{
+				content: [
+					{
+						type: 'tool_use',
+						id: 'tu_p',
+						name: 'create_project',
+						input: { name: 'Q3 Launch', color: '#e11d48' }
+					}
+				],
+				stop_reason: 'tool_use'
+			},
+			{ content: [{ type: 'text', text: 'Project created.' }], stop_reason: 'end_turn' }
+		];
+
+		const fetchMock = vi.fn(async () => ({ ok: true, status: 201, json: async () => ({ id: 'proj_1' }) }));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const res = await POST({ request: makeRequest(VALID_BODY) } as Parameters<typeof POST>[0]);
+		const lines = await collectSSELines(res);
+
+		expect(lines).toContain(JSON.stringify({ tool_call: 'create_project' }));
+		expect(lines).toContain(JSON.stringify({ tool_done: 'create_project' }));
+
+		const call = fetchMock.mock.calls.find(([url]) =>
+			String(url).endsWith('/api/boards/board_abc/projects')
+		);
+		expect(call).toBeDefined();
+		const [, init] = call as unknown as [string, RequestInit];
+		expect(init.method).toBe('POST');
+		expect(JSON.parse(String(init.body))).toEqual({ name: 'Q3 Launch', color: '#e11d48' });
+	});
+
 	it('emits tool_error when the API call fails', async () => {
 		mockState.createResults = [
 			{
