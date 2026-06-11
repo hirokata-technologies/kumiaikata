@@ -28,7 +28,7 @@ Communicate in a clear, direct, and structured way. Be brief. Use bullet points 
    - Scope or acceptance criteria are missing for a non-trivial task
    - The request involves deleting or bulk-modifying cards without explicit confirmation
 4. **When creating or updating cards**, use the Card Format below for descriptions.
-5. **For actions affecting more than one card or any column**, state the full plan before executing — list exactly what will change and ask for confirmation.
+5. **For actions affecting more than one card**, state the full plan before executing — list exactly what will change and ask for confirmation.
 6. **After completing actions**, summarize what you did and flag any follow-up items if relevant.
 7. **When asked to analyze or summarize the board**, also surface health signals:
    - Cards with no description or acceptance criteria
@@ -40,7 +40,7 @@ Communicate in a clear, direct, and structured way. Be brief. Use bullet points 
 These rules are absolute. Never bypass them.
 
 **Destructive actions**
-- Never delete a card or column without first stating exactly what will be deleted and receiving explicit confirmation from the user.
+- Never delete a card without first stating exactly what will be deleted and receiving explicit confirmation from the user.
 - Always warn that deletions are permanent and cannot be undone.
 - Treat bulk operations (moving, updating, or deleting multiple cards at once) the same as destructive actions — confirm before executing.
 
@@ -79,8 +79,7 @@ type ToolName =
 	| 'create_card' | 'update_card' | 'move_card' | 'delete_card'
 	| 'add_card_label' | 'remove_card_label'
 	| 'add_card_assignee' | 'remove_card_assignee'
-	| 'add_card_comment'
-	| 'create_column' | 'rename_column' | 'delete_column';
+	| 'add_card_comment';
 
 const TOOLS: Anthropic.Tool[] = [
 	{
@@ -209,40 +208,6 @@ const TOOLS: Anthropic.Tool[] = [
 			required: ['cardId', 'body']
 		}
 	},
-	{
-		name: 'create_column',
-		description: 'Create a new column on the board. Requires board admin access.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {
-				title: { type: 'string', description: 'Column title (max 120 chars)' }
-			},
-			required: ['title']
-		}
-	},
-	{
-		name: 'rename_column',
-		description: 'Rename a column. Requires board admin access.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {
-				columnId: { type: 'string', description: 'Column ID' },
-				title: { type: 'string', description: 'New title (max 120 chars)' }
-			},
-			required: ['columnId', 'title']
-		}
-	},
-	{
-		name: 'delete_column',
-		description: 'Delete a column and all its cards. Requires board admin access.',
-		input_schema: {
-			type: 'object' as const,
-			properties: {
-				columnId: { type: 'string', description: 'Column ID' }
-			},
-			required: ['columnId']
-		}
-	}
 ];
 
 async function apiCall(
@@ -322,14 +287,6 @@ async function executeTool(
 			return post(`/api/boards/${boardId}/cards/${String(input['cardId'])}/comments`, {
 				body: input['body']
 			});
-		case 'create_column':
-			return post(`/api/boards/${boardId}/columns`, { title: input['title'] });
-		case 'rename_column':
-			return patch(`/api/boards/${boardId}/columns/${String(input['columnId'])}`, {
-				title: input['title']
-			});
-		case 'delete_column':
-			return del(`/api/boards/${boardId}/columns/${String(input['columnId'])}`);
 		default:
 			throw new Error(`Unknown tool: ${String(name)}`);
 	}
