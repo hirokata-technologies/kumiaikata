@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
 	requireSession,
 	loadBoardAccess,
-	requireBoardAdmin,
 } from "../auth/middleware.js";
 import { zValidator, validateId } from "../http/validate.js";
 import { ok, created, noContent } from "../http/responders.js";
@@ -22,7 +21,6 @@ r.use("*", requireSession, loadBoardAccess);
 // POST /api/boards/:boardId/columns
 r.post(
 	"/",
-	requireBoardAdmin,
 	zValidator("json", z.object({ title: z.string().min(1).max(120) })),
 	async (c) => {
 		const board = c.get("board") as ContextBoard;
@@ -35,7 +33,6 @@ r.post(
 // Defined before /:columnId so Hono matches "reorder" as a literal segment.
 r.patch(
 	"/reorder",
-	requireBoardAdmin,
 	zValidator(
 		"json",
 		z.object({ orderedIds: z.array(z.string()).min(1) }),
@@ -53,7 +50,6 @@ r.patch(
 // PATCH /api/boards/:boardId/columns/:columnId
 r.patch(
 	"/:columnId",
-	requireBoardAdmin,
 	zValidator("json", z.object({ title: z.string().min(1).max(120) })),
 	async (c) => {
 		const board = c.get("board") as ContextBoard;
@@ -68,7 +64,7 @@ r.patch(
 );
 
 // DELETE /api/boards/:boardId/columns/:columnId
-r.delete("/:columnId", requireBoardAdmin, async (c) => {
+r.delete("/:columnId", async (c) => {
 	const board = c.get("board") as ContextBoard;
 	const columnId = validateId(c.req.param("columnId"), "columnId");
 	await deleteColumn(board.id, columnId);
