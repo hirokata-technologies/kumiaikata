@@ -84,8 +84,18 @@ type ToolName =
 const TOOLS: Anthropic.Tool[] = [
 	{
 		name: 'get_board',
-		description: 'Get the current board state with all columns and cards. Call this to see the latest board before taking actions.',
-		input_schema: { type: 'object' as const, properties: {}, required: [] }
+		description: 'Get the current board state with all columns and cards. Pass columnIds to fetch cards only for specific columns and skip the rest — use this to avoid loading large Done columns you do not need.',
+		input_schema: {
+			type: 'object' as const,
+			properties: {
+				columnIds: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'Optional list of column IDs whose cards should be fetched. All other columns are returned with empty card arrays. Omit to fetch all cards.'
+				}
+			},
+			required: []
+		}
 	},
 	{
 		name: 'list_labels',
@@ -115,10 +125,10 @@ const TOOLS: Anthropic.Tool[] = [
 		input_schema: {
 			type: 'object' as const,
 			properties: {
-				cardId: { type: 'string', description: 'Card ID' },
+				cardId: { type: 'string', description: 'Exact card ID from get_board results — never derive or infer from the card title.' },
 				title: { type: 'string', description: 'New title' },
 				description: { type: 'string', description: 'Markdown description (null to clear)' },
-				dueDate: { type: 'string', description: 'ISO 8601 due date (null to clear)' },
+				dueDate: { type: 'string', format: 'date-time', description: 'Full ISO 8601 datetime string with timezone, e.g. "2026-06-30T00:00:00Z" (null to clear). Must include time and timezone — date-only strings are not accepted.' },
 				projectId: { type: 'string', description: 'Project ID (null to clear)' }
 			},
 			required: ['cardId']
@@ -242,8 +252,11 @@ async function executeTool(
 	const del = (p: string) => apiCall('DELETE', p, undefined, apiUrl, cookie);
 
 	switch (name) {
-		case 'get_board':
-			return get(`/api/boards/${boardType}`);
+		case 'get_board': {
+			const columnIds = Array.isArray(input['columnIds']) ? (input['columnIds'] as string[]) : undefined;
+			const qs = columnIds && columnIds.length > 0 ? `?column_ids=${columnIds.join(',')}` : '';
+			return get(`/api/boards/${boardType}${qs}`);
+		}
 		case 'list_labels':
 			return get(`/api/boards/${boardId}/labels`);
 		case 'list_projects':
