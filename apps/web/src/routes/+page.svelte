@@ -28,9 +28,11 @@
 	import TopBar from '$lib/components/kata/TopBar.svelte';
 	import ViewBar from '$lib/components/kata/ViewBar.svelte';
 	import KanbanBoard from '$lib/components/kata/KanbanBoard.svelte';
+	import Roadmap from '$lib/components/kata/Roadmap.svelte';
+	import UndatedTray from '$lib/components/kata/UndatedTray.svelte';
 	import ChatPanel from '$lib/components/kata/ChatPanel.svelte';
 	import CardModal from '$lib/components/kata/CardModal.svelte';
-	import { settings, setDensity, setChatPlacement, toggleTheme } from '$lib/settings.svelte.js';
+	import { settings, setDensity, setChatPlacement, setView, toggleTheme } from '$lib/settings.svelte.js';
 	import {
 		readWorkspace, writeWorkspace,
 		readContext, writeProjectFilter, writeGroupBy,
@@ -81,6 +83,21 @@
 	});
 
 	const totalCount = $derived(boardState.columns.reduce((n, c) => n + c.cards.length, 0));
+
+	// Flattened cards + status lookups, used by the Roadmap (timeline) view.
+	const allCards = $derived(boardState.columns.flatMap((c) => c.cards));
+	const statusLookup = $derived(
+		new Map(boardState.columns.flatMap((col) => col.cards.map((card) => [card.id, col.id] as const))),
+	);
+	const statusTitles = $derived(
+		new Map(boardState.columns.map((col) => [col.id, col.title] as const)),
+	);
+	function statusOf(cardId: string): string | undefined {
+		return statusLookup.get(cardId);
+	}
+	function statusTitleOf(columnId: string): string {
+		return statusTitles.get(columnId) ?? columnId;
+	}
 
 	let workspaceId = $state<WorkspaceId>(initialWorkspace);
 
@@ -399,12 +416,15 @@
 		{workspace}
 		{workspaces}
 		onselectworkspace={handleSelectWorkspace}
+			view={settings.view}
+			onselectview={(v) => setView(v)}
 		user={currentUser}
 		onUserUpdate={(patch) => { currentUser = currentUser ? { ...currentUser, ...patch } : currentUser; }}
 	/>
 
 	{#if !loading && !loadError}
 		<ViewBar
+			variant={settings.view === 'roadmap' ? 'roadmap' : 'board'}
 			{groupBy}
 			{activeProjectId}
 			boardProjects={boardState.projects}
@@ -435,24 +455,52 @@
 			</div>
 		</main>
 	{:else}
-		<main class="main">
-			<KanbanBoard
-				boardId={boardId ?? ''}
-				state={boardState}
-				density={settings.density}
-				{query}
-				columnStyle={settings.columnStyle}
-				showMist={settings.mist}
-				glowCardIds={glowIds}
-				boardLabels={boardState.labels}
-				boardProjects={boardState.projects}
-				{boardMembers}
-				{groupBy}
-				{activeProjectId}
-				onCardOpen={(id) => (openCardId = id)}
-				onStateChange={(s) => (boardState = s)}
-				onclearfilter={() => { activeProjectId = null; writeProjectFilter(workspaceId, null); }}
-			/>
+		<main class="main" class:is-roadmap={settings.view === 'roadmap'}>
+			{#if settings.view === 'roadmap'}
+				<Roadmap
+					boardId={boardId ?? ''}
+					cards={allCards}
+					density={settings.density}
+					{query}
+					{activeProjectId}
+					{statusOf}
+					{statusTitleOf}
+					showMist={settings.mist}
+					boardProjects={boardState.projects}
+					boardLabels={boardState.labels}
+					{boardMembers}
+					onCardOpen={(id) => (openCardId = id)}
+				/>
+				<UndatedTray
+					cards={allCards}
+					{statusOf}
+					{statusTitleOf}
+					{query}
+					{activeProjectId}
+					boardProjects={boardState.projects}
+					boardLabels={boardState.labels}
+					{boardMembers}
+					onCardOpen={(id) => (openCardId = id)}
+				/>
+			{:else}
+				<KanbanBoard
+					boardId={boardId ?? ''}
+					state={boardState}
+					density={settings.density}
+					{query}
+					columnStyle={settings.columnStyle}
+					showMist={settings.mist}
+					glowCardIds={glowIds}
+					boardLabels={boardState.labels}
+					boardProjects={boardState.projects}
+					{boardMembers}
+					{groupBy}
+					{activeProjectId}
+					onCardOpen={(id) => (openCardId = id)}
+					onStateChange={(s) => (boardState = s)}
+					onclearfilter={() => { activeProjectId = null; writeProjectFilter(workspaceId, null); }}
+				/>
+			{/if}
 
 			{#if chatVisible && settings.chatPlacement === 'side'}
 				<ChatPanel
@@ -550,6 +598,10 @@
 		display: flex;
 		min-height: 0;
 		min-width: 0;
+	}
+
+	.main.is-roadmap {
+		background: var(--paper-1);
 	}
 
 	.main-loading {

@@ -4,6 +4,8 @@
 	import ThemeToggle from './ThemeToggle.svelte';
 	import WorkspaceSwitcher from './WorkspaceSwitcher.svelte';
 	import type { Workspace } from './WorkspaceSwitcher.svelte';
+	import ViewSwitcher from './ViewSwitcher.svelte';
+	import type { BoardView } from './ViewSwitcher.svelte';
 
 	let {
 		query,
@@ -18,6 +20,8 @@
 		workspace,
 		workspaces,
 		onselectworkspace,
+		view = 'board',
+		onselectview,
 		user,
 		onUserUpdate
 	}: {
@@ -33,6 +37,8 @@
 		workspace: Workspace;
 		workspaces: Workspace[];
 		onselectworkspace: (id: string) => void;
+		view?: BoardView;
+		onselectview?: (v: BoardView) => void;
 		user?: { name?: string | null; email: string; image?: string | null } | null;
 		onUserUpdate?: (patch: { name?: string | null; image?: string | null }) => void;
 	} = $props();
@@ -90,6 +96,11 @@
 	</div>
 
 	<div class="topbar-r">
+		{#if onselectview}
+			<ViewSwitcher {view} {onselectview} />
+			<span class="topbar-sep" aria-hidden="true"></span>
+		{/if}
+
 		<div class="hkbg" role="group" aria-label="Card density">
 			{#each ['compact', 'comfortable', 'spacious'] as d (d)}
 				<button
