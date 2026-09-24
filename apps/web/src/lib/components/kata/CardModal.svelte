@@ -310,6 +310,16 @@
 		return card.due === getPresetDate(preset);
 	}
 
+	// Escape raw HTML before handing text to marked so {@html} below can only ever
+	// render markdown-generated markup, never HTML injected via the description field.
+	function renderDescMd(text: string): string {
+		const escaped = text
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;');
+		return marked.parse(escaped) as string;
+	}
+
 	// Keyboard: close on Escape
 	$effect(() => {
 		function onKeydown(e: KeyboardEvent) {
@@ -386,7 +396,7 @@
 								tabindex="0"
 								title="Click to edit"
 							>
-								{@html marked.parse(card.desc)}
+								{@html renderDescMd(card.desc)}
 							</div>
 						{/if}
 					</div>
