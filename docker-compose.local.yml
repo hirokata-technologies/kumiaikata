@@ -43,7 +43,7 @@ services:
       BETTER_AUTH_URL: "http://localhost:8787"
       GOOGLE_CLIENT_ID: "581143433345-ppc8men3sjfjb86brrsckvv4pg8oqbh8.apps.googleusercontent.com"
       GOOGLE_CLIENT_SECRET: "***REMOVED***"
-      ALLOWED_DOMAINS: "hirokata.dev,edamame.ph,localhost"
+      ALLOWED_DOMAINS: "hirokata.dev,edamama.ph,localhost"
       ALLOWED_ORIGINS: "http://localhost:3000"
       ATTACHMENTS_DIR: "/data/attachments"
       MAX_ATTACHMENT_BYTES: "26214400"
@@ -84,7 +84,7 @@ services:
       BETTER_AUTH_SECRET: "***REMOVED***"
       BETTER_AUTH_URL: "http://localhost:8787"
       ALLOWED_ORIGINS: "http://localhost:3000"
-      ALLOWED_DOMAINS: "hirokata.dev,edamame.ph,localhost"
+      ALLOWED_DOMAINS: "hirokata.dev,edamama.ph,localhost"
       RESEND_API_KEY: "***REMOVED***"
       SENTRY_DSN: "https://6dca0d8f76424228f21cf76165f68e6f@o4511008752336896.ingest.us.sentry.io/4511472254124033"
     depends_on:
