@@ -405,7 +405,7 @@
 									</div>
 								{:else if part.kind === 'tool_status'}
 									<div class="msg-tool-status msg-tool-status-{part.status}">
-										{part.tool.replace(/_/g, ' ')}{' '}{part.status === 'calling' ? '⏳' : part.status === 'done' ? '✓' : '✗'}
+										{part.tool.replace(/_/g, ' ')} {part.status === 'calling' ? '⏳' : part.status === 'done' ? '✓' : '✗'}
 									</div>
 								{/if}
 							{/each}

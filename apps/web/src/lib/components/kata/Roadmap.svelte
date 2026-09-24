@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { SvelteSet, SvelteMap } from 'svelte/reactivity';
 	import { Layers, Folder, FolderMinus } from '@lucide/svelte';
 	import type { KataCard, KataLabel, KataProject, MemberInfo } from '$lib/types.js';
 	import { parseISO, daysBetween } from '$lib/data.js';
@@ -84,7 +85,7 @@
 	// Reconcile when the card set changes: seed any newly-dated card, drop the gone.
 	$effect(() => {
 		const next: ScheduleMap = { ...untrack(() => sched) };
-		const ids = new Set<string>();
+		const ids = new SvelteSet<string>();
 		let changed = false;
 		for (const c of cards) {
 			ids.add(c.id);
@@ -380,7 +381,7 @@
 	const heatGroups = $derived.by((): HeatGroup[] => {
 		if (!heatTip) return [];
 		const groups: HeatGroup[] = [];
-		const byId = new Map<string, HeatGroup>();
+		const byId = new SvelteMap<string, HeatGroup>();
 		for (const c of heatTip.bucket.cards) {
 			const aids = c.assignees.length ? c.assignees : ['__unassigned'];
 			for (const aid of aids) {

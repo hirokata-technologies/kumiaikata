@@ -294,8 +294,6 @@
 	}
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
 	class="ep-scrim"
 	onclick={onClose}
@@ -304,7 +302,6 @@
 	aria-label="Edit profile"
 	tabindex="-1"
 >
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="ep-panel"
 		onclick={(e) => e.stopPropagation()}

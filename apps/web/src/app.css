@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where([data-theme="dark"] *));
 
 /* ============================================================
    HiroKata — Color & Type Foundations
@@ -43,6 +43,11 @@
   --danger:    #9B3B2E;
   --info:      var(--accent);
 
+  /* Semantic soft tints — backgrounds for status and priority pills */
+  --success-soft: rgba(63, 107, 74, 0.10);
+  --warning-soft: rgba(176, 122, 42, 0.12);
+  --danger-soft:  rgba(155, 59, 46, 0.10);
+
   /* Borders & lines */
   --line-1:    rgba(20, 19, 15, 0.08);
   --line-2:    rgba(20, 19, 15, 0.14);
@@ -78,6 +83,18 @@
   --radius-lg: 14px;
   --radius-xl: 22px;
   --radius-pill: 999px;
+
+  /* Spacing */
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   24px;
+  --space-6:   32px;
+  --space-7:   48px;
+  --space-8:   64px;
+  --space-9:   96px;
+  --space-10:  128px;
 
   /* Shadcn compat */
   --radius: 0.625rem;

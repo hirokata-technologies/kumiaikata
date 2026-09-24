@@ -68,6 +68,9 @@
 		<span class="ws-text">
 			<span class="eyebrow">Workspace</span>
 			<span class="ws-name">{workspace.name}</span>
+			{#if workspace.hint}
+				<span class="ws-hint">{workspace.hint}</span>
+			{/if}
 		</span>
 		<span class="ws-chev"><ChevronsUpDown size={14} /></span>
 	</button>
@@ -169,6 +172,12 @@
 		font-size: 15px;
 		font-weight: 500;
 		color: var(--fg-1);
+		white-space: nowrap;
+	}
+
+	.ws-hint {
+		font: 400 11px var(--font-sans);
+		color: var(--fg-4);
 		white-space: nowrap;
 	}
 

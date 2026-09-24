@@ -38,3 +38,5 @@ export { getMyTeam, listTeamMembers, setTeamMemberRole } from './teams.js';
 export { subscribeBoard } from './events.js';
 export type { BoardEventHandler } from './events.js';
 export { uploadAvatar } from './users.js';
+
+export * from './kumiai/index.js';

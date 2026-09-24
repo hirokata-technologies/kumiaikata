@@ -1,0 +1,20 @@
+<script lang="ts">
+	import { Avatar as AvatarPrimitive } from "bits-ui";
+	import { cn, type WithoutChild } from "$lib/utils.js";
+
+	let {
+		ref = $bindable(null),
+		class: className,
+		children,
+		...restProps
+	}: WithoutChild<AvatarPrimitive.RootProps> = $props();
+</script>
+
+<AvatarPrimitive.Root
+	bind:ref
+	data-slot="avatar"
+	class={cn("relative flex size-8 shrink-0 overflow-hidden rounded-full", className)}
+	{...restProps}
+>
+	{@render children?.()}
+</AvatarPrimitive.Root>
