@@ -74,12 +74,14 @@ function makeState(overrides: Partial<SignOutState> = {}): SignOutState {
 // ---------------------------------------------------------------------------
 
 describe('signOut — successful sign-out (US-1)', () => {
-	let authClientSignOut: ReturnType<typeof vi.fn>;
-	let goto: ReturnType<typeof vi.fn>;
+	let authClientSignOut: ReturnType<typeof vi.fn<SignOutDeps['authClientSignOut']>>;
+	let goto: ReturnType<typeof vi.fn<SignOutDeps['goto']>>;
 
 	beforeEach(() => {
-		authClientSignOut = vi.fn().mockResolvedValue({ data: {}, error: null });
-		goto = vi.fn().mockResolvedValue(undefined);
+		authClientSignOut = vi
+			.fn<SignOutDeps['authClientSignOut']>()
+			.mockResolvedValue({ data: {}, error: null });
+		goto = vi.fn<SignOutDeps['goto']>().mockResolvedValue(undefined);
 	});
 
 	it('calls authClient.signOut() when invoked (AC-1)', async () => {
@@ -128,15 +130,15 @@ describe('signOut — successful sign-out (US-1)', () => {
 // ---------------------------------------------------------------------------
 
 describe('signOut — failed sign-out via result.error (US-2)', () => {
-	let authClientSignOut: ReturnType<typeof vi.fn>;
-	let goto: ReturnType<typeof vi.fn>;
+	let authClientSignOut: ReturnType<typeof vi.fn<SignOutDeps['authClientSignOut']>>;
+	let goto: ReturnType<typeof vi.fn<SignOutDeps['goto']>>;
 
 	beforeEach(() => {
-		authClientSignOut = vi.fn().mockResolvedValue({
+		authClientSignOut = vi.fn<SignOutDeps['authClientSignOut']>().mockResolvedValue({
 			data: null,
 			error: { message: 'Unauthorized', status: 401 },
 		});
-		goto = vi.fn().mockResolvedValue(undefined);
+		goto = vi.fn<SignOutDeps['goto']>().mockResolvedValue(undefined);
 	});
 
 	it('sets signOutError to the expected message when result.error is truthy (AC-1)', async () => {
@@ -163,12 +165,14 @@ describe('signOut — failed sign-out via result.error (US-2)', () => {
 // ---------------------------------------------------------------------------
 
 describe('signOut — failed sign-out via thrown exception (US-2 AC-1 edge)', () => {
-	let authClientSignOut: ReturnType<typeof vi.fn>;
-	let goto: ReturnType<typeof vi.fn>;
+	let authClientSignOut: ReturnType<typeof vi.fn<SignOutDeps['authClientSignOut']>>;
+	let goto: ReturnType<typeof vi.fn<SignOutDeps['goto']>>;
 
 	beforeEach(() => {
-		authClientSignOut = vi.fn().mockRejectedValue(new Error('Network failure'));
-		goto = vi.fn().mockResolvedValue(undefined);
+		authClientSignOut = vi
+			.fn<SignOutDeps['authClientSignOut']>()
+			.mockRejectedValue(new Error('Network failure'));
+		goto = vi.fn<SignOutDeps['goto']>().mockResolvedValue(undefined);
 	});
 
 	it('sets signOutError when authClient.signOut() throws', async () => {

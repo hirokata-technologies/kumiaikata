@@ -14,7 +14,7 @@
 // Each is reproduced here verbatim from the Svelte component, with external
 // calls replaced by injected dependencies so no SvelteKit modules are needed.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -308,9 +308,9 @@ function makePickDeps(previewUrl = 'blob:fake'): PickDeps & {
 	clearInputValue: ReturnType<typeof vi.fn>;
 } {
 	return {
-		createObjectURL: vi.fn().mockReturnValue(previewUrl),
-		revokeObjectURL: vi.fn(),
-		clearInputValue: vi.fn(),
+		createObjectURL: vi.fn<PickDeps['createObjectURL']>().mockReturnValue(previewUrl),
+		revokeObjectURL: vi.fn<PickDeps['revokeObjectURL']>(),
+		clearInputValue: vi.fn<PickDeps['clearInputValue']>(),
 	};
 }
 

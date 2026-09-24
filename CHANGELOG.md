@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- REQ-003: Bugfix batch: post-REQ-001/REQ-002 triage cleanup
+- REQ-002: apps/web Component Testing Tooling
+- REQ-001: Kumiaikata App Shell & Data Layer
 - REQ-001: AI Chat Assist with Anthropic SDK using Minimax Model
 - REQ-002: Flexible Assignee Selection
 - REQ-001: Remember Active Workspace on Switch
