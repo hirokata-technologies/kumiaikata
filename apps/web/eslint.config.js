@@ -30,8 +30,20 @@ export default tseslint.config(
 		},
 	},
 	{
-		// renderMd escapes HTML entities before applying transforms, so {@html} is safe here
-		files: ['src/**/ChatPanel.svelte'],
+		// eslint-plugin-svelte's base config parses *.svelte.ts/*.svelte.js files with
+		// svelte-eslint-parser (for the rare case they contain a template), but these are
+		// plain TS/JS rune modules with no template. Left as-is, svelte-eslint-parser falls
+		// back to espree for the script content and can't parse TS syntax (`export type ...`,
+		// `interface ...`), so give them back the TS parser like every other .ts file.
+		files: ['src/**/*.svelte.ts', 'src/**/*.svelte.js'],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+	},
+	{
+		// renderMd/renderDescMd escape HTML entities before applying markdown
+		// transforms, so {@html} is safe here
+		files: ['src/**/ChatPanel.svelte', 'src/**/CardModal.svelte'],
 		rules: {
 			'svelte/no-at-html-tags': 'off',
 		},

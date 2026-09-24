@@ -5,7 +5,6 @@ import { seedUser, seedPersonalBoard, seedTeamWithBoard } from "../../test/helpe
 
 mockBetterAuth();
 
-// eslint-disable-next-line import/first
 import app from "../app.js";
 
 void app;

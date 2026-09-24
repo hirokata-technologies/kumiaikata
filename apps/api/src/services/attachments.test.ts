@@ -26,7 +26,6 @@ import {
 import {
 	seedUser,
 	seedPersonalBoard,
-	seedTeamWithBoard,
 	seedColumn,
 	seedCard,
 } from "../../test/helpers/seed.js";

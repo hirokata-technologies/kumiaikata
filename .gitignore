@@ -15,6 +15,8 @@ apps/mcp/dist
 packages/*/dist
 packages/*/coverage
 apps/api/coverage
+apps/web/coverage
+apps/web/.vitest-attachments
 .output
 .vercel
 .netlify

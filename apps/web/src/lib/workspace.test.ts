@@ -17,7 +17,7 @@
 //   function writeProjectFilter(id, projectId, storage) — writes kata_ws_{id}_project
 //   function writeGroupBy(id, groupBy, storage)         — writes kata_ws_{id}_groupby
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';

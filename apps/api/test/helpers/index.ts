@@ -6,6 +6,11 @@ export {
 	seedColumn,
 	seedCard,
 	seedLabel,
+	seedKumiaiGoal,
+	seedKumiaiProject,
+	seedKumiaiRequirement,
+	seedKumiaiPlan,
+	seedKumiaiTask,
 } from "./seed.js";
 export type {
 	SeededUser,
@@ -16,5 +21,10 @@ export type {
 	SeededColumn,
 	SeededCard,
 	SeededLabel,
+	SeededKumiaiGoal,
+	SeededKumiaiProject,
+	SeededKumiaiRequirement,
+	SeededKumiaiPlan,
+	SeededKumiaiTask,
 } from "./seed.js";
 export { mockStorage, clearMockStorage } from "./mock-storage.js";

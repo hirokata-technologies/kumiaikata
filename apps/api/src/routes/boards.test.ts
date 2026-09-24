@@ -6,7 +6,6 @@ import { pool } from "../../test/helpers/db.js";
 
 mockBetterAuth();
 
-// eslint-disable-next-line import/first
 import app from "../app.js";
 
 void app; // imported for side-effects (registers routes)
