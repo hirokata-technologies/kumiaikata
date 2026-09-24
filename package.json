@@ -34,7 +34,8 @@
 		"test:web": "pnpm --filter @kata/web test",
 		"test:packages": "pnpm --filter @kata/http test && pnpm --filter @kata/auth test && pnpm --filter @kata/db test && pnpm --filter @kata/events test && pnpm --filter @kata/queues test",
 		"test:integration": "pnpm --filter @kata/integration-tests test",
-		"test:railway": "pnpm --filter @kata/railway-iac-tests test"
+		"test:railway": "pnpm --filter @kata/railway-iac-tests test",
+		"test:workflows": "node --test .github/tests/*.test.mjs"
 	},
 	"devDependencies": {
 		"eslint": "^10.11.0",
