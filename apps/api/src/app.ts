@@ -18,6 +18,7 @@ import cardAssigneesRouter from "./routes/card-assignees.js";
 import cardAttachmentsRouter from "./routes/card-attachments.js";
 import attachmentsRouter from "./routes/attachments.js";
 import usersRouter from "./routes/users.js";
+import kumiaiRouter from "./routes/kumiai/index.js";
 export const app = new Hono();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
@@ -74,6 +75,7 @@ app.route(
 );
 app.route("/api/attachments", attachmentsRouter);
 app.route("/api/users", usersRouter);
+app.route("/api/kumiai", kumiaiRouter);
 app.route("/api/boards/:boardId", cardsRouter);
 
 // ── Central error handler (registered last so it catches everything) ──────────

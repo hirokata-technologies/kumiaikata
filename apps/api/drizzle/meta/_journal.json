@@ -15,6 +15,13 @@
       "when": 1780011723883,
       "tag": "0001_thin_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789886791627,
+      "tag": "0002_aberrant_dexter_bennett",
+      "breakpoints": true
     }
   ]
 }
