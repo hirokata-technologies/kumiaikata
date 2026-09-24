@@ -296,7 +296,11 @@ describe('POST /api/ai/analyze — tool use', () => {
 			{ content: [{ type: 'text', text: 'Project created.' }], stop_reason: 'end_turn' }
 		];
 
-		const fetchMock = vi.fn(async () => ({ ok: true, status: 201, json: async () => ({ id: 'proj_1' }) }));
+		const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({
+			ok: true,
+			status: 201,
+			json: async () => ({ id: 'proj_1' })
+		}));
 		vi.stubGlobal('fetch', fetchMock);
 
 		const res = await POST({ request: makeRequest(VALID_BODY) } as Parameters<typeof POST>[0]);
