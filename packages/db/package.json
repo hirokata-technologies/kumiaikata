@@ -16,14 +16,14 @@
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
-    "drizzle-orm": "^0.45.2",
-    "nanoid": "^5.1.11",
-    "pg": "^8.21.0"
+    "drizzle-orm": "^0.45.3",
+    "nanoid": "^5.1.16",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
-    "@types/node": "^24.12.4",
-    "@types/pg": "^8.20.0",
+    "@types/node": "^24.13.6",
+    "@types/pg": "^8.23.1",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.11"
   }
 }
