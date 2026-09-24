@@ -13,6 +13,11 @@ beforeAll(async () => {
 			env: { ...process.env },
 			stdio: "inherit",
 		});
+		// Truncate before the suite runs, not just after each test: a prior run
+		// that was interrupted (ctrl-C, timeout) may have skipped afterEach's
+		// truncateAll(), leaving leftover rows that poison every run after it
+		// with unique-constraint failures until someone truncates by hand.
+		await truncateAll();
 		dbReady = true;
 	} catch {
 		console.warn("\n⚠️  PostgreSQL unavailable — DB-dependent tests will fail; pure unit tests will still run.\n");

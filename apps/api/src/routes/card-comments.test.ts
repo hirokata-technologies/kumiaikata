@@ -16,7 +16,6 @@ import type { Comment } from "../db/schema/cards.js";
 
 mockBetterAuth();
 
-// eslint-disable-next-line import/first
 import app from "../app.js";
 
 void app;

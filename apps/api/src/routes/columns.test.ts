@@ -11,7 +11,6 @@ import {
 
 mockBetterAuth();
 
-// eslint-disable-next-line import/first
 import app from "../app.js";
 
 void app;

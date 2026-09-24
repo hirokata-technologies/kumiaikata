@@ -4,7 +4,6 @@ import { apiRequest } from "../test/helpers/request.js";
 
 mockBetterAuth();
 
-// eslint-disable-next-line import/first
 import app from "./app.js";
 
 void app;

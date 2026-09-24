@@ -7,7 +7,6 @@ import { apiRequest } from "../../test/helpers/request.js";
 import {
 	seedUser,
 	seedPersonalBoard,
-	seedTeamWithBoard,
 	seedColumn,
 	seedCard,
 	seedLabel,
@@ -15,7 +14,6 @@ import {
 
 mockBetterAuth();
 
-// eslint-disable-next-line import/first
 import app from "../app.js";
 
 void app;
