@@ -8,10 +8,10 @@
 		"test:watch": "vitest"
 	},
 	"devDependencies": {
-		"@types/node": "^24.12.4",
-		"bullmq": "^5.0.0",
+		"@types/node": "^24.13.6",
+		"bullmq": "^5.81.5",
 		"ioredis": "5.10.1",
 		"typescript": "^6.0.3",
-		"vitest": "^4.1.7"
+		"vitest": "^4.1.11"
 	}
 }
