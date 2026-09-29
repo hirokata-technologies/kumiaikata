@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "bullmq": "^5.81.5",
-    "ioredis": "5.10.1",
+    "ioredis": "5.11.1",
     "resend": "^6.28.1"
   },
   "devDependencies": {
