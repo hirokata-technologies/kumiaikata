@@ -1,5 +1,5 @@
 // This file is the "kata" named partial. It declares the five Railway
-// resources this repo owns in the "kumiakata" project — kata-api, kata-web,
+// resources this repo owns in the "kumiaikata" project — kata-api, kata-web,
 // kata-relay-service, kata-db and Redis — plus their volumes and the
 // "Kata - Kanban Board" canvas group.
 //
@@ -130,7 +130,7 @@ export default defineRailway((_ctx, project) => {
 		},
 	});
 
-	return project("kumiakata", {
+	return project("kumiaikata", {
 		resources: [
 			...group("Kata - Kanban Board", [kataApi, kataWeb, kataRelayService, kataDb, redisDb]),
 			postgresVolume,
