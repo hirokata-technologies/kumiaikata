@@ -13,6 +13,12 @@ import { storage, DiskStorage } from "./storage/index.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main(): Promise<void> {
+	// Bind the port first so /healthz can answer while migrations run; a slow
+	// first-deploy migration must not consume Railway's healthcheck window.
+	serve({ fetch: app.fetch, port: env.PORT }, (info) => {
+		console.log(`kata/api listening on http://localhost:${info.port.toString()}`);
+	});
+
 	// Run pending migrations. Idempotent — drizzle tracks applied migrations
 	// in its own __drizzle_migrations table.
 	const migrationsFolder = path.resolve(__dirname, "../drizzle");
@@ -26,10 +32,6 @@ async function main(): Promise<void> {
 	if (storage instanceof DiskStorage) {
 		void cleanStaleTempFiles(env.ATTACHMENTS_DIR, 60 * 60 * 1000);
 	}
-
-	serve({ fetch: app.fetch, port: env.PORT }, (info) => {
-		console.log(`kata/api listening on http://localhost:${info.port.toString()}`);
-	});
 }
 
 main().catch((err) => {
