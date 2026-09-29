@@ -1,0 +1,10 @@
+{
+  "destructive": true,
+  "diff": "  service: kata-web\n- service: kata-relay-service\n~ delete variable: OLD_SECRET\n  service: kata-api",
+  "changeSet": { "changes": ["delete-service", "delete-variable"] },
+  "configEtag": "etag-abc",
+  "sourceTree": "tree-abc",
+  "changeSetHash": "hash-abc",
+  "environmentId": "env-abc",
+  "cliVersion": "5.57.2"
+}
