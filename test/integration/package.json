@@ -10,7 +10,7 @@
 	"devDependencies": {
 		"@types/node": "^24.13.6",
 		"bullmq": "^5.81.5",
-		"ioredis": "5.10.1",
+		"ioredis": "5.11.1",
 		"typescript": "^6.0.3",
 		"vitest": "^4.1.11"
 	}
