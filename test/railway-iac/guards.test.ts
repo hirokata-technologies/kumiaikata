@@ -4,6 +4,7 @@ import {
 	assertConsistentGroupMembership,
 	assertDomainsWithinPolicy,
 	assertExactResourceNames,
+	assertHealthcheckAndRestartPolicy,
 	assertImageTags,
 	assertNoCredentialShapedStrings,
 	assertNoLiteralOrRawVariables,
@@ -345,6 +346,91 @@ describe("assertVolumeAttachments", () => {
 				: r,
 		);
 		expect(() => assertVolumeAttachments(resources)).toThrow(/more than one service/);
+	});
+});
+
+describe("assertHealthcheckAndRestartPolicy", () => {
+	/**
+	 * cleanFixture() does not itself declare the four migrated fields — this
+	 * layers them onto kata-api and kata-relay-service the way TASK-051 did,
+	 * matching cleanFixture()'s existing pattern for building a positive
+	 * control.
+	 */
+	function withHealthcheckAndRestartPolicy(): ResourceNode[] {
+		return cleanFixture().map((r) => {
+			if (r.type === "service" && (r.name === "kata-api" || r.name === "kata-relay-service")) {
+				return {
+					...r,
+					deploy: {
+						healthcheckPath: "/healthz",
+						healthcheckTimeout: 30,
+						restartPolicyType: "ON_FAILURE",
+						restartPolicyMaxRetries: 5,
+					},
+				};
+			}
+			return r;
+		});
+	}
+
+	it("passes when kata-api and kata-relay-service each declare the four migrated fields and nobody else does", () => {
+		expect(() => assertHealthcheckAndRestartPolicy(withHealthcheckAndRestartPolicy())).not.toThrow();
+	});
+
+	it("throws when kata-api is missing deploy.healthcheckPath, naming the resource and field", () => {
+		const resources = withHealthcheckAndRestartPolicy().map((r) => {
+			if (r.type === "service" && r.name === "kata-api") {
+				const { healthcheckPath: _healthcheckPath, ...rest } = r.deploy as Record<string, unknown>;
+				return { ...r, deploy: rest };
+			}
+			return r;
+		});
+		expect(() => assertHealthcheckAndRestartPolicy(resources)).toThrow(/kata-api.*healthcheckPath/);
+	});
+
+	it("throws when kata-api's deploy.healthcheckTimeout is a wrong number", () => {
+		const resources = withHealthcheckAndRestartPolicy().map((r) =>
+			r.type === "service" && r.name === "kata-api" ? { ...r, deploy: { ...(r.deploy as object), healthcheckTimeout: 60 } } : r,
+		);
+		expect(() => assertHealthcheckAndRestartPolicy(resources)).toThrow(/kata-api.*healthcheckTimeout/);
+	});
+
+	it('throws when kata-relay-service\'s deploy.restartPolicyType is "ALWAYS" instead of "ON_FAILURE"', () => {
+		const resources = withHealthcheckAndRestartPolicy().map((r) =>
+			r.type === "service" && r.name === "kata-relay-service"
+				? { ...r, deploy: { ...(r.deploy as object), restartPolicyType: "ALWAYS" } }
+				: r,
+		);
+		expect(() => assertHealthcheckAndRestartPolicy(resources)).toThrow(/kata-relay-service.*restartPolicyType/);
+	});
+
+	it.each(["kata-web", "kata-db", "Redis"])(
+		'throws when "%s" carries a healthcheck/restart-policy field it must not have',
+		(name) => {
+			const resources = withHealthcheckAndRestartPolicy().map((r) =>
+				r.name === name ? { ...r, deploy: { healthcheckPath: "/healthz" } } : r,
+			);
+			expect(() => assertHealthcheckAndRestartPolicy(resources)).toThrow(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+		},
+	);
+
+	it.each(["kata-api", "kata-relay-service"])('throws when "%s" carries a startCommand', (name) => {
+		const resources = withHealthcheckAndRestartPolicy().map((r) =>
+			r.name === name ? { ...r, deploy: { ...(r as ServiceNode).deploy, startCommand: "node server.js" } } : r,
+		);
+		expect(() => assertHealthcheckAndRestartPolicy(resources)).toThrow(/startCommand/);
+	});
+
+	it.each(["kata-api", "kata-relay-service"])('throws when "%s" carries a build block', (name) => {
+		const resources = withHealthcheckAndRestartPolicy().map((r) =>
+			r.name === name ? { ...r, build: { builder: "DOCKERFILE" } } : r,
+		);
+		expect(() => assertHealthcheckAndRestartPolicy(resources)).toThrow(/build/);
+	});
+
+	it("throws when any resource carries a configFile field", () => {
+		const resources = withHealthcheckAndRestartPolicy().map((r) => (r.name === "kata-web" ? { ...r, configFile: "legacy-config.json" } : r));
+		expect(() => assertHealthcheckAndRestartPolicy(resources)).toThrow(/configFile/);
 	});
 });
 

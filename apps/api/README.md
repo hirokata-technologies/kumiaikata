@@ -82,13 +82,13 @@ pnpm --filter @kata/api build
 | Persistent volume      | Mount path `/data/attachments` (5 GB or more recommended)    |
 | Health check path      | `/healthz`                                                   |
 
-The `railway.json` at `apps/api/railway.json` tells Railway to use the Dockerfile builder, start with `node dist/index.js`, and health-check `/healthz` on deployment. Migrations run automatically at startup before the HTTP server binds.
+kata-api's Railway configuration lives in `.railway/railway.ts`, the `kata` partial of the repo's Railway TypeScript IaC. That includes its image source, domain, a `/healthz` healthcheck with a 30-second timeout, and an on-failure restart policy with up to 5 retries. Changes to it are planned on each pull request and applied on merge by the `railway-config.yml` workflow. The start command is the Dockerfile's `CMD` (`node --import ./dist/instrument.js dist/index.js`). The HTTP server binds first so `/healthz` can answer during startup, then migrations run automatically.
 
 ### Step-by-step Railway setup
 
 1. In the Railway dashboard, create a new PostgreSQL service. Copy the `DATABASE_URL` reference variable it provides.
 2. Create a new service for the API and connect it to this repository.
-3. Set the **Root Directory** for the service to `apps/api`. Railway will find `railway.json` there automatically.
+3. Set the **Root Directory** for the service to `apps/api`.
 4. Attach a **persistent volume** to the service. Set the mount path to `/data/attachments`. A minimum of 5 GB is recommended.
 5. Set the following **environment variables** in the Railway service settings:
 

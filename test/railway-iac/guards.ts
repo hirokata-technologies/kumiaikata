@@ -17,6 +17,14 @@ import type {
 
 const KATA_RESOURCE_NAMES = ["kata-api", "kata-web", "kata-relay-service", "kata-db", "Redis"] as const;
 
+/** REQ-006 (US-2 AC1): only these two services carry the migrated healthcheck/restart-policy config. */
+const HEALTHCHECK_RESTART_RESOURCES = ["kata-api", "kata-relay-service"] as const;
+
+const EXPECTED_HEALTHCHECK_PATH = "/healthz";
+const EXPECTED_HEALTHCHECK_TIMEOUT = 30;
+const EXPECTED_RESTART_POLICY_TYPE = "ON_FAILURE";
+const EXPECTED_RESTART_POLICY_MAX_RETRIES = 5;
+
 const PORTFOLIO_STRINGS = ["hirokata-web-db", "hirokata-web"] as const;
 
 const DOMAIN_PORT_POLICY: Record<string, number> = {
@@ -280,6 +288,75 @@ export function assertVolumeAttachments(resources: ResourceNode[]): void {
 			throw new Error(
 				`volume "${vol.name}" on "${attacher.name}" expected mountPath "${expected.mountPath}", got ${JSON.stringify(entry?.mountPath)}`,
 			);
+		}
+	}
+}
+
+/**
+ * REQ-006 (US-2 AC1, AC3, AC4, AC5; US-4 AC1, AC2): the migrated healthcheck
+ * and restart-policy intent. `kata-api` and `kata-relay-service` must each
+ * declare exactly `deploy.healthcheckPath === "/healthz"`,
+ * `deploy.healthcheckTimeout === 30`, `deploy.restartPolicyType ===
+ * "ON_FAILURE"` and `deploy.restartPolicyMaxRetries === 5` — no more, no
+ * less. No other named resource (`kata-web`, `kata-db`, `Redis`) may carry
+ * any of these four fields. Neither `kata-api` nor `kata-relay-service` may
+ * carry `startCommand` or a `build` block — those fields must never
+ * reappear on the two services this requirement migrated. `Redis` legitimately
+ * carries its own pre-existing `deploy.startCommand` (the live
+ * `redis-server` invocation) and is out of scope for that check. No resource
+ * anywhere may carry `configFile` — it would name a deleted legacy
+ * Config-as-Code file.
+ */
+export function assertHealthcheckAndRestartPolicy(resources: ResourceNode[]): void {
+	for (const r of namedResources(resources)) {
+		const isTarget = (HEALTHCHECK_RESTART_RESOURCES as readonly string[]).includes(r.name);
+		const service = r as ServiceNode;
+		const deploy = service.deploy ?? {};
+
+		if (isTarget) {
+			if (deploy.healthcheckPath !== EXPECTED_HEALTHCHECK_PATH) {
+				throw new Error(
+					`resource "${r.name}" expected deploy.healthcheckPath "${EXPECTED_HEALTHCHECK_PATH}", got ${JSON.stringify(deploy.healthcheckPath)}`,
+				);
+			}
+			if (deploy.healthcheckTimeout !== EXPECTED_HEALTHCHECK_TIMEOUT) {
+				throw new Error(
+					`resource "${r.name}" expected deploy.healthcheckTimeout ${EXPECTED_HEALTHCHECK_TIMEOUT}, got ${JSON.stringify(deploy.healthcheckTimeout)}`,
+				);
+			}
+			if (deploy.restartPolicyType !== EXPECTED_RESTART_POLICY_TYPE) {
+				throw new Error(
+					`resource "${r.name}" expected deploy.restartPolicyType "${EXPECTED_RESTART_POLICY_TYPE}", got ${JSON.stringify(deploy.restartPolicyType)}`,
+				);
+			}
+			if (deploy.restartPolicyMaxRetries !== EXPECTED_RESTART_POLICY_MAX_RETRIES) {
+				throw new Error(
+					`resource "${r.name}" expected deploy.restartPolicyMaxRetries ${EXPECTED_RESTART_POLICY_MAX_RETRIES}, got ${JSON.stringify(deploy.restartPolicyMaxRetries)}`,
+				);
+			}
+		} else {
+			if (deploy.healthcheckPath !== undefined) {
+				throw new Error(`resource "${r.name}" must not carry deploy.healthcheckPath — only kata-api and kata-relay-service may`);
+			}
+			if (deploy.healthcheckTimeout !== undefined) {
+				throw new Error(`resource "${r.name}" must not carry deploy.healthcheckTimeout — only kata-api and kata-relay-service may`);
+			}
+			if (deploy.restartPolicyType !== undefined) {
+				throw new Error(`resource "${r.name}" must not carry deploy.restartPolicyType — only kata-api and kata-relay-service may`);
+			}
+			if (deploy.restartPolicyMaxRetries !== undefined) {
+				throw new Error(`resource "${r.name}" must not carry deploy.restartPolicyMaxRetries — only kata-api and kata-relay-service may`);
+			}
+		}
+
+		if (isTarget && deploy.startCommand !== undefined) {
+			throw new Error(`resource "${r.name}" must not carry deploy.startCommand — the legacy Config-as-Code path must not reappear`);
+		}
+		if (isTarget && service.build !== undefined) {
+			throw new Error(`resource "${r.name}" must not carry a build block — the legacy Config-as-Code path must not reappear`);
+		}
+		if (service.configFile !== undefined) {
+			throw new Error(`resource "${r.name}" must not carry configFile — it would name a deleted legacy Config-as-Code file`);
 		}
 	}
 }
