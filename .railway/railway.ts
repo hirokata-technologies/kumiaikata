@@ -1,14 +1,16 @@
-// This file is the "kata" named partial. It declares only the five Railway
-// resources this repo owns in the shared "hirokata.web" project — kata-api,
-// kata-web, kata-relay-service, kata-db and Redis — plus their volumes and
-// the live "Kata - Kanban Board" canvas group. It is a zero-drift
-// transcription of what is already live in production, read via
-// `railway config pull`.
+// This file is the "kata" named partial. It declares the five Railway
+// resources this repo owns in the "kumiakata" project — kata-api, kata-web,
+// kata-relay-service, kata-db and Redis — plus their volumes and the
+// "Kata - Kanban Board" canvas group.
 //
-// The other two services in the same Railway project (a portfolio repo's
-// web app and its database) belong to a different canvas group and are
-// never named here, not even to exclude them — `partial = "kata"` is what
-// stops a future `railway config apply` from proposing to delete them.
+// The services were originally read from the shared "hirokata.web" project
+// and re-created here as a fresh project with no data carried over. That old
+// project still hosts an unrelated portfolio app and database; nothing here
+// names them.
+//
+// Custom domains are not declared: Railway configuration cannot register
+// them. Add kata-api.hirokata.dev (port 8787) and kata.hirokata.dev (port
+// 8080) in the dashboard, then run `railway config pull` to bring them in.
 //
 // Every variable below is either a typed reference to another resource
 // declared in this file, or `preserve()`. No literal or secret value is
@@ -63,7 +65,6 @@ export default defineRailway((_ctx, project) => {
 	const kataApi = service("kata-api", {
 		source: image("ghcr.io/hirogakatageri/kata-api:latest"),
 		regions: { [REGION]: 1 },
-		domains: [{ domain: "kata-api.hirokata.dev", port: 8787 }],
 		healthcheckPath: "/healthz",
 		healthcheckTimeout: 30,
 		deploy: { restartPolicyType: "ON_FAILURE", restartPolicyMaxRetries: 5 },
@@ -94,7 +95,6 @@ export default defineRailway((_ctx, project) => {
 	const kataWeb = service("kata-web", {
 		source: image("ghcr.io/hirogakatageri/kata-web:latest"),
 		regions: { [REGION]: 1 },
-		domains: [{ domain: "kata.hirokata.dev", port: 8080 }],
 		env: {
 			API_URL: preserve(),
 			MINIMAX_API_KEY: preserve(),
@@ -130,7 +130,7 @@ export default defineRailway((_ctx, project) => {
 		},
 	});
 
-	return project("hirokata.web", {
+	return project("kumiakata", {
 		resources: [
 			...group("Kata - Kanban Board", [kataApi, kataWeb, kataRelayService, kataDb, redisDb]),
 			postgresVolume,
