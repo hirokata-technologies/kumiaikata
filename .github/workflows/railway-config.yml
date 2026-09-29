@@ -6,7 +6,7 @@
 # deliberate manual `railway config apply` run by the guild master. See the
 # `railway-iac-apply-policy` business doc.
 #
-# RAILWAY_TOKEN must be a project token scoped to hirokata.web / production. An
+# RAILWAY_TOKEN must be a project token scoped to kumiaikata / production. An
 # agent cannot verify that scope — a human confirms it before this workflow is
 # trusted (see the guild-master checklist item on the PR that adds this file).
 #
