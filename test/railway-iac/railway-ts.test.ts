@@ -13,6 +13,7 @@ import {
 	assertConsistentGroupMembership,
 	assertDomainsWithinPolicy,
 	assertExactResourceNames,
+	assertHealthcheckAndRestartPolicy,
 	assertImageTags,
 	assertNoCredentialShapedStrings,
 	assertNoLiteralOrRawVariables,
@@ -69,10 +70,18 @@ describe("real .railway/railway.ts — offline evaluation", () => {
 		expect(() => assertVolumeAttachments(resources)).not.toThrow();
 	});
 
-	// Deliberately NOT asserted, either present or absent: healthcheckPath,
-	// healthcheckTimeout, restartPolicyType, restartPolicyMaxRetries on
-	// kata-api / kata-relay-service. Those fields are BUG-026's territory —
-	// they belong to REQ-006 and are expected to be REMOVED at the repairs
-	// gate. Asserting either direction here would be invalidated by that
-	// repair, so this suite takes no position on them. Do not "fix" this gap.
+	it("declares the migrated healthcheck/restart-policy intent on kata-api and kata-relay-service only (REQ-006, US-4 AC1/AC2/AC3)", () => {
+		expect(() => assertHealthcheckAndRestartPolicy(resources)).not.toThrow();
+	});
+
+	// REQ-006 turned this guard ON: healthcheckPath, healthcheckTimeout,
+	// restartPolicyType and restartPolicyMaxRetries on kata-api /
+	// kata-relay-service are now asserted above by
+	// assertHealthcheckAndRestartPolicy, evaluated against the real
+	// `.railway/railway.ts` file (not a fixture). The REQ-004-era deferral
+	// that used to live in this comment (these fields were BUG-026's
+	// territory, expected to be removed at the repairs gate) no longer
+	// applies — TASK-051 landed the fields and BUG-026 is resolved. Do not
+	// reintroduce a deferral comment here without a corresponding removal of
+	// the assertion above.
 });

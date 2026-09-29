@@ -64,6 +64,9 @@ export default defineRailway((_ctx, project) => {
 		source: image("ghcr.io/hirogakatageri/kata-api:latest"),
 		regions: { [REGION]: 1 },
 		domains: [{ domain: "kata-api.hirokata.dev", port: 8787 }],
+		healthcheckPath: "/healthz",
+		healthcheckTimeout: 30,
+		deploy: { restartPolicyType: "ON_FAILURE", restartPolicyMaxRetries: 5 },
 		env: {
 			ALLOWED_DOMAINS: preserve(),
 			ALLOWED_ORIGINS: preserve(),
@@ -110,6 +113,9 @@ export default defineRailway((_ctx, project) => {
 		// No custom domain — only the generated Railway domain, the way the
 		// pull itself expresses it.
 		networking: { serviceDomains: { "kata-relay-service-production.up.railway.app": {} } },
+		healthcheckPath: "/healthz",
+		healthcheckTimeout: 30,
+		deploy: { restartPolicyType: "ON_FAILURE", restartPolicyMaxRetries: 5 },
 		env: {
 			ALLOWED_DOMAINS: preserve(),
 			ALLOWED_ORIGINS: preserve(),
