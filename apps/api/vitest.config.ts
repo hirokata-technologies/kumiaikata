@@ -9,6 +9,7 @@ export default defineConfig({
 			"./test/setup-env.ts",
 			"./test/setup-mocks.ts",
 			"./test/setup-db.ts",
+			"./test/setup-ready.ts",
 		],
 		coverage: {
 			provider: "v8",
