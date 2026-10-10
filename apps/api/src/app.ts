@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { env } from "./env.js";
 import { pool } from "@kata/db";
 import { errorHandler } from "@kata/http";
+import { readinessGate } from "./readiness.js";
 import authRouter from "./routes/auth.js";
 import boardsRouter from "./routes/boards.js";
 import teamsRouter from "./routes/teams.js";
@@ -30,6 +31,8 @@ app.use(
 		credentials: true,
 	}),
 );
+// After CORS so a 503 during startup still carries CORS headers.
+app.use("*", readinessGate);
 
 // ── Root: redirect auth errors to the web app ─────────────────────────────────
 app.get("/", (c) => {
