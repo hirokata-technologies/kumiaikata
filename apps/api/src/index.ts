@@ -5,6 +5,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import path from "path";
 import { fileURLToPath } from "url";
 import { app } from "./app.js";
+import { markReady } from "./readiness.js";
 import { env } from "./env.js";
 import { db, pool } from "@kata/db";
 import { cleanStaleTempFiles } from "./storage/disk.js";
@@ -24,6 +25,7 @@ async function main(): Promise<void> {
 	const migrationsFolder = path.resolve(__dirname, "../drizzle");
 	await migrate(db, { migrationsFolder });
 	console.log("[db] migrations up to date");
+	markReady();
 
 	// Smoke-test the pool so a misconfigured DATABASE_URL fails fast at startup.
 	await pool.query("select 1");
