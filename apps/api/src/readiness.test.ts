@@ -3,9 +3,14 @@ import { pool } from "@kata/db";
 import { auth } from "./auth/better-auth.js";
 import { mockBetterAuth } from "../test/helpers/mock-session.js";
 import { apiRequest } from "../test/helpers/request.js";
+import { env } from "./env.js";
 import { isReady, markNotReady, markReady } from "./readiness.js";
 
 mockBetterAuth();
+
+// The first configured origin, so the CORS checks pass whatever
+// ALLOWED_ORIGINS the environment sets (local .env.test vs CI).
+const ALLOWED_ORIGIN = env.ALLOWED_ORIGINS[0];
 
 const STARTING_UP = {
 	error: {
@@ -75,7 +80,7 @@ describe("readiness gate", () => {
 
 		it("keeps CORS headers on the 503", async () => {
 			const res = await apiRequest("GET", "/api/boards", {
-				headers: { origin: "http://localhost:3000" },
+				headers: { origin: ALLOWED_ORIGIN },
 			});
 			expect(res.status).toBe(503);
 			expect(res.headers.get("access-control-allow-credentials")).toBe("true");
@@ -86,7 +91,7 @@ describe("readiness gate", () => {
 		// itself, before the readiness gate runs, so a preflight is NOT gated.
 		// The gate sits after CORS on purpose so real 503s keep CORS headers.
 		it("answers a CORS preflight from the CORS middleware, not the gate, and still gates the real request after it", async () => {
-			const origin = "http://localhost:3000";
+			const origin = ALLOWED_ORIGIN;
 			const preflight = await apiRequest("OPTIONS", "/api/boards", {
 				headers: {
 					origin,
