@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- REQ-007: API readiness gate during startup migrations + Railway deploy docs fix (TASK-071 skipped)
 - REQ-005: GitHub Actions plan/apply workflow for Railway IaC
 - REQ-004: Author .railway/railway.ts (Railway TypeScript IaC) for the kata services
 - REQ-003: Bugfix batch: post-REQ-001/REQ-002 triage cleanup
