@@ -49,8 +49,9 @@ resource "google_service_account_iam_member" "deployer_acts_as_runtime" {
   member             = google_service_account.agents_deployer.member
 }
 
-# Identity the Kata API (on Railway) uses to call the agents. Its key is
-# created by hand and stored in Railway, so it never lands in Terraform state.
+# Originally for calling the agents from the API on Railway. Unused now that the
+# kumiai app runs on Cloud Run, where it can call the agents as kumiai-runtime
+# without a key. Safe to remove once the app is wired to the agents.
 resource "google_service_account" "agents_caller" {
   account_id   = "kata-agents-caller"
   display_name = "Kata agents caller"

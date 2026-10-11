@@ -22,6 +22,8 @@ on:
     branches: [main]
     paths:
       - "apps/web/**"
+      - "apps/api/**"
+      - "packages/**"
       - "Dockerfile"
       - "package.json"
       - "pnpm-lock.yaml"
