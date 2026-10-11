@@ -31,6 +31,17 @@ const schema = z.object({
 		.string()
 		.optional()
 		.transform((s) => (s ? s : undefined)),
+	// Vertex AI Agent Runtime instance hosting the AI agents:
+	// projects/{project}/locations/{location}/reasoningEngines/{id}. When unset the
+	// /api/agents routes answer 503 "agents not configured".
+	AGENT_RUNTIME_NAME: z
+		.string()
+		.regex(
+			/^projects\/[^/]+\/locations\/[a-z0-9-]+\/reasoningEngines\/\d+$/,
+			"must look like projects/{project}/locations/{location}/reasoningEngines/{id}",
+		)
+		.optional()
+		.or(z.literal("").transform(() => undefined)),
 });
 
 function parseEnv(): z.infer<typeof schema> {

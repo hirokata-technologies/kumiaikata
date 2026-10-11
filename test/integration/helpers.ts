@@ -1,5 +1,7 @@
-// The API is served by the web app (same origin).
-export const API = "http://localhost:3000";
+// The API is served by the web app (same origin). global-setup.ts starts the built app on
+// this port (3100 by default, so it never collides with the `pnpm dev` server on 3000).
+export const PORT = Number(process.env.KATA_IT_PORT ?? 3100);
+export const API = `http://localhost:${PORT}`;
 
 export async function apiGet(
 	path: string,

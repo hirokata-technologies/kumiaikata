@@ -8,7 +8,7 @@ Railway.
 | File | What it defines |
 |---|---|
 | `apis.tf` | Google Cloud APIs the project needs |
-| `service_accounts.tf` | Runtime, deployer and caller service accounts and their roles |
+| `service_accounts.tf` | Agents runtime and deployer service accounts and their roles |
 | `github_oidc.tf` | Workload Identity Federation so GitHub Actions can deploy without a stored key |
 | `agent_runtime.tf` | The Agent Runtime instance that hosts both agents |
 | `kumiai.tf` | kumiai app on Cloud Run (service `kumiai`), its migration job (`kumiai-migrate`), image repository and deployer |
@@ -134,10 +134,9 @@ one-off access, run a Cloud Run Job or a temporary VM on the `kumiai` network.
 
 ## Calling the agents from the kumiai app
 
-The kumiai app runs as `kumiai-runtime` on Cloud Run, so it can call the
-agents with its own identity and no key. Grant that account
-`roles/aiplatform.user` when the app is wired to the agents.
-`kata-agents-caller` was for the old Railway API and is unused.
+The kumiai app runs as `kumiai-runtime`, which has `roles/aiplatform.user`, so
+it calls Agent Runtime with its own identity and no key. The instance's full
+resource name reaches the app as `AGENT_RUNTIME_NAME`.
 
 ## Day-to-day
 

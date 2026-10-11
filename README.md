@@ -62,18 +62,43 @@ whole backend. `apps/api` is a library, not a server:
 
 ## Local development
 
+Needs Node 24, pnpm and Docker (only for the Postgres container). There is no compose file for
+development: the app runs on the host and Postgres runs as a single named container.
+
 ```bash
-cp apps/web/.env.example apps/web/.env   # fill in the values
+cp apps/web/.env.example apps/web/.env   # git-ignored; put real secrets here, never in tracked files
 pnpm install
-pnpm db:migrate                          # applies apps/api/drizzle to DATABASE_URL
-pnpm dev                                 # http://localhost:5173 (pages and /api)
+pnpm dev                                 # Postgres + migrations + dev server on http://localhost:3000
 ```
 
-Run the production layout (one app container + Postgres) with Docker:
+`pnpm dev` starts the `kata-postgres` container (`postgres:18-alpine`, volume
+`kata_postgres_data`, user/password/database `kata`, port 5432) when `DATABASE_URL` points at
+it, applies the migrations, and runs the SvelteKit dev server (pages and `/api`) on port 3000.
+Settings come from `apps/web/.env`; real environment variables win. Missing secrets get
+placeholders so the app still starts, but Google sign-in and email need real values.
+
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Everything above |
+| `pnpm dev:web` | Only the Vite dev server (port 5173; you manage Postgres and `.env`) |
+| `pnpm db:up` | Start (or create) the Postgres container and wait until it is ready; safe to repeat |
+| `pnpm db:down` | Stop it; data is kept |
+| `pnpm db:reset` | Remove the container and its data volume |
+| `pnpm db:migrate` | Apply `apps/api/drizzle` to `DATABASE_URL` (read from `apps/web/.env` if unset) |
+
+`KATA_DB_PORT` changes the published Postgres port. To run the production image locally, build
+it (below) or use `docker-compose.yml` against an existing Postgres.
+
+## Tests
 
 ```bash
-docker compose -f docker-compose.local.yml up --build   # http://localhost:3000
+pnpm test               # API and web unit tests (the API tests need Postgres: see apps/api/README.md)
+pnpm test:integration   # builds the app, then runs it against a throwaway Postgres container
 ```
+
+`pnpm test:integration` needs Docker. It starts `kata-it-postgres` on port 55432, applies the
+migrations, runs `pnpm --filter @kata/web build` and starts `node build` on port 3100 (set
+`KATA_IT_PORT` / `KATA_IT_DB_PORT` to change them), then removes everything afterwards.
 
 ## Environment variables
 
@@ -88,6 +113,7 @@ All configuration is read from the environment at runtime (nothing is baked in a
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | yes | Google OAuth client. Authorised redirect URI: `<BETTER_AUTH_URL>/api/auth/callback/google` |
 | `RESEND_API_KEY` | yes | Resend API key (verification and password-reset emails, sent inline) |
 | `ALLOWED_DOMAINS` | yes | Comma-separated email domains allowed to sign in (production: `hirokata.dev`) |
+| `AGENT_RUNTIME_NAME` | no | Vertex AI Agent Runtime instance of the AI agents, `projects/{project}/locations/{location}/reasoningEngines/{id}`. Uses Application Default Credentials (service account needs `roles/aiplatform.user`). When unset, `/api/agents` answers 503. See `apps/api/README.md` |
 | `GCS_BUCKET` | no | Cloud Storage bucket for attachments (Application Default Credentials). When unset, files go to `ATTACHMENTS_DIR` on local disk |
 | `ATTACHMENTS_DIR` | no | Local-disk attachment directory (default `/data/attachments`) |
 | `MAX_ATTACHMENT_BYTES` | no | Upload limit, default `26214400` (25 MiB) |
@@ -126,6 +152,8 @@ docker run --rm --env-file my.env kata-web node migrate.js        # migrations
   port from `PORT`, Cloud SQL instance attached, service account with access to the
   `GCS_BUCKET` bucket (Storage Object Admin) — no HMAC keys.
 - Set `ORIGIN` and `BETTER_AUTH_URL` to `https://kumiai.hirokata.dev`.
+- To enable the AI agents set `AGENT_RUNTIME_NAME` and grant the service account
+  `roles/aiplatform.user`.
 - Server-sent events are held open by the request: raise the Cloud Run request timeout
   (up to 60 minutes) — the browser reconnects automatically when it expires.
 - Run `node migrate.js` as a Job before each rollout that includes new migrations.

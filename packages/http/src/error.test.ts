@@ -32,6 +32,8 @@ describe("AppError status codes", () => {
     ["UNSUPPORTED_MEDIA_TYPE", 415],
     ["DOMAIN_NOT_ALLOWED", 403],
     ["INTERNAL_ERROR", 500],
+    ["BAD_GATEWAY", 502],
+    ["SERVICE_UNAVAILABLE", 503],
   ];
 
   it.each(cases)("code %s maps to HTTP %d", (code, expectedStatus) => {
@@ -276,6 +278,8 @@ describe("all error codes round-trip through errorHandler", () => {
     ["UNSUPPORTED_MEDIA_TYPE", 415],
     ["DOMAIN_NOT_ALLOWED", 403],
     ["INTERNAL_ERROR", 500],
+    ["BAD_GATEWAY", 502],
+    ["SERVICE_UNAVAILABLE", 503],
   ];
 
   it.each(codes)("errorHandler uses status %d for %s", (code, expectedStatus) => {
