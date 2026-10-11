@@ -48,20 +48,3 @@ resource "google_service_account_iam_member" "deployer_acts_as_runtime" {
   role               = "roles/iam.serviceAccountUser"
   member             = google_service_account.agents_deployer.member
 }
-
-# Originally for calling the agents from the API on Railway. Unused now that the
-# kumiai app runs on Cloud Run, where it can call the agents as kumiai-runtime
-# without a key. Safe to remove once the app is wired to the agents.
-resource "google_service_account" "agents_caller" {
-  account_id   = "kata-agents-caller"
-  display_name = "Kata agents caller"
-  description  = "Used by the Kata API to query the agents and manage sessions."
-
-  depends_on = [google_project_service.enabled]
-}
-
-resource "google_project_iam_member" "agents_caller" {
-  project = var.project_id
-  role    = "roles/aiplatform.user"
-  member  = google_service_account.agents_caller.member
-}

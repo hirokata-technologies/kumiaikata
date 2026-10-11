@@ -17,6 +17,8 @@ locals {
     ALLOWED_DOMAINS   = join(",", var.kumiai_allowed_domains)
     GCS_BUCKET        = google_storage_bucket.kumiai_attachments.name
     PUBLIC_SENTRY_DSN = var.kumiai_sentry_dsn
+    # Agent Runtime instance that hosts the Project Manager and Strategist.
+    AGENT_RUNTIME_NAME = google_vertex_ai_reasoning_engine.kata_agents.id
   }
 
   # Command the migration job runs inside the app image.
@@ -60,6 +62,7 @@ resource "google_service_account" "kumiai_runtime" {
 
 resource "google_project_iam_member" "kumiai_runtime" {
   for_each = toset([
+    "roles/aiplatform.user", # Query the agents and manage their sessions
     "roles/logging.logWriter",
     "roles/monitoring.metricWriter",
   ])
