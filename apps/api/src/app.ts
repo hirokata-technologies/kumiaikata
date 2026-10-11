@@ -1,11 +1,9 @@
 import { Hono } from "hono";
 import { logger } from "hono/logger";
-import { cors } from "hono/cors";
-import { env } from "./env.js";
 import { pool } from "@kata/db";
 import { errorHandler } from "@kata/http";
-import { readinessGate } from "./readiness.js";
 import authRouter from "./routes/auth.js";
+import sseRouter from "./routes/sse.js";
 import boardsRouter from "./routes/boards.js";
 import teamsRouter from "./routes/teams.js";
 import cardsRouter from "./routes/cards.js";
@@ -20,36 +18,12 @@ import cardAttachmentsRouter from "./routes/card-attachments.js";
 import attachmentsRouter from "./routes/attachments.js";
 import usersRouter from "./routes/users.js";
 import kumiaiRouter from "./routes/kumiai/index.js";
+// Mounted inside SvelteKit by apps/web (src/routes/api/[...path]/+server.ts), which
+// forwards every /api/* request to `app.fetch`. Nothing here binds a port.
 export const app = new Hono();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use("*", logger());
-app.use(
-	"*",
-	cors({
-		origin: env.ALLOWED_ORIGINS,
-		credentials: true,
-	}),
-);
-// After CORS so a 503 during startup still carries CORS headers.
-app.use("*", readinessGate);
-
-// ── Root: redirect auth errors to the web app ─────────────────────────────────
-app.get("/", (c) => {
-	const url = new URL("https://kata.hirokata.dev/login");
-	const rawError = c.req.query("error");
-	if (rawError) {
-		const safeError = rawError.slice(0, 100).replace(/[^\w-]/g, "");
-		if (safeError !== rawError) {
-			console.warn("[auth] error param sanitized:", {
-				original: rawError.slice(0, 200),
-				sanitized: safeError,
-			});
-		}
-		url.searchParams.set("error", safeError || "unknown");
-	}
-	return c.redirect(url.toString());
-});
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get("/healthz", async (c) => {
@@ -63,6 +37,8 @@ app.get("/healthz", async (c) => {
 
 // ── API routers ───────────────────────────────────────────────────────────────
 app.route("/api/auth", authRouter);
+// SSE stream first so `/:boardId/events` is never shadowed by a catch-all below.
+app.route("/api/boards", sseRouter);
 app.route("/api/boards", boardsRouter);
 app.route("/api/teams", teamsRouter);
 app.route("/api/boards/:boardId/columns", columnsRouter);

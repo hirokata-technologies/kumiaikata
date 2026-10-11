@@ -1,6 +1,5 @@
 import { createAuthClient } from "better-auth/svelte";
-import { env } from "$env/dynamic/public";
 
-export const authClient = createAuthClient({
-	baseURL: env.PUBLIC_API_URL,
-});
+// No baseURL: Better Auth is served by this app at /api/auth, so the client uses the
+// page origin.
+export const authClient = createAuthClient();

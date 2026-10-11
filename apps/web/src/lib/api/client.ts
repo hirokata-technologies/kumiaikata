@@ -1,5 +1,3 @@
-import { env } from '$env/dynamic/public';
-
 export class ApiError extends Error {
 	constructor(
 		public status: number,
@@ -15,16 +13,15 @@ export async function apiFetch<T = unknown>(
 	path: string,
 	init: RequestInit = {},
 ): Promise<T> {
-	const base = env.PUBLIC_API_URL;
-	if (!base) throw new Error('PUBLIC_API_URL is not configured');
-	const url = `${base}${path}`;
+	// The API is served by this same app, so paths stay relative (same origin).
+	const url = path;
 	const headers = new Headers(init.headers);
 	if (init.body && !(init.body instanceof FormData) && !headers.has('content-type')) {
 		headers.set('content-type', 'application/json');
 	}
 	headers.set('accept', 'application/json');
 
-	const res = await fetch(url, { ...init, headers, credentials: 'include' });
+	const res = await fetch(url, { ...init, headers, credentials: 'same-origin' });
 
 	if (res.status === 401) {
 		if (typeof window !== 'undefined') {

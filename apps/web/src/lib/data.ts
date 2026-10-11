@@ -160,12 +160,6 @@ export const SEED_COLUMNS: KataColumn[] = [
 	},
 ];
 
-export const QUICK_REPLIES = [
-	{ label: 'Analyze all Tasks', value: '__analyze__' },
-];
-
-export const SLASH_COMMANDS: { cmd: string; hint: string }[] = [];
-
 export function pickLabels(text: string): LabelId[] {
 	const t = text.toLowerCase();
 	const guesses: LabelId[] = [];

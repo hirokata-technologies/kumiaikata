@@ -9,7 +9,7 @@ import type { AppVariables } from "@kata/http";
 import { cards } from "@kata/db";
 import type { Checklist, ChecklistItem } from "@kata/db";
 import { AppError } from "@kata/http";
-import { eventBus } from "@kata/events";
+import { eventBus } from "../events/bus.js";
 
 const r = new Hono<{ Variables: AppVariables }>();
 

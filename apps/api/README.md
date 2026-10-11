@@ -1,125 +1,69 @@
 # @kata/api
 
-Hono REST API for the Kata kanban application. Runs on Node.js, backed by PostgreSQL (via Drizzle ORM), deployed to Railway.
+Hono REST API and Better Auth for Kata, backed by PostgreSQL (Drizzle ORM).
 
-## Prerequisites
+This package is a **library**: it exports the Hono `app` and the Better Auth `auth` instance
+and never binds a port. `apps/web` mounts it under SvelteKit
+(`apps/web/src/routes/api/[...path]/+server.ts` forwards every `/api/*` request to
+`app.fetch`) and bundles it from TypeScript source, so the pages and the API share one
+origin and one container. See the root README for the architecture, the full runtime
+environment variable list and deployment notes.
 
-- Node.js >= 24
-- PostgreSQL 15+
-- pnpm
-
-## Running locally
-
-Copy the example env file and fill in your values:
-
-```sh
-cp apps/api/.env.example apps/api/.env
+```ts
+import { app, auth } from "@kata/api";
 ```
 
-Set up the database schema (first time or after schema changes):
+## Development
+
+The API runs inside the web dev server:
 
 ```sh
-# Generate migration files from the schema
+cp apps/web/.env.example apps/web/.env
+pnpm dev            # http://localhost:5173 — pages and /api/*
+```
+
+## Tests
+
+Tests need a Postgres database. They read `apps/api/.env.test` (without overriding variables
+already set in your shell) and create/migrate the `kata_test` database themselves:
+
+```sh
+DATABASE_URL=postgresql://kata:kata@localhost:5432/kata_test pnpm --filter @kata/api test
+```
+
+## Migrations
+
+`migrate.js` applies the migrations in `drizzle/` to `DATABASE_URL` and exits (idempotent). It
+ships in the runtime image next to the `drizzle/` folder:
+
+```sh
+DATABASE_URL=... node apps/api/migrate.js      # from a checkout
+node migrate.js                                # inside the image (Cloud Run Job command)
+```
+
+Generate a migration after editing the schema in `packages/db`:
+
+```sh
 pnpm --filter @kata/api db:generate
-
-# Apply migrations to the database
-pnpm --filter @kata/api db:migrate
-```
-
-Start the dev server with live reload:
-
-```sh
-pnpm --filter @kata/api dev
-# or from the repo root:
-pnpm dev:api
-```
-
-The server starts on `http://localhost:8787`. Verify with:
-
-```sh
-curl http://localhost:8787/healthz
-# → {"ok":true,"db":true}
-```
-
-## Required environment variables
-
-| Variable               | Description                                              | Default             |
-| ---------------------- | -------------------------------------------------------- | ------------------- |
-| `PORT`                 | HTTP port the server binds to                            | `8787`              |
-| `DATABASE_URL`         | PostgreSQL connection string                             | —                   |
-| `BETTER_AUTH_SECRET`   | Long random secret used by Better Auth to sign sessions  | —                   |
-| `BETTER_AUTH_URL`      | Public base URL of the API (used for OAuth callbacks)    | —                   |
-| `GOOGLE_CLIENT_ID`     | Google OAuth client ID                                   | —                   |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret                               | —                   |
-| `ALLOWED_DOMAINS`      | Comma-separated email domains allowed to sign in         | —                   |
-| `ALLOWED_ORIGINS`      | Comma-separated origins allowed for CORS                 | —                   |
-| `ATTACHMENTS_DIR`      | Directory where uploaded attachments are stored          | `/data/attachments` |
-| `MAX_ATTACHMENT_BYTES` | Maximum upload size in bytes (25 MB default)             | `26214400`          |
-
-See `.env.example` for sample values and explanations.
-
-## Building
-
-```sh
-pnpm --filter @kata/api build
-# produces apps/api/dist/
 ```
 
 ## Routes
 
-| Method | Path       | Description                     |
-| ------ | ---------- | ------------------------------- |
-| GET    | `/healthz` | Health check — no auth required |
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/healthz` | Health check (served by `apps/web/src/routes/healthz`); 503 when the database is unreachable |
+| ALL | `/api/auth/*` | Better Auth (email/password, Google OAuth) |
+| GET | `/api/boards/:boardId/events` | Server-sent events for a board (session + board access required; 15 s heartbeat, session re-checked every 10 s) |
+| * | `/api/boards`, `/api/teams`, `/api/users`, `/api/attachments`, `/api/kumiai`, … | REST routes |
 
-## Deploying to Railway
+## Realtime and email
 
-In production kata-api runs from the GHCR image `ghcr.io/hirogakatageri/kata-api:latest`, built from `apps/api/Dockerfile`. Its Railway configuration is not set up by hand in the dashboard. It lives in `.railway/railway.ts` (the `kata` partial of the repo's Railway TypeScript IaC) and declares:
+- Board events are published on an in-process event bus (`src/events/bus.ts`) and streamed by
+  the SSE route. There is no Redis: run a single instance.
+- Verification and password-reset emails are sent inline through Resend
+  (`src/services/email.ts`) before the response is returned; there is no queue.
 
-- the image source, `ghcr.io/hirogakatageri/kata-api:latest`
-- a `/healthz` healthcheck with a 30-second timeout
-- an on-failure restart policy with up to 5 retries
-- the environment variable names the service reads (see below)
+## Attachment storage
 
-Changes to it are planned on each pull request and applied on merge by the `railway-config.yml` workflow. See `.railway/README.md` for how that configuration is managed.
-
-The start command is the Dockerfile `CMD`, `node --import ./dist/instrument.js dist/index.js`. `.railway/railway.ts` sets no start command or build settings.
-
-### Startup order
-
-1. The HTTP server binds its port first, so `GET /healthz` answers while the service is still starting. This keeps a slow first-deploy migration inside Railway's 30-second healthcheck window.
-2. Database migrations then run automatically.
-3. Until migrations complete, every route other than `/healthz` returns `503` with the error code `SERVICE_UNAVAILABLE` and a `Retry-After: 5` header. The 503 response still carries the normal CORS headers.
-4. When migrations complete, the service is marked ready and serves all routes normally.
-
-If a migration fails, the error is reported to Sentry and the process exits with a non-zero code, so Railway applies the on-failure restart policy.
-
-### Environment variables
-
-The variables kata-api needs are listed in the "Required environment variables" table earlier in this README. The names are declared in the `env` block of the `kata-api` service in `.railway/railway.ts`. Values are never written to the repo: variables that come from another Railway resource, such as `DATABASE_URL` and `REDIS_URL`, are typed references, and every other variable is declared with `preserve()`, which keeps the value already set on the service. `PORT` is also declared with `preserve()`.
-
-### Attachment storage
-
-`.railway/railway.ts` declares no volume for kata-api. The `ATTACHMENTS_DIR` default (`/data/attachments`) is therefore not backed by a persistent volume in this configuration. Uploaded files are written to that directory only when the S3 variables (`S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`) are not all set. When all four are set, attachments are stored in S3-compatible storage instead.
-
-### Custom domain and verification
-
-Railway configuration cannot register custom domains, so the domain for kata-api (`kata-api.hirokata.dev`, port 8787) is added in the Railway dashboard and is not declared in `.railway/railway.ts`.
-
-To verify a deployment:
-
-1. Request `https://kata-api.hirokata.dev/healthz`. The response should be `{"ok":true,"db":true}`. `/healthz` is answered as soon as the server has bound, even while migrations are still running, and reports `200` only when the database is reachable. If the database cannot be reached it returns `503` with `{"ok":false,"db":false}`.
-2. To confirm migrations have finished, request any other route. A `503` with `SERVICE_UNAVAILABLE` means migrations are still running. The service log line `[db] migrations up to date` marks completion.
-
-### Google OAuth callback URL
-
-In the Google Cloud Console, add the following URI to the list of authorised redirect URIs for your OAuth 2.0 client:
-
-```
-${BETTER_AUTH_URL}/api/auth/callback/google
-```
-
-For example, if `BETTER_AUTH_URL` is `https://kata-api.hirokata.dev`, the redirect URI is:
-
-```
-https://kata-api.hirokata.dev/api/auth/callback/google
-```
+`GCS_BUCKET` set: Google Cloud Storage using Application Default Credentials
+(`src/storage/gcs.ts`). Otherwise files are written to `ATTACHMENTS_DIR` (local development).
