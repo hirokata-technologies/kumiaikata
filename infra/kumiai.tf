@@ -266,5 +266,5 @@ resource "google_service_account_iam_member" "kumiai_deployer_acts_as_runtime" {
 resource "google_service_account_iam_member" "github_deploys_kumiai" {
   service_account_id = google_service_account.kumiai_deployer.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principal://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/subject/repo:${var.github_repository}:ref:${var.github_deploy_ref}"
+  member             = local.github_deploy_principal
 }
