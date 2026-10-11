@@ -18,6 +18,7 @@ import cardAttachmentsRouter from "./routes/card-attachments.js";
 import attachmentsRouter from "./routes/attachments.js";
 import usersRouter from "./routes/users.js";
 import kumiaiRouter from "./routes/kumiai/index.js";
+import agentsRouter from "./routes/agents.js";
 // Mounted inside SvelteKit by apps/web (src/routes/api/[...path]/+server.ts), which
 // forwards every /api/* request to `app.fetch`. Nothing here binds a port.
 export const app = new Hono();
@@ -55,6 +56,7 @@ app.route(
 app.route("/api/attachments", attachmentsRouter);
 app.route("/api/users", usersRouter);
 app.route("/api/kumiai", kumiaiRouter);
+app.route("/api/agents", agentsRouter);
 app.route("/api/boards/:boardId", cardsRouter);
 
 // ── Central error handler (registered last so it catches everything) ──────────

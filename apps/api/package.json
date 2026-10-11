@@ -9,7 +9,7 @@
 	"scripts": {
 		"check": "tsc -p tsconfig.json --noEmit",
 		"lint": "eslint src",
-		"migrate": "node migrate.js",
+		"migrate": "node --env-file-if-exists=../web/.env migrate.js",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"test": "vitest run --passWithNoTests",
@@ -25,6 +25,7 @@
 		"better-auth": "^1.7.5",
 		"drizzle-orm": "^0.45.3",
 		"fractional-indexing": "^3.4.0",
+		"google-auth-library": "^9.15.1",
 		"hono": "^4.13.9",
 		"nanoid": "^5.1.16",
 		"pg": "^8.23.0",
