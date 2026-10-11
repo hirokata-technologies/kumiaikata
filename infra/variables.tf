@@ -13,6 +13,16 @@ variable "github_repository" {
   type        = string
 }
 
+variable "github_owner_id" {
+  description = "Immutable numeric ID of the GitHub repository owner."
+  type        = string
+}
+
+variable "github_repository_id" {
+  description = "Immutable numeric ID of the GitHub repository."
+  type        = string
+}
+
 variable "github_deploy_ref" {
   description = "Git ref allowed to deploy. Only workflows running on this ref can impersonate the deployer."
   type        = string
