@@ -9,6 +9,8 @@ apps/web/build
 *.log
 .DS_Store
 apps/web/.vscode
+scripts
+.claude
 .zed
 README.md
 Dockerfile

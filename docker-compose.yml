@@ -39,6 +39,8 @@ services:
       # to use Cloud Storage instead.
       ATTACHMENTS_DIR: "/data/attachments"
       GCS_BUCKET: "${GCS_BUCKET:-}"
+      # Vertex AI Agent Runtime for /api/agents (needs Google credentials, like GCS_BUCKET).
+      AGENT_RUNTIME_NAME: "${AGENT_RUNTIME_NAME:-}"
     volumes:
       - attachments:/data/attachments
     restart: unless-stopped

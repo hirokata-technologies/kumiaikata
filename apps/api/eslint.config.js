@@ -13,6 +13,7 @@ export default tseslint.config(...rootConfig, {
 				// default program for those instead of failing to parse them at all.
 				allowDefaultProject: [
 					'src/*.test.ts',
+					'src/agents/*.test.ts',
 					'src/auth/*.test.ts',
 					'src/events/*.test.ts',
 					'src/http/*.test.ts',

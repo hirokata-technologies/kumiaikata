@@ -10,7 +10,9 @@ export type ErrorCode =
   | "PAYLOAD_TOO_LARGE"
   | "UNSUPPORTED_MEDIA_TYPE"
   | "DOMAIN_NOT_ALLOWED"
-  | "INTERNAL_ERROR";
+  | "INTERNAL_ERROR"
+  | "BAD_GATEWAY"
+  | "SERVICE_UNAVAILABLE";
 
 const STATUS: Record<ErrorCode, number> = {
   UNAUTHENTICATED: 401,
@@ -22,6 +24,8 @@ const STATUS: Record<ErrorCode, number> = {
   UNSUPPORTED_MEDIA_TYPE: 415,
   DOMAIN_NOT_ALLOWED: 403,
   INTERNAL_ERROR: 500,
+  BAD_GATEWAY: 502,
+  SERVICE_UNAVAILABLE: 503,
 };
 
 export class AppError extends Error {

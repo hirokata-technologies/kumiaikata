@@ -47,6 +47,9 @@ importers:
       fractional-indexing:
         specifier: ^3.4.0
         version: 3.4.0
+      google-auth-library:
+        specifier: ^9.15.1
+        version: 9.15.1
       hono:
         specifier: ^4.13.9
         version: 4.13.9
@@ -136,6 +139,9 @@ importers:
       fractional-indexing:
         specifier: ^3.4.0
         version: 3.4.0
+      google-auth-library:
+        specifier: ^9.15.1
+        version: 9.15.1
       hono:
         specifier: ^4.13.9
         version: 4.13.9
