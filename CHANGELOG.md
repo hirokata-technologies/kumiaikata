@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Removed Railway CI and IaC (publish-images, railway-config, .railway, Railway tests); CI now lints and type-checks web and API and runs package tests
 - Kata API and relay merged into the kumiai SvelteKit app (one container, same origin); Redis and BullMQ removed; Cloud SQL, Cloud Storage attachments and a migration job on Google Cloud
 - Removed the Minimax-based AI chat; only hirokata.dev may sign in
 - Web app on Google Cloud Run behind a Google load balancer at kumiai.hirokata.dev, with Terraform and a GitHub Actions deploy

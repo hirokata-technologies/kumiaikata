@@ -7,7 +7,7 @@ The AI Project Manager and AI Strategist, built with
 ## How it works
 
 ```
-Kata API (Railway) ──► Agent Runtime (asia-southeast1)
+kumiai app (Cloud Run) ──► Agent Runtime (asia-southeast1)
                          └─ project_manager   coordinator the user talks to
                               └─ strategist   sub-agent, mode="task"
 ```

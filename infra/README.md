@@ -2,7 +2,8 @@
 
 Terraform for everything Kata runs on Google Cloud: the kumiai app
 (`apps/web`, SvelteKit with the API merged in), its Postgres database and
-attachments, and the AI agents (`apps/agents`). Railway is being shut down.
+attachments, and the AI agents (`apps/agents`). Kata no longer runs on
+Railway.
 
 | File | What it defines |
 |---|---|
@@ -120,28 +121,23 @@ one-off access, run a Cloud Run Job or a temporary VM on the `kumiai` network.
 - Check the certificate with
   `gcloud --configuration hirokata certificate-manager certificates describe kumiai`.
 
-### Cutover from Railway
+### Go-live
 
-1. Apply Terraform, add the three secrets and the OAuth redirect URI, and set
-   the GitHub variables.
+1. Add the three secrets and the OAuth redirect URI, and set the GitHub
+   variables.
 2. Run **Deploy Kumiai** in GitHub Actions (migrates, then deploys). The
    database starts empty: no data is carried over from Railway.
 3. Add the DNS records above, wait for the certificate to become `ACTIVE`,
    and sign in at `https://kumiai.hirokata.dev`.
-4. Shut down Railway: delete the Railway project, remove `.railway/`, the
-   Railway workflows and tests, and the old `kata` and `kata-api` DNS records.
+4. Delete the old Railway project and the old `kata` and `kata-api` DNS
+   records.
 
-## Calling the agents from the Kata API
+## Calling the agents from the kumiai app
 
-The Kata API on Railway calls the agents as the `kata-agents-caller` service
-account. Its key is created by hand so it never lands in Terraform state:
-
-```bash
-gcloud --configuration hirokata iam service-accounts keys create caller-key.json \
-  --iam-account="$(terraform output -raw caller_service_account)"
-```
-
-Store the file's contents as a Railway secret, then delete the local file.
+The kumiai app runs as `kumiai-runtime` on Cloud Run, so it can call the
+agents with its own identity and no key. Grant that account
+`roles/aiplatform.user` when the app is wired to the agents.
+`kata-agents-caller` was for the old Railway API and is unused.
 
 ## Day-to-day
 
