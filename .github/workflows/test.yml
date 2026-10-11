@@ -16,7 +16,7 @@ concurrency:
 jobs:
   test-web:
     name: Web Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -70,7 +70,7 @@ jobs:
 
   test-api:
     name: API Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:18-alpine
@@ -120,7 +120,7 @@ jobs:
 
   test-agents:
     name: Agents Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: apps/agents
@@ -149,7 +149,7 @@ jobs:
 
   test-infra:
     name: Terraform Checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: infra
