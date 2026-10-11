@@ -50,6 +50,11 @@ jobs:
       - name: Run web tests
         run: pnpm test:web
 
+      # The server bundle includes the Hono API from source; this catches broken
+      # imports between apps/web, apps/api and the workspace packages.
+      - name: Build web app
+        run: pnpm --filter @kata/web build
+
       - name: Save Playwright browser cache
         if: always() && steps.playwright-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
@@ -74,25 +79,14 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-      valkey:
-        image: valkey/valkey:8-alpine
-        options: >-
-          --health-cmd "valkey-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
     env:
       DATABASE_URL: postgresql://kata:kata@localhost:5432/kata_test
-      REDIS_URL: redis://localhost:6379
       BETTER_AUTH_SECRET: test-secret-value-at-least-32-characters-long
-      BETTER_AUTH_URL: http://localhost:8787
+      BETTER_AUTH_URL: http://localhost:3000
       GOOGLE_CLIENT_ID: test-google-client-id
       GOOGLE_CLIENT_SECRET: test-google-client-secret
       RESEND_API_KEY: test-resend-api-key
       ALLOWED_DOMAINS: test.com,example.com,hirokata.dev
-      ALLOWED_ORIGINS: http://localhost:5173
     steps:
       - uses: actions/checkout@v4
 
@@ -105,11 +99,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      # The API imports internal workspace packages (@kata/db, @kata/http, …)
-      # via their built `dist/` entry points, so they must be compiled first.
-      - name: Build workspace packages
-        run: pnpm --filter "./packages/*" build
 
       - name: Run API tests
         run: pnpm test:api
@@ -135,3 +124,51 @@ jobs:
 
       - name: Run workflow contract tests
         run: pnpm test:workflows
+
+  test-agents:
+    name: Agents Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/agents
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/agents/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Type check
+        run: uv run mypy
+
+      - name: Run agents tests
+        run: uv run pytest
+
+  test-infra:
+    name: Terraform Checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive
+
+      - name: Validate
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate

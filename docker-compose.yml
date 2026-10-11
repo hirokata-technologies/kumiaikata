@@ -1,73 +1,47 @@
-services:
-  api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    image: kata-api:local
-    ports:
-      - "${API_PORT:-8787}:8787"
-    environment:
-      NODE_ENV: production
-      PORT: "8787"
-      DATABASE_URL: "${DATABASE_URL}"
-      REDIS_URL: "${REDIS_URL}"
-      BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET}"
-      BETTER_AUTH_URL: "${BETTER_AUTH_URL}"
-      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
-      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
-      ALLOWED_DOMAINS: "${ALLOWED_DOMAINS}"
-      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS}"
-      ATTACHMENTS_DIR: "/data/attachments"
-      MAX_ATTACHMENT_BYTES: "${MAX_ATTACHMENT_BYTES:-26214400}"
-      RESEND_API_KEY: "${RESEND_API_KEY}"
-      SENTRY_DSN: "${SENTRY_DSN}"
-      S3_ENDPOINT: "${S3_ENDPOINT}"
-      S3_REGION: "${S3_REGION:-auto}"
-      S3_BUCKET: "${S3_BUCKET}"
-      S3_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID}"
-      S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY}"
-    volumes:
-      - attachments:/data/attachments
-    restart: unless-stopped
+# Production-like run of the single app image against an EXISTING Postgres.
+# Required variables come from your shell or a .env file (see apps/web/.env.example).
+#
+#   docker compose run --rm migrate    # apply migrations (node migrate.js)
+#   docker compose up --build web
+x-app-build: &app-build
+  context: .
+  dockerfile: Dockerfile
 
-  relay:
-    build:
-      context: .
-      dockerfile: apps/kata-relay-service/Dockerfile
-    image: kata-relay-service:local
-    ports:
-      - "${RELAY_PORT:-8788}:8787"
+services:
+  migrate:
+    build: *app-build
+    image: kata-web:local
+    command: ["node", "migrate.js"]
     environment:
-      NODE_ENV: production
-      PORT: "8787"
       DATABASE_URL: "${DATABASE_URL}"
-      REDIS_URL: "${REDIS_URL}"
-      BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET}"
-      BETTER_AUTH_URL: "${BETTER_AUTH_URL}"
-      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS}"
-      ALLOWED_DOMAINS: "${ALLOWED_DOMAINS}"
-      RESEND_API_KEY: "${RESEND_API_KEY}"
-      SENTRY_DSN: "${SENTRY_DSN}"
-    restart: unless-stopped
+    profiles: ["migrate"]
+    restart: "no"
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: *app-build
     image: kata-web:local
     ports:
       - "${PORT:-3000}:3000"
     environment:
       NODE_ENV: production
-      PORT: "${PORT:-3000}"
-      PUBLIC_API_URL: "${PUBLIC_API_URL}"
-      PUBLIC_REALTIME_URL: "${PUBLIC_REALTIME_URL}"
-      API_URL: "${API_URL}"
-      SENTRY_DSN: "${SENTRY_DSN}"
+      PORT: "3000"
+      ORIGIN: "${ORIGIN}"
+      DATABASE_URL: "${DATABASE_URL}"
+      BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET}"
+      BETTER_AUTH_URL: "${BETTER_AUTH_URL}"
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
+      RESEND_API_KEY: "${RESEND_API_KEY}"
+      ALLOWED_DOMAINS: "${ALLOWED_DOMAINS}"
+      MAX_ATTACHMENT_BYTES: "${MAX_ATTACHMENT_BYTES:-26214400}"
+      PUBLIC_SENTRY_DSN: "${PUBLIC_SENTRY_DSN:-}"
+      # Local-disk attachments by default; set GCS_BUCKET (plus Google credentials)
+      # to use Cloud Storage instead.
+      ATTACHMENTS_DIR: "/data/attachments"
+      GCS_BUCKET: "${GCS_BUCKET:-}"
+    volumes:
+      - attachments:/data/attachments
     restart: unless-stopped
-    depends_on:
-      - api
-      - relay
 
 volumes:
   attachments:

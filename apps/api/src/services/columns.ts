@@ -4,7 +4,7 @@ import { columns, cards } from "@kata/db";
 import { newId } from "@kata/db";
 import { AppError } from "@kata/http";
 import { appendAfter, reorderToMatch } from "../ordering/fractional.js";
-import { eventBus } from "@kata/events";
+import { eventBus } from "../events/bus.js";
 
 // ── Serialisation shape ───────────────────────────────────────────────────────
 

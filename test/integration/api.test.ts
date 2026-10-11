@@ -90,35 +90,6 @@ describe("kata-api error response shape", () => {
 	});
 });
 
-describe("kata-api CORS", () => {
-	it("includes Access-Control-Allow-Origin for allowed origin", async () => {
-		const res = await fetch(`${API}/healthz`, {
-			headers: { Origin: "http://localhost:3000" },
-		});
-		const origin = res.headers.get("Access-Control-Allow-Origin");
-		expect(origin).toBeTruthy();
-	});
-
-	it("OPTIONS preflight returns 204 or 200", async () => {
-		const res = await fetch(`${API}/api/boards`, {
-			method: "OPTIONS",
-			headers: {
-				Origin: "http://localhost:3000",
-				"Access-Control-Request-Method": "GET",
-			},
-		});
-		expect([200, 204]).toContain(res.status);
-	});
-
-	it("CORS credentials are supported (Access-Control-Allow-Credentials)", async () => {
-		const res = await fetch(`${API}/healthz`, {
-			headers: { Origin: "http://localhost:3000" },
-		});
-		const credentials = res.headers.get("Access-Control-Allow-Credentials");
-		expect(credentials).toBe("true");
-	});
-});
-
 describe("kata-api auth routes accessible", () => {
 	it("GET /api/auth/get-session returns 200 (unauthenticated session is null)", async () => {
 		const res = await apiGet("/api/auth/get-session");
@@ -150,7 +121,7 @@ describe("kata-api response content-type", () => {
 describe("kata-api root redirect", () => {
 	it("GET / returns a redirect to the web app login", async () => {
 		const res = await fetch(`${API}/`, { redirect: "manual" });
-		// Root redirects to kata.hirokata.dev/login
+		// Root redirects to kumiai.hirokata.dev/login
 		expect([301, 302, 303, 307, 308]).toContain(res.status);
 	});
 });

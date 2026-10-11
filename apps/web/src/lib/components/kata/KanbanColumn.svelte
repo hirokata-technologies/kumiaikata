@@ -8,7 +8,6 @@
 		density,
 		query,
 		columnStyle,
-		glowCardIds,
 		dragging,
 		boardLabels,
 		boardProjects,
@@ -25,7 +24,6 @@
 		density: string;
 		query: string;
 		columnStyle: string;
-		glowCardIds: Set<string>;
 		dragging: { cardId: string; fromColumnId: string } | null;
 		boardLabels: KataLabel[];
 		boardProjects: KataProject[];
@@ -176,7 +174,6 @@
 				{density}
 				{query}
 				dragging={dragging?.cardId === card.id}
-				glow={glowCardIds.has(card.id)}
 				{columnStyle}
 				{boardLabels}
 				{boardProjects}

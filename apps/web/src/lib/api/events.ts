@@ -1,4 +1,3 @@
-import { env } from '$env/dynamic/public';
 import type { BoardEvent } from './types.js';
 
 export type BoardEventHandler = (event: BoardEvent) => void;
@@ -40,8 +39,8 @@ const KNOWN_TYPES = [
  *   unsubscribe();
  */
 export function subscribeBoard(boardId: string, onEvent: BoardEventHandler): () => void {
-	const url = `${env.PUBLIC_API_URL}/api/boards/${boardId}/events`;
-	const es = new EventSource(url, { withCredentials: true });
+	const url = `/api/boards/${boardId}/events`;
+	const es = new EventSource(url);
 
 	const handler = (e: MessageEvent) => {
 		try {

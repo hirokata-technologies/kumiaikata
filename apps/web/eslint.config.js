@@ -41,9 +41,9 @@ export default tseslint.config(
 		},
 	},
 	{
-		// renderMd/renderDescMd escape HTML entities before applying markdown
+		// renderDescMd escapes HTML entities before applying markdown
 		// transforms, so {@html} is safe here
-		files: ['src/**/ChatPanel.svelte', 'src/**/CardModal.svelte'],
+		files: ['src/**/CardModal.svelte'],
 		rules: {
 			'svelte/no-at-html-tags': 'off',
 		},

@@ -2,7 +2,7 @@ import { eq, and, asc, sql } from "drizzle-orm";
 import { db, newId } from "@kata/db";
 import { cards, labels } from "@kata/db";
 import { AppError } from "@kata/http";
-import { eventBus } from "@kata/events";
+import { eventBus } from "../events/bus.js";
 
 // ── Serialisation shape ───────────────────────────────────────────────────────
 

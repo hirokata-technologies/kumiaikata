@@ -8,7 +8,7 @@ import {
 	insertBetween,
 	reorderToMatch,
 } from "../ordering/fractional.js";
-import { eventBus } from "@kata/events";
+import { eventBus } from "../events/bus.js";
 import { storage } from "../storage/index.js";
 
 // ── Serialisation shapes ──────────────────────────────────────────────────────

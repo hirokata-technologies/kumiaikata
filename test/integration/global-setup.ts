@@ -4,8 +4,7 @@ import { fileURLToPath } from "url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const COMPOSE_FILE = path.join(ROOT, "docker-compose.local.yml");
-const API_URL = "http://localhost:8787";
-const RELAY_URL = "http://localhost:8788";
+const APP_URL = "http://localhost:3000";
 const WAIT_TIMEOUT_MS = 120_000;
 const POLL_INTERVAL_MS = 2_000;
 
@@ -35,10 +34,7 @@ export async function setup(): Promise<() => Promise<void>> {
 		cwd: ROOT,
 	});
 
-	await Promise.all([
-		waitForHealthy(API_URL, "kata-api"),
-		waitForHealthy(RELAY_URL, "kata-relay-service"),
-	]);
+	await waitForHealthy(APP_URL, "kata-web");
 
 	return async () => {
 		console.log("[integration] Tearing down docker-compose stack...");

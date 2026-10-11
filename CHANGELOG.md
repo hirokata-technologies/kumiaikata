@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Kata API and relay merged into the kumiai SvelteKit app (one container, same origin); Redis and BullMQ removed; Cloud SQL, Cloud Storage attachments and a migration job on Google Cloud
+- Removed the Minimax-based AI chat; only hirokata.dev may sign in
+- Web app on Google Cloud Run behind a Google load balancer at kumiai.hirokata.dev, with Terraform and a GitHub Actions deploy
+- AI agents service (Project Manager + Strategist) on Google ADK 2.0 with Agent Runtime, and Terraform for its Google Cloud infrastructure
 - REQ-007: API readiness gate during startup migrations + Railway deploy docs fix (TASK-071 skipped)
 - REQ-005: GitHub Actions plan/apply workflow for Railway IaC
 - REQ-004: Author .railway/railway.ts (Railway TypeScript IaC) for the kata services

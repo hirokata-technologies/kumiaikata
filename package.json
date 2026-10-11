@@ -15,9 +15,6 @@
 		"start": "pnpm --filter @kata/web start",
 		"check": "pnpm --filter @kata/web check",
 		"check:watch": "pnpm --filter @kata/web check:watch",
-		"dev:api": "pnpm --filter @kata/api dev",
-		"build:api": "pnpm --filter @kata/api build",
-		"start:api": "pnpm --filter @kata/api start",
 		"check:api": "pnpm --filter @kata/api check",
 		"build:mcp": "pnpm --filter @kata/mcp build",
 		"start:mcp": "pnpm --filter @kata/mcp start",
@@ -32,10 +29,11 @@
 		"test": "pnpm --filter @kata/api test && pnpm --filter @kata/web test",
 		"test:api": "pnpm --filter @kata/api test",
 		"test:web": "pnpm --filter @kata/web test",
-		"test:packages": "pnpm --filter @kata/http test && pnpm --filter @kata/auth test && pnpm --filter @kata/db test && pnpm --filter @kata/events test && pnpm --filter @kata/queues test",
+		"test:packages": "pnpm --filter @kata/http test && pnpm --filter @kata/db test",
 		"test:integration": "pnpm --filter @kata/integration-tests test",
 		"test:railway": "pnpm --filter @kata/railway-iac-tests test",
-		"test:workflows": "node --test .github/tests/*.test.mjs"
+		"test:workflows": "node --test .github/tests/*.test.mjs",
+		"db:migrate": "pnpm --filter @kata/api migrate"
 	},
 	"devDependencies": {
 		"eslint": "^10.11.0",

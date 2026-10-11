@@ -23,7 +23,6 @@
 		density,
 		query,
 		dragging,
-		glow,
 		columnStyle,
 		boardLabels,
 		boardProjects,
@@ -41,7 +40,6 @@
 		density: string;
 		query: string;
 		dragging: boolean;
-		glow: boolean;
 		columnStyle: string;
 		boardLabels: KataLabel[];
 		boardProjects: KataProject[];
@@ -87,7 +85,6 @@
 <div
 	class="kc {density}"
 	class:is-dragging={dragging}
-	class:is-glow={glow}
 	class:is-dim={!matches}
 	class:kc-flat={columnStyle === 'flat'}
 	draggable={true}
@@ -243,16 +240,6 @@
 
 	.kc.is-dim {
 		opacity: 0.28;
-	}
-
-	.kc.is-glow {
-		animation: glow 1.4s ease-out;
-	}
-
-	@keyframes glow {
-		0% { box-shadow: 0 0 0 0 var(--accent); border-color: var(--accent); }
-		50% { box-shadow: 0 0 0 6px rgba(46, 58, 107, 0); border-color: var(--accent); }
-		100% { box-shadow: var(--shadow-sm); border-color: var(--line-1); }
 	}
 
 	.kc-flat {

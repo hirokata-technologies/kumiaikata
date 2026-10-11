@@ -1,11 +1,4 @@
-import { Pool } from "pg";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { env } from "../env.js";
-import * as schema from "./schema/index.js";
-
-export const pool = new Pool({
-	connectionString: env.DATABASE_URL,
-	max: 10,
-});
-
-export const db = drizzle(pool, { schema });
+// One shared pool for the whole process. Better Auth, the middleware and every
+// service must use the same connection pool as @kata/db — Cloud SQL has a small
+// connection budget and a second pool would silently double the usage.
+export { db, pool } from "@kata/db";

@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('$env/dynamic/public', () => ({ env: { PUBLIC_API_URL: 'https://api.test' } }));
 
 const { listTasks, getTask, createTask, updateTask, deleteTask } = await import('./tasks.js');
 
@@ -21,13 +20,13 @@ describe('tasks api client', () => {
 	it('listTasks issues a GET to /api/kumiai/tasks', async () => {
 		const fetchMock = mockFetch([]);
 		await listTasks();
-		expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/api/kumiai/tasks');
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/kumiai/tasks');
 	});
 
 	it('getTask issues a GET to /api/kumiai/tasks/:id', async () => {
 		const fetchMock = mockFetch({ id: 't1' });
 		await getTask('t1');
-		expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/api/kumiai/tasks/t1');
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/kumiai/tasks/t1');
 	});
 
 	it('createTask POSTs a serialized body', async () => {
@@ -40,7 +39,7 @@ describe('tasks api client', () => {
 		const fetchMock = mockFetch({ id: 't1', ...input });
 		await createTask(input);
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/tasks');
+		expect(url).toBe('/api/kumiai/tasks');
 		expect(init.method).toBe('POST');
 		expect(init.body).toBe(JSON.stringify(input));
 	});
@@ -49,7 +48,7 @@ describe('tasks api client', () => {
 		const fetchMock = mockFetch({ id: 't1', status: 'blocked' });
 		await updateTask('t1', { status: 'blocked' });
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/tasks/t1');
+		expect(url).toBe('/api/kumiai/tasks/t1');
 		expect(init.method).toBe('PATCH');
 		expect(init.body).toBe(JSON.stringify({ status: 'blocked' }));
 	});
@@ -59,7 +58,7 @@ describe('tasks api client', () => {
 		const result = await deleteTask('t1');
 		expect(result).toBeNull();
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/tasks/t1');
+		expect(url).toBe('/api/kumiai/tasks/t1');
 		expect(init.method).toBe('DELETE');
 	});
 });

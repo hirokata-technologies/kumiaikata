@@ -1,8 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-// Only needs the module graph to resolve, not a real API call — the $env virtual
-// module still has to be mocked for `../client.js` to import cleanly under vitest.
-vi.mock('$env/dynamic/public', () => ({ env: { PUBLIC_API_URL: 'https://api.test' } }));
+// Only needs the module graph to resolve, not a real API call.
 
 describe('kumiai barrel', () => {
 	it('re-exports the project functions under Kumiai-qualified names, identical to the module', async () => {

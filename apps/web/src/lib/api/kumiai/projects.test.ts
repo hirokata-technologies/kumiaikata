@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('$env/dynamic/public', () => ({ env: { PUBLIC_API_URL: 'https://api.test' } }));
 
 const { listProjects, getProject, createProject, updateProject, deleteProject } =
 	await import('./projects.js');
@@ -22,27 +21,27 @@ describe('projects api client', () => {
 	it('listProjects with no params issues a bare GET', async () => {
 		const fetchMock = mockFetch([]);
 		await listProjects();
-		expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/api/kumiai/projects');
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/kumiai/projects');
 	});
 
 	it('listProjects encodes goalId and status as a query string', async () => {
 		const fetchMock = mockFetch([]);
 		await listProjects({ goalId: 'g 1', status: 'in-progress' });
 		expect(fetchMock.mock.calls[0][0]).toBe(
-			'https://api.test/api/kumiai/projects?goalId=g+1&status=in-progress',
+			'/api/kumiai/projects?goalId=g+1&status=in-progress',
 		);
 	});
 
 	it('listProjects omits an undefined param from the query string', async () => {
 		const fetchMock = mockFetch([]);
 		await listProjects({ goalId: 'g1', status: undefined });
-		expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/api/kumiai/projects?goalId=g1');
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/kumiai/projects?goalId=g1');
 	});
 
 	it('getProject issues a GET to /api/kumiai/projects/:id', async () => {
 		const fetchMock = mockFetch({ id: 'p1' });
 		await getProject('p1');
-		expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/api/kumiai/projects/p1');
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/kumiai/projects/p1');
 	});
 
 	it('createProject POSTs a serialized body to /api/kumiai/projects', async () => {
@@ -57,7 +56,7 @@ describe('projects api client', () => {
 		const fetchMock = mockFetch({ id: 'p1', ...input });
 		await createProject(input);
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/projects');
+		expect(url).toBe('/api/kumiai/projects');
 		expect(init.method).toBe('POST');
 		expect(init.body).toBe(JSON.stringify(input));
 	});
@@ -66,7 +65,7 @@ describe('projects api client', () => {
 		const fetchMock = mockFetch({ id: 'p1', blockedReason: 'waiting on design' });
 		await updateProject('p1', { status: 'blocked', blockedReason: 'waiting on design' });
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/projects/p1');
+		expect(url).toBe('/api/kumiai/projects/p1');
 		expect(init.method).toBe('PATCH');
 		expect(init.body).toBe(
 			JSON.stringify({ status: 'blocked', blockedReason: 'waiting on design' }),
@@ -78,7 +77,7 @@ describe('projects api client', () => {
 		const result = await deleteProject('p1');
 		expect(result).toBeNull();
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/projects/p1');
+		expect(url).toBe('/api/kumiai/projects/p1');
 		expect(init.method).toBe('DELETE');
 	});
 });

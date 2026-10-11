@@ -30,27 +30,3 @@ vi.mock("../src/auth/better-auth.js", () => ({
 		handler: vi.fn(async () => new Response("not implemented", { status: 501 })),
 	},
 }));
-
-// ── @kata/events mock ─────────────────────────────────────────────────────────
-// Replaces the RedisEventBus singleton with an in-process EventEmitter so that
-// importing services (cards, columns, etc.) never triggers an ioredis connection
-// attempt. Without this, tests crash with "[ioredis] Unhandled error event"
-// whenever Valkey/Redis is not running locally.
-vi.mock("@kata/events", () => {
-	const listeners = new Map<string, Set<(e: unknown) => void>>();
-	return {
-		eventBus: {
-			emit(event: { boardId: string }) {
-				const set = listeners.get(event.boardId);
-				if (set) set.forEach((l) => l(event));
-			},
-			subscribe(boardId: string, listener: (e: unknown) => void): () => void {
-				if (!listeners.has(boardId)) listeners.set(boardId, new Set());
-				listeners.get(boardId)!.add(listener);
-				return () => {
-					listeners.get(boardId)?.delete(listener);
-				};
-			},
-		},
-	};
-});

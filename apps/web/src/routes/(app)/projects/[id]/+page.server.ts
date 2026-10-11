@@ -1,15 +1,10 @@
-import { env } from "$env/dynamic/private";
 import type { PageServerLoad } from "./$types";
 import type { Project } from "$lib/kumiai/types.js";
 
-export const load: PageServerLoad = async ({ params, request, fetch }) => {
-	const cookie = request.headers.get("cookie") ?? "";
-
+export const load: PageServerLoad = async ({ params, fetch }) => {
 	let project: Project | null = null;
 	try {
-		const res = await fetch(`${env.API_URL}/api/kumiai/projects/${params.id}`, {
-			headers: { cookie },
-		});
+		const res = await fetch(`/api/kumiai/projects/${params.id}`);
 		if (res.ok) {
 			project = (await res.json()) as Project;
 		}
@@ -24,9 +19,9 @@ export const load: PageServerLoad = async ({ params, request, fetch }) => {
 	}
 
 	try {
-		await fetch(`${env.API_URL}/api/kumiai/recent-projects`, {
+		await fetch("/api/kumiai/recent-projects", {
 			method: "POST",
-			headers: { cookie, "content-type": "application/json" },
+			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ projectId: params.id }),
 		});
 	} catch {
