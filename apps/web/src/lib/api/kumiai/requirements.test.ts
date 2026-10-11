@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('$env/dynamic/public', () => ({ env: { PUBLIC_API_URL: 'https://api.test' } }));
 
 const { listRequirements, getRequirement, createRequirement, updateRequirement, deleteRequirement } =
 	await import('./requirements.js');
@@ -22,13 +21,13 @@ describe('requirements api client', () => {
 	it('listRequirements issues a GET to /api/kumiai/requirements', async () => {
 		const fetchMock = mockFetch([]);
 		await listRequirements();
-		expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/api/kumiai/requirements');
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/kumiai/requirements');
 	});
 
 	it('getRequirement issues a GET to /api/kumiai/requirements/:id', async () => {
 		const fetchMock = mockFetch({ id: 'r1' });
 		await getRequirement('r1');
-		expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/api/kumiai/requirements/r1');
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/kumiai/requirements/r1');
 	});
 
 	it('createRequirement POSTs a serialized body', async () => {
@@ -36,7 +35,7 @@ describe('requirements api client', () => {
 		const fetchMock = mockFetch({ id: 'r1', ...input });
 		await createRequirement(input);
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/requirements');
+		expect(url).toBe('/api/kumiai/requirements');
 		expect(init.method).toBe('POST');
 		expect(init.body).toBe(JSON.stringify(input));
 	});
@@ -45,7 +44,7 @@ describe('requirements api client', () => {
 		const fetchMock = mockFetch({ id: 'r1', title: 'Renamed' });
 		await updateRequirement('r1', { title: 'Renamed' });
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/requirements/r1');
+		expect(url).toBe('/api/kumiai/requirements/r1');
 		expect(init.method).toBe('PATCH');
 		expect(init.body).toBe(JSON.stringify({ title: 'Renamed' }));
 	});
@@ -55,7 +54,7 @@ describe('requirements api client', () => {
 		const result = await deleteRequirement('r1');
 		expect(result).toBeNull();
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/requirements/r1');
+		expect(url).toBe('/api/kumiai/requirements/r1');
 		expect(init.method).toBe('DELETE');
 	});
 });

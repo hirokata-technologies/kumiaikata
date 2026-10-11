@@ -10,30 +10,27 @@ const commaSeparated = z
 	);
 
 const schema = z.object({
-	PORT: z
-		.string()
-		.default("8787")
-		.transform((s) => Number(s)),
 	DATABASE_URL: z.string().url(),
-	REDIS_URL: z.string().url(),
 	BETTER_AUTH_SECRET: z.string().min(1),
 	BETTER_AUTH_URL: z.string().url(),
 	GOOGLE_CLIENT_ID: z.string().min(1),
 	GOOGLE_CLIENT_SECRET: z.string().min(1),
 	RESEND_API_KEY: z.string().min(1),
 	ALLOWED_DOMAINS: commaSeparated,
-	ALLOWED_ORIGINS: commaSeparated,
+	// Extra origins Better Auth should trust besides BETTER_AUTH_URL (e.g. a local
+	// dev server on another port). Optional: the app is served same-origin.
+	ALLOWED_ORIGINS: commaSeparated.default([]),
 	ATTACHMENTS_DIR: z.string().default("/data/attachments"),
 	MAX_ATTACHMENT_BYTES: z
 		.string()
 		.default("26214400")
 		.transform((s) => Number(s)),
-	SENTRY_DSN: z.string().url().optional(),
-	S3_ENDPOINT: z.string().url().optional(),
-	S3_REGION: z.string().default("auto"),
-	S3_BUCKET: z.string().optional(),
-	S3_ACCESS_KEY_ID: z.string().optional(),
-	S3_SECRET_ACCESS_KEY: z.string().optional(),
+	// Google Cloud Storage bucket for attachments (Application Default
+	// Credentials). When unset, attachments are written to ATTACHMENTS_DIR.
+	GCS_BUCKET: z
+		.string()
+		.optional()
+		.transform((s) => (s ? s : undefined)),
 });
 
 function parseEnv(): z.infer<typeof schema> {

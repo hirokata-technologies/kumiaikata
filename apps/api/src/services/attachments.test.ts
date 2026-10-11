@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
 
 // Mock the storage module before importing the service so the service
-// receives the in-memory adapter instead of the real DiskStorage/S3Storage.
+// receives the in-memory adapter instead of the real DiskStorage/GcsStorage.
 vi.mock("../storage/index.js", async () => ({
 	storage: (await import("../../test/helpers/mock-storage.js")).mockStorage,
 }));

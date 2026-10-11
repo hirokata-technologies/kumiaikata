@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Sparkles } from '@lucide/svelte';
 	import { untrack } from 'svelte';
 	import type { BoardState, GroupBy, MemberInfo } from '$lib/types.js';
 	import type { Workspace } from '$lib/components/kata/WorkspaceSwitcher.svelte';
@@ -30,9 +29,8 @@
 	import KanbanBoard from '$lib/components/kata/KanbanBoard.svelte';
 	import Roadmap from '$lib/components/kata/Roadmap.svelte';
 	import UndatedTray from '$lib/components/kata/UndatedTray.svelte';
-	import ChatPanel from '$lib/components/kata/ChatPanel.svelte';
 	import CardModal from '$lib/components/kata/CardModal.svelte';
-	import { settings, setDensity, setChatPlacement, setView, toggleTheme } from '$lib/settings.svelte.js';
+	import { settings, setDensity, setView, toggleTheme } from '$lib/settings.svelte.js';
 	import {
 		readWorkspace, writeWorkspace,
 		readContext, writeProjectFilter, writeGroupBy,
@@ -56,9 +54,6 @@
 
 	let query = $state('');
 	let openCardId: string | null = $state(null);
-	let chatVisible = $state(true);
-	let chatInput = $state('');
-	let glowIds: Set<string> = $state(new Set());
 
 	const initialWorkspace = readWorkspace();
 	const initialContext = readContext(initialWorkspace);
@@ -364,30 +359,6 @@
 	$effect(() => {
 		document.documentElement.style.setProperty('--accent', settings.accent);
 	});
-
-	// Listen for glow events from chat panel
-	$effect(() => {
-		function onGlow(e: Event) {
-			const ce = e as CustomEvent<{ ids: string[] }>;
-			const ids = ce.detail?.ids ?? [];
-			glowIds = new Set(ids);
-			setTimeout(() => {
-				glowIds = new Set();
-			}, 1500);
-		}
-		window.addEventListener('hk-glow', onGlow);
-		return () => window.removeEventListener('hk-glow', onGlow);
-	});
-
-	function handleAsk(prefix: string) {
-		openCardId = null;
-		chatInput = prefix;
-		chatVisible = true;
-	}
-
-	function togglePlacement() {
-		setChatPlacement(settings.chatPlacement === 'side' ? 'floating' : 'side');
-	}
 </script>
 
 <svelte:head>
@@ -395,7 +366,7 @@
 	<meta name="description" content="Kata Kanban board" />
 </svelte:head>
 
-<div class="shell" class:has-chat={chatVisible}>
+<div class="shell">
 	{#if fallbackMessage}
 		<div class="ws-fallback-banner" role="status" aria-live="polite">
 			<span>{fallbackMessage}</span>
@@ -408,9 +379,6 @@
 		onquery={(q) => (query = q)}
 		density={settings.density}
 		ondensity={(d) => setDensity(d as import('$lib/settings.svelte.js').Density)}
-		{chatVisible}
-		onOpenChat={() => (chatVisible = true)}
-		chatPlacement={settings.chatPlacement}
 		isDark={settings.theme === 'dark'}
 		ontoggle={toggleTheme}
 		{workspace}
@@ -490,7 +458,6 @@
 					{query}
 					columnStyle={settings.columnStyle}
 					showMist={settings.mist}
-					glowCardIds={glowIds}
 					boardLabels={boardState.labels}
 					boardProjects={boardState.projects}
 					{boardMembers}
@@ -501,72 +468,7 @@
 					onclearfilter={() => { activeProjectId = null; writeProjectFilter(workspaceId, null); }}
 				/>
 			{/if}
-
-			{#if chatVisible && settings.chatPlacement === 'side'}
-				<ChatPanel
-					boardState={boardState}
-					placement="side"
-					chatInput={chatInput}
-					onChatInputChange={(v) => (chatInput = v)}
-					onClose={() => (chatVisible = false)}
-					onTogglePlacement={togglePlacement}
-					boardId={boardId ?? ''}
-					boardType={workspaceId}
-				/>
-			{/if}
 		</main>
-
-		{#if settings.chatPlacement === 'floating'}
-			{#if chatVisible}
-				<div class="floating-chat">
-					<ChatPanel
-						boardState={boardState}
-						placement="floating"
-						chatInput={chatInput}
-						onChatInputChange={(v) => (chatInput = v)}
-						onClose={() => (chatVisible = false)}
-						onTogglePlacement={togglePlacement}
-						boardId={boardId ?? ''}
-						boardType={workspaceId}
-					/>
-				</div>
-			{:else}
-				<button
-					class="chat-fab"
-					onclick={() => (chatVisible = true)}
-					aria-label="Open assistant"
-					title="Open assistant"
-				>
-					<Sparkles size={22} />
-				</button>
-			{/if}
-		{/if}
-
-		{#if chatVisible && settings.chatPlacement === 'overlay'}
-			<div
-				class="overlay-chat-scrim"
-				onclick={() => (chatVisible = false)}
-				onkeydown={(e) => {
-					if (e.key === 'Escape') chatVisible = false;
-				}}
-				role="dialog"
-				aria-modal="true"
-				aria-label="Assistant chat"
-				tabindex="-1"
-			>
-				<div class="overlay-chat" onclick={(e) => e.stopPropagation()} role="presentation">
-					<ChatPanel
-						boardState={boardState}
-						placement="overlay"
-						chatInput={chatInput}
-						onChatInputChange={(v) => (chatInput = v)}
-						onClose={() => (chatVisible = false)}
-						boardId={boardId ?? ''}
-						boardType={workspaceId}
-					/>
-				</div>
-			</div>
-		{/if}
 
 		{#if openCardId}
 			<CardModal
@@ -574,7 +476,6 @@
 				cardId={openCardId}
 				state={boardState}
 				onClose={() => (openCardId = null)}
-				onAsk={handleAsk}
 				onStateChange={(s) => (boardState = s)}
 				{boardMembers}
 				{membersLoading}
@@ -650,94 +551,6 @@
 
 	.retry-btn:hover {
 		opacity: 0.88;
-	}
-
-	.chat-fab {
-		position: fixed;
-		bottom: 24px;
-		right: 24px;
-		z-index: 30;
-		width: 52px;
-		height: 52px;
-		border-radius: 999px;
-		background: var(--ink-0);
-		color: var(--paper-0);
-		border: none;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		box-shadow: var(--shadow-lg);
-		transition: background var(--dur-fast), transform var(--dur-fast);
-	}
-
-	.chat-fab:hover {
-		background: var(--accent);
-		transform: scale(1.06);
-	}
-
-	.chat-fab :global(svg) {
-		flex-shrink: 0;
-	}
-
-	.floating-chat {
-		position: fixed;
-		bottom: 24px;
-		right: 24px;
-		z-index: 30;
-		width: 380px;
-		height: 580px;
-		max-height: calc(100vh - 48px);
-		background: var(--paper-0);
-		border: 1px solid var(--line-2);
-		border-radius: 16px;
-		box-shadow: var(--shadow-lg);
-		overflow: hidden;
-		display: flex;
-	}
-
-	.floating-chat :global(.chat) {
-		width: 100%;
-		border-left: none;
-	}
-
-	.overlay-chat-scrim {
-		position: fixed;
-		inset: 0;
-		background: rgba(20, 19, 15, 0.45);
-		backdrop-filter: blur(6px);
-		z-index: 40;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 32px;
-	}
-
-	.overlay-chat {
-		width: min(680px, 100%);
-		height: min(780px, 100%);
-		background: var(--paper-0);
-		border-radius: 18px;
-		box-shadow: var(--shadow-lg);
-		display: flex;
-		overflow: hidden;
-		animation: overlay-in 220ms ease-out;
-	}
-
-	@keyframes overlay-in {
-		from {
-			transform: translateY(8px);
-			opacity: 0;
-		}
-		to {
-			transform: none;
-			opacity: 1;
-		}
-	}
-
-	.overlay-chat :global(.chat) {
-		width: 100%;
-		border-left: none;
 	}
 
 	.ws-fallback-banner {

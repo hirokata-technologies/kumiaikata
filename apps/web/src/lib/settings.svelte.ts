@@ -3,7 +3,6 @@ import { DEFAULT_ACCENT } from './accent-presets.js';
 export type Theme = 'light' | 'dark';
 export type Density = 'compact' | 'comfortable' | 'spacious';
 export type ColumnStyle = 'tray' | 'minimal';
-export type ChatPlacement = 'floating' | 'side' | 'overlay';
 export type BoardView = 'board' | 'roadmap';
 
 const KEYS = {
@@ -12,7 +11,6 @@ const KEYS = {
 	columnStyle: 'kata_column_style',
 	mist: 'kata_mist',
 	accent: 'kata_accent',
-	chatPlacement: 'kata_chat_placement',
 	notificationsInApp: 'kata_notifications_inapp',
 	view: 'kata_view',
 } as const;
@@ -61,7 +59,6 @@ export const settings = $state({
 	columnStyle:        oneOf<ColumnStyle>(readRaw(KEYS.columnStyle), ['tray', 'minimal'], 'tray'),
 	mist:               parseBool(readRaw(KEYS.mist), true),
 	accent:             parseAccent(readRaw(KEYS.accent)),
-	chatPlacement:      oneOf<ChatPlacement>(readRaw(KEYS.chatPlacement), ['floating', 'side', 'overlay'], 'floating'),
 	notificationsInApp: parseBool(readRaw(KEYS.notificationsInApp), true),
 	view:               oneOf<BoardView>(readRaw(KEYS.view), ['board', 'roadmap'], 'board'),
 });
@@ -89,11 +86,6 @@ export function setMist(v: boolean): void {
 export function setAccent(v: string): void {
 	settings.accent = v;
 	writeRaw(KEYS.accent, v);
-}
-
-export function setChatPlacement(v: ChatPlacement): void {
-	settings.chatPlacement = v;
-	writeRaw(KEYS.chatPlacement, v);
 }
 
 export function setNotificationsInApp(v: boolean): void {

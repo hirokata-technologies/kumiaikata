@@ -2,7 +2,7 @@ import { eq, and, asc } from "drizzle-orm";
 import { db, newId } from "@kata/db";
 import { projects } from "@kata/db";
 import { AppError } from "@kata/http";
-import { eventBus } from "@kata/events";
+import { eventBus } from "../events/bus.js";
 
 // ── Serialisation shape ───────────────────────────────────────────────────────
 

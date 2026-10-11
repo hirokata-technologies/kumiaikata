@@ -1,5 +1,4 @@
 import { redirect } from "@sveltejs/kit";
-import { env } from "$env/dynamic/private";
 import type { LayoutServerLoad } from "./$types";
 import type { KumiaiStats, RecentProject } from "$lib/api/kumiai/types.js";
 import type { TeamInfo } from "$lib/api/types.js";
@@ -10,18 +9,13 @@ const EMPTY_STATS: KumiaiStats = {
 };
 
 /**
- * The API is a different origin (`API_URL`), so the load event's `fetch` does not carry
- * the session cookie automatically — forward it by hand, exactly as `hooks.server.ts`
- * does for `get-session`. Never throws: a dead endpoint degrades the shell instead of
- * 500ing it.
+ * The API is served by this same app, so the load event's `fetch` resolves the relative
+ * path in-process and forwards the session cookie by itself. Never throws: a dead
+ * endpoint degrades the shell instead of 500ing it.
  */
-async function fetchShellJson<T>(
-	fetchFn: typeof fetch,
-	path: string,
-	cookie: string,
-): Promise<T | null> {
+async function fetchShellJson<T>(fetchFn: typeof fetch, path: string): Promise<T | null> {
 	try {
-		const res = await fetchFn(`${env.API_URL}${path}`, { headers: { cookie } });
+		const res = await fetchFn(path);
 		if (!res.ok) return null;
 		return (await res.json()) as T;
 	} catch {
@@ -29,7 +23,7 @@ async function fetchShellJson<T>(
 	}
 }
 
-export const load: LayoutServerLoad = async ({ locals, request, fetch, url }) => {
+export const load: LayoutServerLoad = async ({ locals, fetch, url }) => {
 	const user = locals.user;
 	if (!user) redirect(303, "/login");
 
@@ -38,12 +32,10 @@ export const load: LayoutServerLoad = async ({ locals, request, fetch, url }) =>
 	// sidebar badges and header pill live without a manual `invalidate` (US-2 AC4).
 	void url.pathname;
 
-	const cookie = request.headers.get("cookie") ?? "";
-
 	const [stats, recentProjects, team] = await Promise.all([
-		fetchShellJson<KumiaiStats>(fetch, "/api/kumiai/stats", cookie),
-		fetchShellJson<RecentProject[]>(fetch, "/api/kumiai/recent-projects", cookie),
-		fetchShellJson<TeamInfo>(fetch, "/api/teams/mine", cookie),
+		fetchShellJson<KumiaiStats>(fetch, "/api/kumiai/stats"),
+		fetchShellJson<RecentProject[]>(fetch, "/api/kumiai/recent-projects"),
+		fetchShellJson<TeamInfo>(fetch, "/api/teams/mine"),
 	]);
 
 	return {

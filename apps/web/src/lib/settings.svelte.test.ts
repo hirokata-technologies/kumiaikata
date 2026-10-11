@@ -44,7 +44,6 @@ describe('settings.svelte.ts', () => {
 			expect(settings.columnStyle).toBe('tray');
 			expect(settings.mist).toBe(true);
 			expect(settings.accent).toBe(DEFAULT_ACCENT);
-			expect(settings.chatPlacement).toBe('floating');
 			expect(settings.notificationsInApp).toBe(true);
 			expect(settings.view).toBe('board');
 		});
@@ -58,7 +57,6 @@ describe('settings.svelte.ts', () => {
 				kata_column_style: 'minimal',
 				kata_mist: 'false',
 				kata_accent: '#1A6B8A',
-				kata_chat_placement: 'side',
 				kata_notifications_inapp: 'false',
 				kata_view: 'roadmap',
 			});
@@ -69,7 +67,6 @@ describe('settings.svelte.ts', () => {
 			expect(settings.columnStyle).toBe('minimal');
 			expect(settings.mist).toBe(false);
 			expect(settings.accent).toBe('#1A6B8A');
-			expect(settings.chatPlacement).toBe('side');
 			expect(settings.notificationsInApp).toBe(false);
 			expect(settings.view).toBe('roadmap');
 		});
@@ -81,7 +78,6 @@ describe('settings.svelte.ts', () => {
 				kata_theme: 'purple',
 				kata_density: 'huge',
 				kata_column_style: 'garbage',
-				kata_chat_placement: 'nowhere',
 				kata_view: 'kanban',
 			});
 			vi.stubGlobal('localStorage', storage);
@@ -89,7 +85,6 @@ describe('settings.svelte.ts', () => {
 			expect(settings.theme).toBe('light');
 			expect(settings.density).toBe('comfortable');
 			expect(settings.columnStyle).toBe('tray');
-			expect(settings.chatPlacement).toBe('floating');
 			expect(settings.view).toBe('board');
 		});
 
@@ -173,12 +168,6 @@ describe('settings.svelte.ts', () => {
 			mod.setAccent('#4A5568');
 			expect(mod.settings.accent).toBe('#4A5568');
 			expect(storage.store['kata_accent']).toBe('#4A5568');
-		});
-
-		it('setChatPlacement updates state and persists', () => {
-			mod.setChatPlacement('overlay');
-			expect(mod.settings.chatPlacement).toBe('overlay');
-			expect(storage.store['kata_chat_placement']).toBe('overlay');
 		});
 
 		it('setNotificationsInApp updates state and persists a stringified boolean', () => {

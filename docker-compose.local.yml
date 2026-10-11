@@ -1,3 +1,13 @@
+# Local preview of the production layout: ONE app container (SvelteKit + the Hono API
+# at /api, served on a single origin) plus Postgres. No Redis, no separate API/relay.
+#
+# Migrations are not run by the app on startup. The `migrate` service runs the same
+# image's `node migrate.js` (the command a Cloud Run Job uses) and must finish before
+# `web` starts.
+x-app-build: &app-build
+  context: .
+  dockerfile: Dockerfile
+
 services:
   postgres:
     image: postgres:18-alpine
@@ -14,116 +24,56 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
-
-  valkey:
-    image: valkey/valkey:8-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    image: kata-api:local
-    ports:
-      - "8787:8787"
-    environment:
-      NODE_ENV: production
-      PORT: "8787"
-      DATABASE_URL: "postgresql://kata:kata@postgres:5432/kata"
-      REDIS_URL: "redis://valkey:6379"
-      BETTER_AUTH_SECRET: "***REMOVED***"
-      BETTER_AUTH_URL: "http://localhost:8787"
-      GOOGLE_CLIENT_ID: "581143433345-ppc8men3sjfjb86brrsckvv4pg8oqbh8.apps.googleusercontent.com"
-      GOOGLE_CLIENT_SECRET: "***REMOVED***"
-      ALLOWED_DOMAINS: "hirokata.dev,edamama.ph,localhost"
-      ALLOWED_ORIGINS: "http://localhost:3000"
-      ATTACHMENTS_DIR: "/data/attachments"
-      MAX_ATTACHMENT_BYTES: "26214400"
-      RESEND_API_KEY: "***REMOVED***"
-      SENTRY_DSN: "https://6dca0d8f76424228f21cf76165f68e6f@o4511008752336896.ingest.us.sentry.io/4511472254124033"
-      S3_ACCESS_KEY_ID: "***REMOVED***"
-      S3_BUCKET: "balanced-tupperware-fn2lnt"
-      S3_ENDPOINT: "https://t3.storageapi.dev"
-      S3_REGION: "auto"
-      S3_SECRET_ACCESS_KEY: "***REMOVED***"
-    volumes:
-      - attachments:/data/attachments
-    depends_on:
-      postgres:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget --timeout=3 -qO- http://localhost:8787/healthz | grep -q 'ok' || exit 1"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
       start_period: 15s
     restart: unless-stopped
 
-  relay:
-    build:
-      context: .
-      dockerfile: apps/kata-relay-service/Dockerfile
-    image: kata-relay-service:local
-    ports:
-      - "8788:8787"
+  migrate:
+    build: *app-build
+    image: kata-web:local
+    command: ["node", "migrate.js"]
     environment:
-      NODE_ENV: production
-      PORT: "8787"
       DATABASE_URL: "postgresql://kata:kata@postgres:5432/kata"
-      REDIS_URL: "redis://valkey:6379"
-      BETTER_AUTH_SECRET: "***REMOVED***"
-      BETTER_AUTH_URL: "http://localhost:8787"
-      ALLOWED_ORIGINS: "http://localhost:3000"
-      ALLOWED_DOMAINS: "hirokata.dev,edamama.ph,localhost"
-      RESEND_API_KEY: "***REMOVED***"
-      SENTRY_DSN: "https://6dca0d8f76424228f21cf76165f68e6f@o4511008752336896.ingest.us.sentry.io/4511472254124033"
     depends_on:
       postgres:
         condition: service_healthy
-      valkey:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget --timeout=3 -qO- http://localhost:8787/healthz | grep -q 'ok' || exit 1"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 15s
-    restart: unless-stopped
+    restart: "no"
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        PUBLIC_API_URL: "http://localhost:8787"
+    build: *app-build
     image: kata-web:local
     ports:
       - "3000:3000"
     environment:
       NODE_ENV: production
       PORT: "3000"
-      PUBLIC_API_URL: "http://localhost:8787"
-      PUBLIC_REALTIME_URL: "http://localhost:8788"
-      API_URL: "http://api:8787"
+      # adapter-node: the public origin of the app (must match what the browser uses).
+      ORIGIN: "http://localhost:3000"
+      DATABASE_URL: "postgresql://kata:kata@postgres:5432/kata"
+      BETTER_AUTH_SECRET: "***REMOVED***"
+      # Same origin as ORIGIN: Better Auth is served by the app at /api/auth.
+      # The Google OAuth redirect URI to register is <BETTER_AUTH_URL>/api/auth/callback/google
+      BETTER_AUTH_URL: "http://localhost:3000"
+      GOOGLE_CLIENT_ID: "581143433345-ppc8men3sjfjb86brrsckvv4pg8oqbh8.apps.googleusercontent.com"
+      GOOGLE_CLIENT_SECRET: "***REMOVED***"
+      ALLOWED_DOMAINS: "hirokata.dev,localhost"
+      ATTACHMENTS_DIR: "/data/attachments"
+      MAX_ATTACHMENT_BYTES: "26214400"
+      RESEND_API_KEY: "***REMOVED***"
       PUBLIC_SENTRY_DSN: "https://4d22ac8e8d57ce38762b5d9a6bd83b6a@o4511008752336896.ingest.us.sentry.io/4511472254124032"
-    restart: unless-stopped
+    volumes:
+      - attachments:/data/attachments
     depends_on:
       postgres:
         condition: service_healthy
-      api:
-        condition: service_healthy
-      relay:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget --timeout=3 -qO- http://localhost:3000/healthz | grep -q 'ok' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
 
 volumes:
   # WARNING: PostgreSQL 18 cannot read a PG15 data directory.

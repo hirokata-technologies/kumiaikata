@@ -1,4 +1,3 @@
-import { env } from '$env/dynamic/public';
 import { apiFetch } from './client.js';
 import type { AttachmentResponse } from './types.js';
 
@@ -37,5 +36,5 @@ export function deleteAttachment(
  * Use in <a href> or <img src> — the server streams the file with correct headers.
  */
 export function attachmentDownloadUrl(attachmentId: string): string {
-	return `${env.PUBLIC_API_URL}/api/attachments/${attachmentId}`;
+	return `/api/attachments/${attachmentId}`;
 }

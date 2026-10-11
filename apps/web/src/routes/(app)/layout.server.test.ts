@@ -1,21 +1,13 @@
 // Integration test for REQ-001 US-3 AC1 / US-2 AC4: the (app) group's
-// shared shell load — auth guard, parallel cookie-forwarded fetch of
+// shared shell load — auth guard, parallel same-origin fetch of
 // stats/recent-projects/team, degrading to empty defaults on failure.
 //
-// This module imports `$env/dynamic/private`, a SvelteKit virtual module
-// the vitest config does not provide (no sveltekit() plugin in
-// vitest.config.ts — filed as BUG-004/BUG-007). Mocking it here, per test
-// file, is the established non-invasive workaround (mirrors
-// `$lib/api/kumiai/goals.test.ts`'s `$env/dynamic/public` mock). `fetch` is
-// the load event's 3rd-arg fetch, stubbed per test; `load()` is called
-// directly against a minimal fake RequestEvent, not through SvelteKit's
-// runtime.
+// `fetch` is the load event's 3rd-arg fetch, stubbed per test; `load()` is called
+// directly against a minimal fake RequestEvent, not through SvelteKit's runtime.
 
 import { describe, expect, it, vi } from 'vitest';
 import type { KumiaiStats, RecentProject } from '$lib/api/kumiai/types.js';
 import type { TeamInfo } from '$lib/api/types.js';
-
-vi.mock('$env/dynamic/private', () => ({ env: { API_URL: 'https://api.test' } }));
 
 const { load } = await import('./+layout.server.js');
 
@@ -62,16 +54,10 @@ function makeFetch(overrides: Record<string, () => Promise<Response>> = {}) {
 
 function makeEvent(overrides: {
 	user?: unknown;
-	cookie?: string;
 	fetch: ReturnType<typeof makeFetch>;
 }) {
 	return {
 		locals: { user: overrides.user },
-		request: {
-			headers: {
-				get: (name: string) => (name === 'cookie' ? (overrides.cookie ?? '') : null),
-			},
-		},
 		fetch: overrides.fetch,
 		url: { pathname: '/week' },
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -142,19 +128,15 @@ describe('(app)/+layout.server.ts — degrade on failure (US-2 AC4 edge case)', 
 	});
 });
 
-describe('(app)/+layout.server.ts — cookie forwarding', () => {
-	it('forwards the incoming request cookie header verbatim to all three outbound fetches', async () => {
+describe('(app)/+layout.server.ts — same-origin API calls', () => {
+	it('requests the three shell endpoints by relative path, so the load event fetch carries the session', async () => {
 		const fetchMock = makeFetch();
-		const event = makeEvent({
-			user: { id: 'u1', email: 'a@hirokata.dev' },
-			cookie: 'session=abc123',
-			fetch: fetchMock,
-		});
+		const event = makeEvent({ user: { id: 'u1', email: 'a@hirokata.dev' }, fetch: fetchMock });
 		await load(event);
-		expect(fetchMock).toHaveBeenCalledTimes(3);
-		for (const call of fetchMock.mock.calls) {
-			const init = call[1] as RequestInit;
-			expect((init.headers as Record<string, string>).cookie).toBe('session=abc123');
-		}
+		expect(fetchMock.mock.calls.map((call) => call[0]).sort()).toEqual([
+			'/api/kumiai/recent-projects',
+			'/api/kumiai/stats',
+			'/api/teams/mine',
+		]);
 	});
 });

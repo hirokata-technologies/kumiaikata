@@ -17,7 +17,7 @@ async function readToBuffer(stream: Readable): Promise<Buffer> {
 }
 
 /**
- * An in-memory StorageAdapter compatible with the real DiskStorage/S3Storage
+ * An in-memory StorageAdapter compatible with the real DiskStorage/GcsStorage
  * interfaces. All methods are vi.fn() spies so tests can assert call arguments.
  *
  * Usage in a test file:

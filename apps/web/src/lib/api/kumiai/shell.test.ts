@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('$env/dynamic/public', () => ({ env: { PUBLIC_API_URL: 'https://api.test' } }));
 
 const { getStats, searchWorkspace, listRecentProjects, touchRecentProject } =
 	await import('./shell.js');
@@ -27,21 +26,21 @@ describe('shell api client', () => {
 		const fetchMock = mockFetch(stats);
 		const result = await getStats();
 		expect(result).toEqual(stats);
-		expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/api/kumiai/stats');
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/kumiai/stats');
 	});
 
 	it('searchWorkspace URL-encodes the search term, including "&", "%" and spaces', async () => {
 		const fetchMock = mockFetch({ goals: [], projects: [], requirements: [] });
 		await searchWorkspace('50% off & more');
 		expect(fetchMock.mock.calls[0][0]).toBe(
-			'https://api.test/api/kumiai/search?q=50%25%20off%20%26%20more',
+			'/api/kumiai/search?q=50%25%20off%20%26%20more',
 		);
 	});
 
 	it('listRecentProjects issues a GET to /api/kumiai/recent-projects', async () => {
 		const fetchMock = mockFetch([]);
 		await listRecentProjects();
-		expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/api/kumiai/recent-projects');
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/kumiai/recent-projects');
 	});
 
 	it('touchRecentProject POSTs { projectId } and resolves to null on 204', async () => {
@@ -49,7 +48,7 @@ describe('shell api client', () => {
 		const result = await touchRecentProject('p1');
 		expect(result).toBeNull();
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/recent-projects');
+		expect(url).toBe('/api/kumiai/recent-projects');
 		expect(init.method).toBe('POST');
 		expect(init.body).toBe(JSON.stringify({ projectId: 'p1' }));
 	});

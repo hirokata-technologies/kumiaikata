@@ -1,5 +1,5 @@
-export const API = "http://localhost:8787";
-export const RELAY = "http://localhost:8788";
+// The API is served by the web app (same origin).
+export const API = "http://localhost:3000";
 
 export async function apiGet(
 	path: string,
