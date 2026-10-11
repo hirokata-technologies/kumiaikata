@@ -1,0 +1,14 @@
+{
+  "display_name": "kata-agents",
+  "description": "Kata AI Project Manager and AI Strategist.",
+  "service_account": "kata-agents-runtime@kumiaikata.iam.gserviceaccount.com",
+  "min_instances": 0,
+  "max_instances": 3,
+  "resource_limits": { "cpu": "1", "memory": "2Gi" },
+  "container_concurrency": 3,
+  "env_vars": {
+    "KATA_AGENTS_MODEL": "gemini-3.8-flash",
+    "KATA_AGENTS_MODEL_LOCATION": "global",
+    "KATA_AGENTS_THINKING_LEVEL": "HIGH"
+  }
+}
