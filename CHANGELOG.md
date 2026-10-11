@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- AI agents API (/api/agents): workspace-scoped sessions and streamed replies from the Project Manager and Strategist on Agent Runtime
+- Removed docker-compose.local.yml; local dev is `pnpm dev` with a Postgres container (`pnpm db:up`)
 - Removed Railway CI and IaC (publish-images, railway-config, .railway, Railway tests); CI now lints and type-checks web and API and runs package tests
 - Kata API and relay merged into the kumiai SvelteKit app (one container, same origin); Redis and BullMQ removed; Cloud SQL, Cloud Storage attachments and a migration job on Google Cloud
 - Removed the Minimax-based AI chat; only hirokata.dev may sign in

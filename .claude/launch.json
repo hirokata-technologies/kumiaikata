@@ -3,13 +3,9 @@
   "configurations": [
     {
       "name": "kata-local",
-      "runtimeExecutable": "docker",
+      "runtimeExecutable": "pnpm",
       "runtimeArgs": [
-        "compose",
-        "-f",
-        "docker-compose.local.yml",
-        "up",
-        "--build"
+        "dev"
       ],
       "port": 3000,
       "autoPort": false

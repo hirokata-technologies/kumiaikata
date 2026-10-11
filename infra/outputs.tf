@@ -18,11 +18,6 @@ output "deployer_service_account" {
   value       = google_service_account.agents_deployer.email
 }
 
-output "caller_service_account" {
-  description = "Service account the Kata API uses to call the agents."
-  value       = google_service_account.agents_caller.email
-}
-
 output "workload_identity_provider" {
   description = "Workload Identity provider for GitHub Actions. Set as the GCP_WORKLOAD_IDENTITY_PROVIDER GitHub Actions variable."
   value       = google_iam_workload_identity_pool_provider.github.name

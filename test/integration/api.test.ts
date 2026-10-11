@@ -17,6 +17,8 @@ describe("kata-api authentication enforcement", () => {
 		["GET", "/api/boards/team"],
 		["POST", "/api/boards"],
 		["GET", "/api/teams/mine"],
+		["GET", "/api/agents/sessions"],
+		["POST", "/api/agents/sessions"],
 	] as const;
 
 	for (const [method, path] of protectedRoutes) {

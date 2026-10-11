@@ -127,11 +127,11 @@ await expect.element(page.getByText("No results")).toBeInTheDocument();
 
 ## Two things that will cost you an afternoon otherwise
 
-- **Docker.** Running the suite inside a container without the Playwright browser installed
+- **Containers.** Running the suite inside a container without the Playwright browser installed
   will fail — Browser Mode needs a real Chromium binary (`playwright install chromium`), which
-  isn't part of the base container image. This affects the project's Docker preview flow
-  (`docker-compose.local.yml`); if you're testing inside that container, install the browser
-  first or run the test suite on the host instead.
+  isn't part of the base container image (for example the app's runtime image). Run the test
+  suite on the host, or install the browser first (`pnpm --filter @kata/web exec playwright
+  install chromium`). The `pnpm dev` preview runs on the host, so it is not affected.
 - **Browser-mode isolation is per file, not per test.** A component mounted by one test in a
   `*.svelte.test.ts` file stays in the DOM for the next test in the same file unless torn down.
   `vitest-setup-browser.ts` calls `cleanup()` from `@testing-library/svelte` in a global
