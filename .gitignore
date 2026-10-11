@@ -22,6 +22,10 @@ apps/web/.vitest-attachments
 .netlify
 .wrangler
 
+# Terraform
+infra/.terraform/
+*.tfplan
+
 # OS
 .DS_Store
 Thumbs.db
@@ -35,3 +39,6 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Local-disk attachments (dev)
+apps/web/.attachments

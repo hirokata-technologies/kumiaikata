@@ -1,5 +1,4 @@
 import * as Sentry from "@sentry/sveltekit";
-import { env } from "$env/dynamic/private";
 import { env as pub } from "$env/dynamic/public";
 import { sequence } from "@sveltejs/kit/hooks";
 import type { Handle, HandleServerError } from "@sveltejs/kit";
@@ -10,34 +9,30 @@ Sentry.init({
 	tracesSampleRate: 1.0,
 });
 
+/**
+ * Paths served entirely by the Hono app (it authenticates each request itself), so
+ * the session lookup here would only be a redundant database round trip.
+ */
+function skipsSession(pathname: string): boolean {
+	return pathname === "/healthz" || pathname === "/api" || pathname.startsWith("/api/");
+}
+
 const sessionHandle: Handle = async ({ event, resolve }) => {
-	const cookie = event.request.headers.get("cookie") ?? "";
-	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), 3000);
+	event.locals.user = null;
+	event.locals.session = null;
+	if (skipsSession(event.url.pathname)) return resolve(event);
+
 	try {
-		const res = await fetch(`${env.API_URL}/api/auth/get-session`, {
-			headers: { cookie },
-			signal: controller.signal,
-		});
-		if (res.ok) {
-			const data = await res.json();
-			event.locals.user = data?.user ?? null;
-			event.locals.session = data?.session ?? null;
-		} else {
-			event.locals.user = null;
-			event.locals.session = null;
-		}
+		// In-process lookup: the auth instance lives in this same server, so there is
+		// no network hop (and no cookie forwarding) between the page and Better Auth.
+		const { auth } = await import("@kata/api");
+		const data = await auth.api.getSession({ headers: event.request.headers });
+		event.locals.user = data?.user ?? null;
+		event.locals.session = data?.session ?? null;
 	} catch (err) {
-		// AbortError is expected when the 3-second timeout fires — don't report it.
-		if (!(err instanceof Error && err.name === "AbortError")) {
-			Sentry.captureException(err, {
-				extra: { url: event.url.pathname },
-			});
-		}
-		event.locals.user = null;
-		event.locals.session = null;
-	} finally {
-		clearTimeout(timeout);
+		Sentry.captureException(err, {
+			extra: { url: event.url.pathname },
+		});
 	}
 	return resolve(event);
 };

@@ -2,15 +2,9 @@
 // load — renders the project, degrades to a not-found state instead of
 // crashing, and best-effort touches recent-projects on success.
 //
-// This module imports `$env/dynamic/private`, a SvelteKit virtual module
-// the vitest config does not provide (no sveltekit() plugin — filed as
-// BUG-004/BUG-007). Mocking it here, per test file, is the established
-// non-invasive workaround. `load()` is called directly against a minimal
-// fake RequestEvent.
+// `load()` is called directly against a minimal fake RequestEvent.
 
 import { describe, expect, it, vi } from 'vitest';
-
-vi.mock('$env/dynamic/private', () => ({ env: { API_URL: 'https://api.test' } }));
 
 const { load } = await import('./+page.server.js');
 
@@ -20,14 +14,9 @@ function jsonResponse(body: unknown, ok = true) {
 	return { ok, json: async () => body } as Response;
 }
 
-function makeEvent(overrides: { id?: string; cookie?: string; fetch: ReturnType<typeof vi.fn> }) {
+function makeEvent(overrides: { id?: string; fetch: ReturnType<typeof vi.fn> }) {
 	return {
 		params: { id: overrides.id ?? 'p1' },
-		request: {
-			headers: {
-				get: (name: string) => (name === 'cookie' ? (overrides.cookie ?? '') : null),
-			},
-		},
 		fetch: overrides.fetch,
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	} as any;
@@ -73,19 +62,9 @@ describe('projects/[id]/+page.server.ts — recent-projects touch (US-2 AC2)', (
 		await load(makeEvent({ id: 'p1', fetch: fetchMock }));
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		const [postUrl, postInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-		expect(postUrl).toBe('https://api.test/api/kumiai/recent-projects');
+		expect(postUrl).toBe('/api/kumiai/recent-projects');
 		expect(postInit.method).toBe('POST');
 		expect(postInit.body).toBe(JSON.stringify({ projectId: 'p1' }));
-	});
-
-	it('forwards the request cookie header on the recent-projects POST', async () => {
-		const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
-			if (url.endsWith('/api/kumiai/projects/p1')) return jsonResponse(PROJECT_BODY);
-			return jsonResponse(null);
-		});
-		await load(makeEvent({ id: 'p1', cookie: 'session=xyz', fetch: fetchMock }));
-		const [, postInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-		expect((postInit.headers as Record<string, string>).cookie).toBe('session=xyz');
 	});
 
 	it('does not fail the page load when the recent-projects POST itself rejects (best-effort touch)', async () => {

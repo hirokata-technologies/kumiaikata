@@ -1,18 +1,11 @@
 import { env } from "../env.js";
 import { DiskStorage } from "./disk.js";
-import { S3Storage } from "./s3.js";
+import { GcsStorage } from "./gcs.js";
 
 export type { StorageAdapter } from "./adapter.js";
 export { DiskStorage } from "./disk.js";
-export { S3Storage } from "./s3.js";
+export { GcsStorage } from "./gcs.js";
 
-export const storage =
-	env.S3_ENDPOINT && env.S3_BUCKET && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY
-		? new S3Storage(
-				env.S3_BUCKET,
-				env.S3_ENDPOINT,
-				env.S3_REGION,
-				env.S3_ACCESS_KEY_ID,
-				env.S3_SECRET_ACCESS_KEY,
-			)
-		: new DiskStorage(env.ATTACHMENTS_DIR);
+export const storage = env.GCS_BUCKET
+	? new GcsStorage(env.GCS_BUCKET)
+	: new DiskStorage(env.ATTACHMENTS_DIR);

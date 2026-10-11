@@ -60,31 +60,6 @@ export interface DisplayColumn extends KataColumn {
 	doneCount?: number;
 }
 
-export type ProposalType = 'create' | 'move' | 'description';
-
-export interface Proposal {
-	type: ProposalType;
-	summary: string;
-	card?: KataCard;
-	columnId?: string;
-	cardId?: string;
-	toColumnId?: string;
-	text?: string;
-}
-
-export type MessagePart =
-	| { kind: 'text'; text: string; streamed: boolean }
-	| { kind: 'proposal'; proposal: Proposal; accepted?: boolean; rejected?: boolean }
-	| { kind: 'tool_status'; tool: string; status: 'calling' | 'done' | 'error' };
-
-export interface ChatMessage {
-	id: string;
-	role: 'user' | 'ai';
-	text?: string;
-	parts?: MessagePart[];
-}
-
-export type ChatPlacement = 'side' | 'floating' | 'overlay';
 export type Density = 'compact' | 'comfortable' | 'spacious';
 export type ColumnStyle = 'tray' | 'flat';
 
@@ -92,7 +67,6 @@ export interface AppSettings {
 	dark: boolean;
 	accent: string;
 	density: Density;
-	chat_placement: ChatPlacement;
 	column_style: ColumnStyle;
 	mist: boolean;
 }

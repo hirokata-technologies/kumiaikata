@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { eq, and } from "drizzle-orm";
 
-// Mock storage before any service imports to avoid disk/S3 I/O in tests.
+// Mock storage before any service imports to avoid disk/GCS I/O in tests.
 vi.mock("../../src/storage/index.js", () => ({
 	storage: {
 		put: vi.fn().mockResolvedValue(undefined),

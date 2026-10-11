@@ -6,7 +6,6 @@
 		setColumnStyle,
 		setMist,
 		setAccent,
-		setChatPlacement,
 		setNotificationsInApp,
 	} from '$lib/settings.svelte.js';
 	import { ACCENT_PRESETS } from '$lib/accent-presets.js';
@@ -187,29 +186,6 @@
 
 			<div class="sm-sep" role="separator"></div>
 
-			<!-- ─── Chat ─── -->
-			<section class="sm-section">
-				<h3 class="sm-section-heading">Chat</h3>
-				<div class="sm-field">
-					<span class="sm-field-label">Default placement</span>
-					<div class="hkbg" role="group" aria-label="Chat placement">
-						{#each [{ value: 'floating', label: 'Floating' }, { value: 'side', label: 'Side panel' }, { value: 'overlay', label: 'Overlay' }] as option (option.value)}
-							<button
-								class="hkbg-item"
-								class:is-active={settings.chatPlacement === option.value}
-								aria-pressed={settings.chatPlacement === option.value}
-								onclick={() => setChatPlacement(option.value as 'floating' | 'side' | 'overlay')}
-							>
-								{option.label}
-							</button>
-						{/each}
-					</div>
-					<p class="sm-hint">Takes effect when chat next opens</p>
-				</div>
-			</section>
-
-			<div class="sm-sep" role="separator"></div>
-
 			<!-- ─── Notifications ─── -->
 			<section class="sm-section">
 				<h3 class="sm-section-heading">Notifications</h3>
@@ -365,12 +341,6 @@
 	.sm-field-label {
 		font: 500 12px var(--font-sans);
 		color: var(--fg-2);
-	}
-
-	.sm-hint {
-		font: 400 12px var(--font-sans);
-		color: var(--fg-4);
-		margin: 0;
 	}
 
 	/* Segmented control — mirrors TopBar .hkbg / .hkbg-item */

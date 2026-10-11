@@ -97,7 +97,6 @@ export default defineRailway((_ctx, project) => {
 		regions: { [REGION]: 1 },
 		env: {
 			API_URL: preserve(),
-			MINIMAX_API_KEY: preserve(),
 			NODE_ENV: preserve(),
 			PORT: preserve(),
 			PUBLIC_API_URL: preserve(),

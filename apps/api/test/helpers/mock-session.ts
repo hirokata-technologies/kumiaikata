@@ -1,7 +1,7 @@
 /**
  * Auth test helpers.
  *
- * The actual vi.mock for better-auth and @kata/events is registered in
+ * The actual vi.mock for better-auth is registered in
  * test/setup-mocks.ts (a vitest setupFile). It must live there so it is in
  * place before the test file's static imports resolve — vi.mock inside a
  * regular function cannot be hoisted past ESM import statements.

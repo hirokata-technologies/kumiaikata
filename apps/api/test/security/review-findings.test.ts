@@ -46,13 +46,12 @@ import { deleteColumn } from "../../src/services/columns.js";
 import { uploadAttachment } from "../../src/services/attachments.js";
 import { DiskStorage } from "../../src/storage/disk.js";
 import app from "../../src/app.js";
-// sse.ts was migrated out of app.ts (into the relay service) — import it directly
-// so the integration test can mount it in a miniApp without the full app.
+// Import sse.ts directly so the integration test can mount it in a miniApp
+// without the full app.
 import sseRouter from "../../src/routes/sse.js";
-// card-assignees and other services emit on the @kata/events bus (mocked in setup-mocks.ts).
-import { eventBus } from "@kata/events";
-// sse.ts subscribes on the local in-process bus — spy on this for SSE tests.
-import { eventBus as localEventBus } from "../../src/events/bus.js";
+// Services and sse.ts share this in-process bus — spy on it for emit/subscribe tests.
+import { eventBus } from "../../src/events/bus.js";
+const localEventBus = eventBus;
 
 mockBetterAuth();
 

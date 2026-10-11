@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Sparkles, X, Trash2 } from '@lucide/svelte';
+	import { X, Trash2 } from '@lucide/svelte';
 	import type { BoardState, KataCard, MemberInfo } from '$lib/types.js';
 	import { deepCloneColumns, getPresetDate } from '$lib/data.js';
 	import {
@@ -25,7 +25,6 @@
 		cardId,
 		state: boardState,
 		onClose,
-		onAsk,
 		onStateChange,
 		boardMembers = [],
 		membersLoading = false,
@@ -35,7 +34,6 @@
 		cardId: string;
 		state: BoardState;
 		onClose: () => void;
-		onAsk: (prefix: string) => void;
 		onStateChange: (s: BoardState) => void;
 		boardMembers?: MemberInfo[];
 		membersLoading?: boolean;
@@ -348,10 +346,7 @@
 					<span class="modal-id">#{card.id}</span>
 				</div>
 				<div class="modal-head-actions">
-					<button class="chat-iconbtn" onclick={() => onAsk(`/draft @${card.title.split(' ').slice(0,3).join('-').toLowerCase()}`)} title="Ask AI about this card">
-						<Sparkles size={16} />
-					</button>
-					<button class="chat-iconbtn" onclick={onClose} title="Close">
+					<button class="icon-btn" onclick={onClose} title="Close">
 						<X size={16} />
 					</button>
 				</div>
@@ -665,7 +660,7 @@
 		gap: 4px;
 	}
 
-	.chat-iconbtn {
+	.icon-btn {
 		width: 30px;
 		height: 30px;
 		display: inline-flex;
@@ -679,7 +674,7 @@
 		transition: all 140ms;
 	}
 
-	.chat-iconbtn:hover {
+	.icon-btn:hover {
 		background: var(--paper-1);
 		color: var(--fg-1);
 	}

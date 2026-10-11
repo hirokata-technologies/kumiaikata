@@ -20,6 +20,7 @@ export default tseslint.config(...rootConfig, {
 					'src/routes/*.test.ts',
 					'src/routes/kumiai/*.test.ts',
 					'src/services/*.test.ts',
+					'src/storage/*.test.ts',
 				],
 				maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 30,
 			},

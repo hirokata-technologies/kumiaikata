@@ -15,15 +15,20 @@ export const auth = betterAuth({
 	}),
 	secret: env.BETTER_AUTH_SECRET,
 	baseURL: env.BETTER_AUTH_URL,
+	// The app and the API share one origin (BETTER_AUTH_URL), which Better Auth
+	// trusts implicitly; ALLOWED_ORIGINS only adds extras such as a local dev server.
 	trustedOrigins: env.ALLOWED_ORIGINS,
+	// Session cookies are host-only: no crossSubDomainCookies, so they are never
+	// sent to other *.hirokata.dev hosts.
 	advanced: {
-		crossSubDomainCookies: {
-			enabled: true,
-			domain: "hirokata.dev",
-		},
 		ipAddress: {
 			ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
 		},
+	},
+	// OAuth and verification failures redirect to the login page (`?error=<code>`)
+	// instead of Better Auth's built-in /api/auth/error page.
+	onAPIError: {
+		errorURL: "/login",
 	},
 	socialProviders: {
 		google: {

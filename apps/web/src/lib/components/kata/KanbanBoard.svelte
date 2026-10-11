@@ -19,7 +19,6 @@
 		query,
 		columnStyle,
 		showMist,
-		glowCardIds,
 		boardLabels,
 		boardProjects,
 		boardMembers,
@@ -35,7 +34,6 @@
 		query: string;
 		columnStyle: string;
 		showMist: boolean;
-		glowCardIds: Set<string>;
 		boardLabels: KataLabel[];
 		boardProjects: KataProject[];
 		boardMembers: MemberInfo[];
@@ -288,7 +286,6 @@
 				{density}
 				{query}
 				{columnStyle}
-				{glowCardIds}
 				{dragging}
 				{boardLabels}
 				{boardProjects}

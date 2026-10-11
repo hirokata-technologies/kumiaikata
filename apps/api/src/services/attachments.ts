@@ -4,7 +4,7 @@ import { db, newId } from "@kata/db";
 import { attachments, cards } from "@kata/db";
 import { AppError } from "@kata/http";
 import { storage } from "../storage/index.js";
-import { eventBus } from "@kata/events";
+import { eventBus } from "../events/bus.js";
 import {
 	fetchBoardWithMembership,
 	deriveAccess,

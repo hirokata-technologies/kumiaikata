@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('$env/dynamic/public', () => ({ env: { PUBLIC_API_URL: 'https://api.test' } }));
 
 const { listPlans, getPlan, createPlan, updatePlan, deletePlan } = await import('./plans.js');
 
@@ -21,13 +20,13 @@ describe('plans api client', () => {
 	it('listPlans issues a GET to /api/kumiai/plans', async () => {
 		const fetchMock = mockFetch([]);
 		await listPlans();
-		expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/api/kumiai/plans');
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/kumiai/plans');
 	});
 
 	it('getPlan issues a GET to /api/kumiai/plans/:id', async () => {
 		const fetchMock = mockFetch({ id: 'pl1' });
 		await getPlan('pl1');
-		expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/api/kumiai/plans/pl1');
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/kumiai/plans/pl1');
 	});
 
 	it('createPlan POSTs a serialized body', async () => {
@@ -40,7 +39,7 @@ describe('plans api client', () => {
 		const fetchMock = mockFetch({ id: 'pl1', ...input });
 		await createPlan(input);
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/plans');
+		expect(url).toBe('/api/kumiai/plans');
 		expect(init.method).toBe('POST');
 		expect(init.body).toBe(JSON.stringify(input));
 	});
@@ -49,7 +48,7 @@ describe('plans api client', () => {
 		const fetchMock = mockFetch({ id: 'pl1', approval: 'approved' });
 		await updatePlan('pl1', { approval: 'approved' });
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/plans/pl1');
+		expect(url).toBe('/api/kumiai/plans/pl1');
 		expect(init.method).toBe('PATCH');
 		expect(init.body).toBe(JSON.stringify({ approval: 'approved' }));
 	});
@@ -59,7 +58,7 @@ describe('plans api client', () => {
 		const result = await deletePlan('pl1');
 		expect(result).toBeNull();
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/plans/pl1');
+		expect(url).toBe('/api/kumiai/plans/pl1');
 		expect(init.method).toBe('DELETE');
 	});
 });

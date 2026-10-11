@@ -25,33 +25,21 @@ describe("GET /healthz", () => {
 	});
 });
 
-// ── GET / ──────────────────────────────────────────────────────────────────────
+// ── Removed startup behaviour ──────────────────────────────────────────────────
 
-describe("GET /", () => {
-	it("redirects to the login page when no error param is present", async () => {
+describe("single-origin app", () => {
+	it("does not serve a root redirect (SvelteKit owns every non-/api path)", async () => {
 		const res = await apiRequest("GET", "/");
-		// Hono returns 302 by default for c.redirect()
-		expect(res.status).toBe(302);
-
-		const location = res.headers.get("location");
-		expect(location).toBe("https://kata.hirokata.dev/login");
+		expect(res.status).toBe(404);
 	});
 
-	it("redirects to login with sanitized error param when ?error=access_denied", async () => {
-		const res = await apiRequest("GET", "/?error=access_denied");
-		expect(res.status).toBe(302);
-
-		const location = res.headers.get("location");
-		expect(location).toBe("https://kata.hirokata.dev/login?error=access_denied");
-	});
-
-	it("sanitizes error param by stripping non-word characters", async () => {
-		// Inject a param with special characters; sanitization keeps only word chars and hyphens
-		const res = await apiRequest("GET", "/?error=bad%3Cinput%3E");
-		expect(res.status).toBe(302);
-
-		const location = res.headers.get("location");
-		// Special chars stripped → "badinput"
-		expect(location).toContain("error=badinput");
+	it("does not answer CORS preflights (the API is same-origin only)", async () => {
+		const res = await apiRequest("OPTIONS", "/api/boards", {
+			headers: {
+				Origin: "https://example.com",
+				"Access-Control-Request-Method": "GET",
+			},
+		});
+		expect(res.headers.get("access-control-allow-origin")).toBeNull();
 	});
 });

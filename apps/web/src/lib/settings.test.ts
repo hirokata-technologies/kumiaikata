@@ -35,7 +35,6 @@ import { ACCENT_PRESETS, DEFAULT_ACCENT, type AccentPreset } from './accent-pres
 type Theme = 'light' | 'dark';
 type Density = 'compact' | 'comfortable' | 'spacious';
 type ColumnStyle = 'tray' | 'minimal';
-type ChatPlacement = 'floating' | 'side' | 'overlay';
 
 interface Settings {
 	theme: Theme;
@@ -43,7 +42,6 @@ interface Settings {
 	columnStyle: ColumnStyle;
 	mist: boolean;
 	accent: string;
-	chatPlacement: ChatPlacement;
 	notificationsInApp: boolean;
 }
 
@@ -53,7 +51,6 @@ const KEYS = {
 	columnStyle: 'kata_column_style',
 	mist: 'kata_mist',
 	accent: 'kata_accent',
-	chatPlacement: 'kata_chat_placement',
 	notificationsInApp: 'kata_notifications_inapp',
 } as const;
 
@@ -113,11 +110,6 @@ function initSettings(storage: StorageAdapter | null): Settings {
 		columnStyle: oneOf<ColumnStyle>(readRaw(KEYS.columnStyle, storage), ['tray', 'minimal'], 'tray'),
 		mist: parseBool(readRaw(KEYS.mist, storage), true),
 		accent: parseAccent(readRaw(KEYS.accent, storage)),
-		chatPlacement: oneOf<ChatPlacement>(
-			readRaw(KEYS.chatPlacement, storage),
-			['floating', 'side', 'overlay'],
-			'floating',
-		),
 		notificationsInApp: parseBool(readRaw(KEYS.notificationsInApp, storage), true),
 	};
 }
@@ -145,11 +137,6 @@ function setMist(v: boolean, state: Settings, storage: StorageAdapter | null): v
 function setAccent(v: string, state: Settings, storage: StorageAdapter | null): void {
 	state.accent = v;
 	writeRaw(KEYS.accent, v, storage);
-}
-
-function setChatPlacement(v: ChatPlacement, state: Settings, storage: StorageAdapter | null): void {
-	state.chatPlacement = v;
-	writeRaw(KEYS.chatPlacement, v, storage);
 }
 
 function setNotificationsInApp(v: boolean, state: Settings, storage: StorageAdapter | null): void {
@@ -188,7 +175,6 @@ function makeDefaultSettings(): Settings {
 		columnStyle: 'tray',
 		mist: true,
 		accent: DEFAULT_ACCENT,
-		chatPlacement: 'floating',
 		notificationsInApp: true,
 	};
 }
@@ -417,10 +403,6 @@ describe('initSettings — defaults when localStorage is empty (US-9.2)', () => 
 		expect(initSettings(storage).accent).toBe('#2E3A6B');
 	});
 
-	it('defaults chatPlacement to "floating" — US-7 AC-5', () => {
-		expect(initSettings(storage).chatPlacement).toBe('floating');
-	});
-
 	it('defaults notificationsInApp to true — US-8 AC-5', () => {
 		expect(initSettings(storage).notificationsInApp).toBe(true);
 	});
@@ -466,16 +448,6 @@ describe('initSettings — reads stored values from localStorage (US-9 AC-1)', (
 		expect(initSettings(s).accent).toBe('#B07D2A');
 	});
 
-	it('reads chatPlacement "side" from storage', () => {
-		const s = makeStorage({ kata_chat_placement: 'side' });
-		expect(initSettings(s).chatPlacement).toBe('side');
-	});
-
-	it('reads chatPlacement "overlay" from storage', () => {
-		const s = makeStorage({ kata_chat_placement: 'overlay' });
-		expect(initSettings(s).chatPlacement).toBe('overlay');
-	});
-
 	it('reads notificationsInApp=false from storage', () => {
 		const s = makeStorage({ kata_notifications_inapp: 'false' });
 		expect(initSettings(s).notificationsInApp).toBe(false);
@@ -505,11 +477,6 @@ describe('initSettings — corrupted or invalid values fall back to defaults (US
 	it('falls back to mist=true for unrecognised mist string', () => {
 		const s = makeStorage({ kata_mist: 'yes' });
 		expect(initSettings(s).mist).toBe(true);
-	});
-
-	it('falls back to chatPlacement "floating" for unrecognised placement', () => {
-		const s = makeStorage({ kata_chat_placement: 'bottom' });
-		expect(initSettings(s).chatPlacement).toBe('floating');
 	});
 
 	it('falls back to notificationsInApp=true for unrecognised value', () => {
@@ -702,33 +669,6 @@ describe('setAccent — state mutation and storage write', () => {
 });
 
 // ---------------------------------------------------------------------------
-// setChatPlacement — updates state and writes correct localStorage key (US-7)
-// ---------------------------------------------------------------------------
-
-describe('setChatPlacement — state mutation and storage write', () => {
-	it('updates state.chatPlacement to "side"', () => {
-		const storage = makeStorage();
-		const state = makeDefaultSettings();
-		setChatPlacement('side', state, storage);
-		expect(state.chatPlacement).toBe('side');
-	});
-
-	it('updates state.chatPlacement to "overlay"', () => {
-		const storage = makeStorage();
-		const state = makeDefaultSettings();
-		setChatPlacement('overlay', state, storage);
-		expect(state.chatPlacement).toBe('overlay');
-	});
-
-	it('writes placement value to kata_chat_placement key', () => {
-		const storage = makeStorage();
-		const state = makeDefaultSettings();
-		setChatPlacement('side', state, storage);
-		expect(storage.store[KEYS.chatPlacement]).toBe('side');
-	});
-});
-
-// ---------------------------------------------------------------------------
 // setNotificationsInApp — boolean serialized as "true"/"false" string (US-8)
 // ---------------------------------------------------------------------------
 
@@ -851,14 +791,6 @@ describe('setters — each setter writes only its own localStorage key', () => {
 		expect(storage.setItemMock).toHaveBeenCalledWith(KEYS.accent, '#1A6B8A');
 	});
 
-	it('setChatPlacement writes only kata_chat_placement', () => {
-		const storage = makeStorage();
-		const state = makeDefaultSettings();
-		setChatPlacement('overlay', state, storage);
-		expect(storage.setItemMock).toHaveBeenCalledOnce();
-		expect(storage.setItemMock).toHaveBeenCalledWith(KEYS.chatPlacement, 'overlay');
-	});
-
 	it('setNotificationsInApp writes only kata_notifications_inapp', () => {
 		const storage = makeStorage();
 		const state = makeDefaultSettings();
@@ -951,10 +883,6 @@ describe('settings.svelte.ts — structural audit', () => {
 		expect(settingsSource).toContain("'kata_accent'");
 	});
 
-	it('uses kata_chat_placement as the localStorage key for chat placement', () => {
-		expect(settingsSource).toContain("'kata_chat_placement'");
-	});
-
 	it('uses kata_notifications_inapp as the localStorage key for notifications', () => {
 		expect(settingsSource).toContain("'kata_notifications_inapp'");
 	});
@@ -977,10 +905,6 @@ describe('settings.svelte.ts — structural audit', () => {
 
 	it('exports setAccent function', () => {
 		expect(settingsSource).toContain('export function setAccent');
-	});
-
-	it('exports setChatPlacement function', () => {
-		expect(settingsSource).toContain('export function setChatPlacement');
 	});
 
 	it('exports setNotificationsInApp function', () => {
@@ -1023,9 +947,5 @@ describe('settings.svelte.ts — structural audit', () => {
 
 	it('exports ColumnStyle type', () => {
 		expect(settingsSource).toContain('export type ColumnStyle');
-	});
-
-	it('exports ChatPlacement type', () => {
-		expect(settingsSource).toContain('export type ChatPlacement');
 	});
 });

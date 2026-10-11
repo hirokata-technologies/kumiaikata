@@ -1,12 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// apiFetch (in ../client.js) imports `$env/dynamic/public`, a SvelteKit virtual module
-// the vitest config does not provide (no sveltekit() plugin in vitest.config.ts — it is
-// a separate config from vite.config.ts). Mocking it here, per test file, is the
-// non-invasive workaround: it does not touch vitest.config.ts or client.ts, both out of
-// this ticket's file set.
-vi.mock('$env/dynamic/public', () => ({ env: { PUBLIC_API_URL: 'https://api.test' } }));
-
 const { listGoals, getGoal, createGoal, updateGoal, deleteGoal } = await import('./goals.js');
 const { ApiError } = await import('../client.js');
 
@@ -40,14 +33,14 @@ describe('goals api client', () => {
 		expect(result).toEqual([goal]);
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/goals');
+		expect(url).toBe('/api/kumiai/goals');
 		expect(init.method).toBeUndefined();
 	});
 
 	it('getGoal issues a GET to /api/kumiai/goals/:id', async () => {
 		const fetchMock = mockFetch({ id: 'g1' });
 		await getGoal('g1');
-		expect(fetchMock.mock.calls[0][0]).toBe('https://api.test/api/kumiai/goals/g1');
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/kumiai/goals/g1');
 	});
 
 	it('createGoal POSTs a serialized body', async () => {
@@ -55,7 +48,7 @@ describe('goals api client', () => {
 		const fetchMock = mockFetch({ id: 'g2', ...input });
 		await createGoal(input);
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/goals');
+		expect(url).toBe('/api/kumiai/goals');
 		expect(init.method).toBe('POST');
 		expect(init.body).toBe(JSON.stringify(input));
 	});
@@ -64,7 +57,7 @@ describe('goals api client', () => {
 		const fetchMock = mockFetch({ id: 'g1', title: 'Renamed' });
 		await updateGoal('g1', { title: 'Renamed' });
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/goals/g1');
+		expect(url).toBe('/api/kumiai/goals/g1');
 		expect(init.method).toBe('PATCH');
 		expect(init.body).toBe(JSON.stringify({ title: 'Renamed' }));
 	});
@@ -74,7 +67,7 @@ describe('goals api client', () => {
 		const result = await deleteGoal('g1');
 		expect(result).toBeNull();
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('https://api.test/api/kumiai/goals/g1');
+		expect(url).toBe('/api/kumiai/goals/g1');
 		expect(init.method).toBe('DELETE');
 	});
 

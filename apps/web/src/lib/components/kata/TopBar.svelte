@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Search, X, Sparkles } from '@lucide/svelte';
+	import { Search, X } from '@lucide/svelte';
 	import MeMenu from './MeMenu.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
 	import WorkspaceSwitcher from './WorkspaceSwitcher.svelte';
@@ -12,9 +12,6 @@
 		onquery,
 		density,
 		ondensity,
-		chatVisible,
-		onOpenChat,
-		chatPlacement = 'side',
 		isDark = false,
 		ontoggle,
 		workspace,
@@ -29,9 +26,6 @@
 		onquery: (q: string) => void;
 		density: string;
 		ondensity: (d: string) => void;
-		chatVisible: boolean;
-		onOpenChat: () => void;
-		chatPlacement?: string;
 		isDark?: boolean;
 		ontoggle?: () => void;
 		workspace: Workspace;
@@ -111,13 +105,6 @@
 				>{densityLabels[d]}</button>
 			{/each}
 		</div>
-
-		{#if !chatVisible && chatPlacement !== 'floating'}
-			<button class="hkb hkb-secondary" onclick={onOpenChat}>
-				<Sparkles class="hkb-i" size={16} />
-				Assistant
-			</button>
-		{/if}
 
 		{#if ontoggle}
 			<ThemeToggle {isDark} ontoggle={ontoggle} />
@@ -262,36 +249,6 @@
 	.search-clear:hover {
 		background: var(--paper-3);
 		color: var(--fg-1);
-	}
-
-	.hkb {
-		font: 500 14px/1 var(--font-sans);
-		border-radius: 8px;
-		border: 1px solid transparent;
-		cursor: pointer;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
-		padding: 8px 14px;
-		transition: all 140ms;
-		white-space: nowrap;
-	}
-
-	.hkb-secondary {
-		background: var(--paper-0);
-		color: var(--fg-1);
-		border-color: var(--line-3);
-	}
-
-	.hkb-secondary:hover {
-		background: var(--paper-1);
-	}
-
-	.hkb :global(svg) {
-		width: 16px;
-		height: 16px;
-		flex-shrink: 0;
 	}
 
 	.hkbg {
