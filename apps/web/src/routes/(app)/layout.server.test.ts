@@ -71,6 +71,24 @@ describe('(app)/+layout.server.ts — auth guard (US-3 AC1)', () => {
 	});
 });
 
+describe('(app)/+layout.server.ts — onboarding gate', () => {
+	it('redirects 303 to /onboarding when the user has not finished onboarding', async () => {
+		const event = makeEvent({
+			user: { id: 'u1', email: 'a@hirokata.dev', isOnboardingDone: false },
+			fetch: makeFetch(),
+		});
+		await expect(load(event)).rejects.toMatchObject({ status: 303, location: '/onboarding' });
+	});
+
+	it('lets an onboarded user through', async () => {
+		const event = makeEvent({
+			user: { id: 'u1', email: 'a@hirokata.dev', isOnboardingDone: true },
+			fetch: makeFetch(),
+		});
+		await expect(load(event)).resolves.toBeDefined();
+	});
+});
+
 describe('(app)/+layout.server.ts — happy path', () => {
 	it('returns { user, stats, recentProjects, team } from the JSON bodies when all three fetches succeed', async () => {
 		const user = { id: 'u1', email: 'a@hirokata.dev' };

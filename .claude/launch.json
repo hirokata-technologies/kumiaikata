@@ -13,15 +13,6 @@
       ],
       "port": 3000,
       "autoPort": false
-    },
-    {
-      "name": "kata-dev",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "dev"
-      ],
-      "port": 3000,
-      "autoPort": false
     }
   ]
 }

@@ -11,6 +11,8 @@ import { apiRequest, apiRequestRaw } from "../../test/helpers/request.js";
 import { clearMockStorage, mockStorage } from "../../test/helpers/mock-storage.js";
 import { seedUser } from "../../test/helpers/seed.js";
 import { AppError } from "../http/error.js";
+import { db, users } from "@kata/db";
+import { eq } from "drizzle-orm";
 
 mockBetterAuth();
 
@@ -211,5 +213,25 @@ describe("GET /api/users/:userId/avatar", () => {
 		const res = await apiRequest("GET", `/api/users/${user.id}/avatar`);
 		expect(res.status).toBe(200);
 		expect(res.headers.get("Content-Type")).toBe("application/octet-stream");
+	});
+});
+
+// ── POST /api/users/me/onboarding/complete ────────────────────────────────────
+
+describe("POST /api/users/me/onboarding/complete", () => {
+	it("returns 401 when no session", async () => {
+		const res = await apiRequest("POST", "/api/users/me/onboarding/complete");
+		expect(res.status).toBe(401);
+	});
+
+	it("flags the caller as onboarded", async () => {
+		const user = await seedUser();
+		setCurrentUser({ id: user.id, email: user.email });
+
+		const res = await apiRequest("POST", "/api/users/me/onboarding/complete");
+		expect(res.status).toBe(200);
+
+		const [row] = await db.select({ done: users.isOnboardingDone }).from(users).where(eq(users.id, user.id));
+		expect(row?.done).toBe(true);
 	});
 });
