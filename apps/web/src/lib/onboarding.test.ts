@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFINED_LEVELS, EXAMPLES, GENERATED_LEVELS, canAdvance, tipsFor } from './onboarding';
+import { AUTOMATIC_LEVELS, DISCUSSED_LEVELS, EXAMPLES, ROLE, canAdvance, tipsFor } from './onboarding';
 
 const base = { pm: null, ai: null, goal: '', hasExample: false, keptCount: 3, approved: false, structureRead: true };
 
@@ -37,7 +37,7 @@ describe('canAdvance', () => {
 
 describe('tipsFor', () => {
 	it('adapts the step 1 tip to PM experience', () => {
-		expect(tipsFor(1, true, false)[0].title).toBe('Start with the goal');
+		expect(tipsFor(1, true, false)[0].title).toBe('Start with the outcome');
 		expect(tipsFor(1, false, false)[0].title).toBe('What differs here');
 	});
 
@@ -53,16 +53,26 @@ describe('tipsFor', () => {
 });
 
 describe('LEVELS', () => {
-	it('has the user define only the goal and project, in that order', () => {
-		expect(DEFINED_LEVELS.map((l) => l.name)).toEqual(['Goal', 'Project']);
+	it('discusses only the goal and project with the user', () => {
+		expect(DISCUSSED_LEVELS.map((l) => l.name)).toEqual(['Goal', 'Project']);
 	});
 
-	it('leaves requirements, plans and tasks to the PM and Strategist', () => {
-		expect(GENERATED_LEVELS.map((l) => [l.name, l.by])).toEqual([
+	it('creates requirements, plans and tasks automatically', () => {
+		expect(AUTOMATIC_LEVELS.map((l) => [l.name, l.by])).toEqual([
 			['Requirement', 'Project Manager'],
 			['Plan', 'Strategist'],
 			['Task', 'Strategist'],
 		]);
+	});
+
+	it('has every level created by the Project Manager and Strategist', () => {
+		for (const l of [...DISCUSSED_LEVELS, ...AUTOMATIC_LEVELS]) expect(l.by).toMatch(/Project Manager|Strategist/);
+	});
+});
+
+describe('ROLE', () => {
+	it('walks the user through discuss, review, approve', () => {
+		expect(ROLE.map((r) => r.title)).toEqual(['Discuss', 'Review', 'Approve']);
 	});
 });
 
