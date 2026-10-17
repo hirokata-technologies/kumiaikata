@@ -26,6 +26,8 @@ async function fetchShellJson<T>(fetchFn: typeof fetch, path: string): Promise<T
 export const load: LayoutServerLoad = async ({ locals, fetch, url }) => {
 	const user = locals.user;
 	if (!user) redirect(303, "/login");
+	// Strict `=== false`: a session without the field must not trap the user in the guide.
+	if (user.isOnboardingDone === false) redirect(303, "/onboarding");
 
 	// Reading `url.pathname` registers a dependency on the current URL, so this load
 	// re-runs on every navigation within the (app) group — that is what keeps the
