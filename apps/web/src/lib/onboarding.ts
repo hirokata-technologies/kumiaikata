@@ -34,6 +34,9 @@ export const STEPS = [
 
 export const LAST_STEP = STEPS.length - 1;
 
+/** Seconds the user has to spend on "How work is structured" before Continue unlocks. */
+export const STRUCTURE_READ_SECONDS = 10;
+
 export const TITLES = [
 	'Set up your workspace',
 	'How work is structured',
@@ -46,12 +49,18 @@ export const TITLES = [
 ] as const;
 
 export const LEVELS = [
-	{ name: 'Goal', q: 'why', desc: 'The outcome you want. Measurable, with a date.', eg: 'Cut first response to 2 hours by Q4' },
-	{ name: 'Project', q: 'what', desc: 'A body of work that moves a goal.', eg: 'Automated ticket triage' },
-	{ name: 'Requirement', q: 'what exactly', desc: 'One thing the project must deliver. Testable.', eg: 'Classify tickets by topic and urgency' },
-	{ name: 'Plan', q: 'how', desc: 'The approach to one requirement. Needs your approval.', eg: 'Classifier trained on past tickets' },
-	{ name: 'Task', q: 'who', desc: 'A unit of work an agent picks up.', eg: 'Train and serve the classifier' },
+	{ name: 'Goal', q: 'why', by: null, desc: 'The outcome you want. Measurable, with a date.', eg: 'Cut first response to 2 hours by Q4' },
+	{ name: 'Project', q: 'what', by: null, desc: 'A body of work that moves a goal.', eg: 'Automated ticket triage' },
+	{ name: 'Requirement', q: 'what exactly', by: 'Project Manager', desc: 'One thing the project must deliver. Testable.', eg: 'Classify tickets by topic and urgency' },
+	{ name: 'Plan', q: 'how', by: 'Strategist', desc: 'The approach to one requirement. Needs your approval.', eg: 'Classifier trained on past tickets' },
+	{ name: 'Task', q: 'who', by: 'Strategist', desc: 'A unit of work an agent picks up.', eg: 'Train and serve the classifier' },
 ] as const;
+
+/** The two levels the user defines, in the order they are defined. */
+export const DEFINED_LEVELS = LEVELS.filter((l) => l.by === null);
+
+/** The levels the Project Manager and Strategist create from a project. */
+export const GENERATED_LEVELS = LEVELS.filter((l) => l.by !== null);
 
 export const TEAM = [
 	{ ini: 'You', name: 'You', role: 'Owner', does: 'Set goals and priorities. Approve every plan.', bg: 'var(--paper-2)', fg: 'var(--fg-1)' },
@@ -142,8 +151,8 @@ export function tipsFor(step: number, novicePM: boolean, noviceAI: boolean): Onb
 	switch (step) {
 		case 1:
 			return novicePM
-				? [tip('Why five levels', 'Each level answers a different question. Keeping them apart stops a goal from turning into a to-do list.')]
-				: [tip('What differs here', 'Plans are their own level, with an approval gate. Agents only pick up tasks from approved plans.')];
+				? [tip('Start with the goal', 'Define the outcome you want first, then a project that moves it. Keeping them apart stops a goal from turning into a to-do list.')]
+				: [tip('What differs here', 'You only define goals and projects. Plans have an approval gate: agents only pick up tasks from approved plans.')];
 		case 2:
 			return noviceAI ? [tip("Review, don't redo", 'The AI drafts, you correct. Editing a draft is faster than writing from scratch.')] : [];
 		case 3:
@@ -177,11 +186,21 @@ export function tipsFor(step: number, novicePM: boolean, noviceAI: boolean): Onb
 /** Whether the user may move on from `step` given their answers so far. */
 export function canAdvance(
 	step: number,
-	s: { pm: number | null; ai: number | null; goal: string; hasExample: boolean; keptCount: number; approved: boolean },
+	s: {
+		pm: number | null;
+		ai: number | null;
+		goal: string;
+		hasExample: boolean;
+		keptCount: number;
+		approved: boolean;
+		structureRead: boolean;
+	},
 ): boolean {
 	switch (step) {
 		case 0:
 			return s.pm != null && s.ai != null;
+		case 1:
+			return s.structureRead;
 		case 3:
 			return s.hasExample && !!s.goal;
 		case 5:

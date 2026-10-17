@@ -6,12 +6,14 @@
 		AI_LABELS,
 		EXAMPLES,
 		LAST_STEP,
-		LEVELS,
+		DEFINED_LEVELS,
+		GENERATED_LEVELS,
 		PM_DESCS,
 		PM_LABELS,
 		PRIORITIES,
 		SPLIT,
 		STEPS,
+		STRUCTURE_READ_SECONDS,
 		TARGETS,
 		TEAM,
 		TITLES,
@@ -31,6 +33,7 @@
 	let revOpen = $state(false);
 	let revText = $state('');
 	let rev = $state('');
+	let readLeft = $state(STRUCTURE_READ_SECONDS);
 	let finishing = $state(false);
 	let error = $state('');
 
@@ -44,12 +47,22 @@
 	const planNote = $derived(rev ? `Revised for your note "${rev}". ${plan.note}` : plan.note);
 	const tips = $derived(tipsFor(step, novicePM, noviceAI));
 	const canNext = $derived(
-		canAdvance(step, { pm, ai, goal, hasExample: exIdx != null, keptCount: keptReqs.length, approved }),
+		canAdvance(step, {
+			pm,
+			ai,
+			goal,
+			hasExample: exIdx != null,
+			keptCount: keptReqs.length,
+			approved,
+			structureRead: readLeft === 0,
+		}),
 	);
 
 	const subs = $derived([
 		'Two questions. Setup adjusts to your answers.',
-		novicePM ? 'Five levels, from why down to who.' : 'Goal → project → requirement → plan → task.',
+		novicePM
+			? 'You define two things: a goal and a project. Your AI team creates the rest.'
+			: 'You define the goal and project. The PM and Strategist create the rest.',
 		'Two AI leads and a roster of agents. You make the calls.',
 		'Pick one to try, or write your own. The PM will sharpen it.',
 		'The PM proposed a project for this goal. Set priority and a target.',
@@ -73,6 +86,16 @@
 		{ k: 'Plan', v: `${plan.title} (approved, ${plan.tasks.length} tasks released)` },
 	]);
 
+	// Counts down only while step 2 is on screen; once it hits zero it stays unlocked.
+	$effect(() => {
+		if (step !== 1 || readLeft === 0) return;
+		const id = setInterval(() => {
+			readLeft -= 1;
+			if (readLeft === 0) clearInterval(id);
+		}, 1000);
+		return () => clearInterval(id);
+	});
+
 	function go(n: number) {
 		step = Math.max(0, Math.min(LAST_STEP, n));
 	}
@@ -85,6 +108,7 @@
 		target = 1;
 		kept = [true, true, true];
 		approved = revOpen = false;
+		readLeft = STRUCTURE_READ_SECONDS;
 		revText = rev = '';
 	}
 
@@ -201,19 +225,42 @@
 						</div>
 					</div>
 				{:else if step === 1}
-					<div class="levels">
-						{#each LEVELS as l (l.name)}
-							<div class="level">
-								<div>
-									<div class="level-name">{l.name}</div>
-									<div class="mono-sm">{l.q}</div>
-								</div>
-								<div>
-									<div class="level-desc">{l.desc}</div>
-									{#if novicePM}<div class="eg">e.g. {l.eg}</div>{/if}
-								</div>
+					<div class="stack-24">
+						<section>
+							<div class="eyebrow group-label">You define</div>
+							<div class="levels">
+								{#each DEFINED_LEVELS as l, i (l.name)}
+									<div class="level">
+										<div>
+											<div class="level-name">{l.name}</div>
+											<div class="mono-sm">{l.q}</div>
+										</div>
+										<div>
+											<div class="level-desc"><span class="order">{i + 1}</span>{l.desc}</div>
+											{#if novicePM}<div class="eg">e.g. {l.eg}</div>{/if}
+										</div>
+									</div>
+								{/each}
 							</div>
-						{/each}
+						</section>
+						<section>
+							<div class="eyebrow group-label">Created for you</div>
+							<div class="levels generated">
+								{#each GENERATED_LEVELS as l (l.name)}
+									<div class="level">
+										<div>
+											<div class="level-name">{l.name}</div>
+											<div class="mono-sm">{l.q}</div>
+										</div>
+										<div>
+											<div class="level-desc">{l.desc}</div>
+											<div class="by">Created by the {l.by}</div>
+											{#if novicePM}<div class="eg">e.g. {l.eg}</div>{/if}
+										</div>
+									</div>
+								{/each}
+							</div>
+						</section>
 					</div>
 				{:else if step === 2}
 					<div class="stack-24">
@@ -395,7 +442,7 @@
 			{/if}
 			<span class="grow"></span>
 			<button type="button" class="btn-primary next" disabled={!canNext || finishing} onclick={next}>
-				{step === LAST_STEP ? 'Open workspace' : 'Continue'}
+				{step === LAST_STEP ? 'Open workspace' : step === 1 && readLeft > 0 ? `Continue in ${readLeft}s` : 'Continue'}
 				<ArrowRight size={16} />
 			</button>
 		</footer>
@@ -671,6 +718,29 @@
 	.level-desc {
 		font: 400 14px/1.5 var(--font-sans);
 		color: var(--fg-2);
+	}
+	.group-label {
+		margin-bottom: 8px;
+	}
+	.order {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 18px;
+		height: 18px;
+		margin-right: 8px;
+		border-radius: 50%;
+		background: var(--ink-0);
+		color: var(--paper-0);
+		font: 600 11px var(--font-sans);
+	}
+	.generated .level-name {
+		color: var(--fg-2);
+	}
+	.by {
+		margin-top: 6px;
+		font: 400 12px var(--font-mono);
+		color: var(--fg-3);
 	}
 	.eg {
 		margin-top: 6px;
