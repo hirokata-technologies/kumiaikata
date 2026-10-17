@@ -7,7 +7,8 @@ declare global {
 			eventId?: string;
 		}
 		interface Locals {
-			user: User | null;
+			// `isOnboardingDone` is a Better Auth additionalField (see apps/api/src/auth/better-auth.ts).
+			user: (User & { isOnboardingDone?: boolean | null }) | null;
 			session: Session | null;
 		}
 		// interface PageData {}
