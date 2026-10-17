@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { eq, and } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@kata/db";
-import { teamMembers } from "@kata/db";
+import { teamMembers, users } from "@kata/db";
 import { requireSession } from "../auth/middleware.js";
 import { validateId } from "../http/validate.js";
 import { ok } from "../http/responders.js";
@@ -38,6 +38,14 @@ r.post("/me/avatar", requireSession, async (c) => {
 
 	const { imageUrl } = await uploadUserAvatar({ user: c.get("user"), file });
 	return ok(c, { imageUrl });
+});
+
+// POST /api/users/me/onboarding/complete
+// The only way to flag onboarding as done: Better Auth's updateUser rejects the field.
+r.post("/me/onboarding/complete", requireSession, async (c) => {
+	const user = c.get("user");
+	await db.update(users).set({ isOnboardingDone: true }).where(eq(users.id, user.id));
+	return ok(c, { isOnboardingDone: true });
 });
 
 // GET /api/users/:userId/avatar

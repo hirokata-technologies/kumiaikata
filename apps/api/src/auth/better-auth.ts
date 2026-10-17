@@ -85,7 +85,9 @@ export const auth = betterAuth({
 	user: {
 		additionalFields: {
 			personalBoardId: { type: 'string', required: false },
-			isOnboardingDone: { type: 'boolean', required: false, defaultValue: false },
+			// `input: false` rejects client writes (sign-up and updateUser); the flag is only set by
+			// POST /api/users/me/onboarding/complete.
+			isOnboardingDone: { type: 'boolean', required: false, defaultValue: false, input: false },
 		},
 	},
 	databaseHooks: {
