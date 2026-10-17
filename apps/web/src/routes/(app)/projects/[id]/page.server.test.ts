@@ -29,7 +29,28 @@ describe('projects/[id]/+page.server.ts — success path', () => {
 			return jsonResponse(null); // recent-projects POST
 		});
 		const result = await load(makeEvent({ fetch: fetchMock }));
-		expect(result).toEqual({ notFound: false, project: PROJECT_BODY });
+		expect(result).toMatchObject({ notFound: false, project: PROJECT_BODY });
+	});
+
+	it('also returns the joined workspace the detail view renders requirements from', async () => {
+		const goal = { id: 'g1', title: 'Goal' };
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url.endsWith('/api/kumiai/projects/p1')) return jsonResponse(PROJECT_BODY);
+			if (url.endsWith('/api/kumiai/goals')) return jsonResponse([goal]);
+			if (url.startsWith('/api/kumiai/')) return jsonResponse([]);
+			return jsonResponse(null);
+		});
+		const result = await load(makeEvent({ fetch: fetchMock }));
+		expect(result).toMatchObject({ failed: false, workspace: { goals: [goal], tasks: [] } });
+	});
+
+	it('flags failed: true instead of throwing when the workspace lists cannot be loaded', async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url.endsWith('/api/kumiai/projects/p1')) return jsonResponse(PROJECT_BODY);
+			return jsonResponse(null, false);
+		});
+		const result = await load(makeEvent({ fetch: fetchMock }));
+		expect(result).toMatchObject({ notFound: false, failed: true });
 	});
 });
 
@@ -60,8 +81,9 @@ describe('projects/[id]/+page.server.ts — recent-projects touch (US-2 AC2)', (
 			return jsonResponse(null);
 		});
 		await load(makeEvent({ id: 'p1', fetch: fetchMock }));
-		expect(fetchMock).toHaveBeenCalledTimes(2);
-		const [postUrl, postInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+		const posts = fetchMock.mock.calls.filter(([url]) => url === '/api/kumiai/recent-projects');
+		expect(posts).toHaveLength(1);
+		const [postUrl, postInit] = posts[0] as [string, RequestInit];
 		expect(postUrl).toBe('/api/kumiai/recent-projects');
 		expect(postInit.method).toBe('POST');
 		expect(postInit.body).toBe(JSON.stringify({ projectId: 'p1' }));
@@ -73,6 +95,6 @@ describe('projects/[id]/+page.server.ts — recent-projects touch (US-2 AC2)', (
 			throw new Error('touch failed');
 		});
 		const result = await load(makeEvent({ id: 'p1', fetch: fetchMock }));
-		expect(result).toEqual({ notFound: false, project: PROJECT_BODY });
+		expect(result).toMatchObject({ notFound: false, project: PROJECT_BODY });
 	});
 });
