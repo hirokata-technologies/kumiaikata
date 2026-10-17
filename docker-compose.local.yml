@@ -1,0 +1,117 @@
+# Local environment: everything Kata needs to run on one machine.
+#
+#   postgres  Postgres 18, the only datastore (sessions, boards, auth, everything)
+#   migrate   one-shot `node migrate.js`; the app does not migrate on startup
+#   web       the single app container: SvelteKit + the Hono API at /api + Better Auth,
+#             on one origin. Attachments are stored on the `attachments` volume.
+#
+#   docker compose -f docker-compose.local.yml up --build -d
+#   open http://localhost:3000
+#   docker compose -f docker-compose.local.yml down        # keep data
+#   docker compose -f docker-compose.local.yml down -v     # wipe the database and attachments
+#
+# It boots with no configuration. Settings come from the shell or a git-ignored `.env`
+# next to this file; never put real secrets in this tracked file. Without real values
+# the placeholders below keep the app up, but those features do not work:
+#
+#   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET   Google sign-in. In the Google Cloud console,
+#                                             register <BETTER_AUTH_URL>/api/auth/callback/google
+#                                             (http://localhost:3000/api/auth/callback/google).
+#   RESEND_API_KEY                            verification and password-reset emails.
+#   BETTER_AUTH_SECRET                        has a fixed dev-only default; set your own to
+#                                             keep it private.
+#
+# Optional, off by default:
+#   PORT, KATA_DB_PORT                        published host ports (3000 / 5432)
+#   ALLOWED_DOMAINS                           sign-in email domains (hirokata.dev,edamama.ph,localhost)
+#   MAX_ATTACHMENT_BYTES                      upload limit (25 MiB)
+#   PUBLIC_SENTRY_DSN                         Sentry
+#   GCS_BUCKET, AGENT_RUNTIME_NAME            Cloud Storage and the AI agents. Both are Google Cloud
+#                                             services and need Application Default Credentials
+#                                             inside the container, which this file does not provide.
+#                                             Without them attachments use the volume and /api/agents
+#                                             answers 503.
+#
+# Not run here on purpose: apps/agents (Python/ADK) is deployed to Vertex AI Agent Runtime
+# and has no local server; apps/mcp is a client that you run on the host against this app.
+x-app-build: &app-build
+  context: .
+  dockerfile: Dockerfile
+
+x-database-url: &database-url "postgresql://kata:kata@postgres:5432/kata"
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    ports:
+      - "${KATA_DB_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: kata
+      POSTGRES_PASSWORD: kata
+      POSTGRES_DB: kata
+    volumes:
+      # Postgres 18 keeps its data in a versioned subdirectory of /var/lib/postgresql.
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kata -d kata"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  migrate:
+    build: *app-build
+    image: kata-web:local
+    command: ["node", "migrate.js"]
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build: *app-build
+    image: kata-web:local
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      # The browser-facing origin. adapter-node's CSRF check and Better Auth's OAuth
+      # callbacks both need it to match the URL you open. Change them together with PORT.
+      ORIGIN: "${ORIGIN:-http://localhost:3000}"
+      BETTER_AUTH_URL: "${BETTER_AUTH_URL:-http://localhost:3000}"
+      DATABASE_URL: *database-url
+      BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:-local-dev-only-secret-change-me-0123456789abcdef}"
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-dev-placeholder}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-dev-placeholder}"
+      RESEND_API_KEY: "${RESEND_API_KEY:-dev-placeholder}"
+      ALLOWED_DOMAINS: "${ALLOWED_DOMAINS:-hirokata.dev,edamama.ph,localhost}"
+      ATTACHMENTS_DIR: /data/attachments
+      MAX_ATTACHMENT_BYTES: "${MAX_ATTACHMENT_BYTES:-26214400}"
+      PUBLIC_SENTRY_DSN: "${PUBLIC_SENTRY_DSN:-}"
+      PUBLIC_ENV: local
+      GCS_BUCKET: "${GCS_BUCKET:-}"
+      AGENT_RUNTIME_NAME: "${AGENT_RUNTIME_NAME:-}"
+    volumes:
+      - attachments:/data/attachments
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # /healthz answers {"ok":true,"db":true}, and 503 when Postgres is unreachable.
+      # 127.0.0.1, not localhost: Alpine resolves localhost to ::1, where the app does not listen.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/healthz | grep -q '\"ok\":true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  attachments:
