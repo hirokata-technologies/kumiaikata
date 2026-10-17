@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { Check, ArrowLeft, ArrowRight } from '@lucide/svelte';
-	import { authClient } from '$lib/auth-client';
 	import {
 		AI_DESCS,
 		AI_LABELS,
@@ -103,14 +102,16 @@
 		else if (exIdx === 'custom') exIdx = null;
 	}
 
-	/** Flags the user as onboarded, then leaves the guide. Used by both "Open workspace" and "Skip". */
+	/** Flags the user as onboarded, then leaves the guide. Only reachable from the last step ("Open workspace"); onboarding cannot be skipped. */
 	async function finish() {
 		if (finishing) return;
 		finishing = true;
 		error = '';
-		const { error: err } = await authClient.updateUser({ isOnboardingDone: true });
-		if (err) {
-			error = err.message ?? 'Could not save your progress. Try again.';
+		try {
+			const res = await fetch('/api/users/me/onboarding/complete', { method: 'POST' });
+			if (!res.ok) throw new Error();
+		} catch {
+			error = 'Could not save your progress. Try again.';
 			finishing = false;
 			return;
 		}
@@ -391,9 +392,6 @@
 				<button type="button" class="btn-outline" onclick={() => go(step - 1)}>
 					<ArrowLeft size={16} /> Back
 				</button>
-			{/if}
-			{#if step < LAST_STEP}
-				<button type="button" class="link skip" disabled={finishing} onclick={finish}>Skip setup</button>
 			{/if}
 			<span class="grow"></span>
 			<button type="button" class="btn-primary next" disabled={!canNext || finishing} onclick={next}>
@@ -975,9 +973,6 @@
 	.link:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
-	}
-	.skip {
-		color: var(--fg-3);
 	}
 	.tailor .link {
 		margin-top: 8px;
