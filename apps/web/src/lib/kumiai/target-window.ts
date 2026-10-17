@@ -1,6 +1,6 @@
 import type { TargetWindow, TargetWindowKind } from './types.js';
 
-const MONTH_NAMES = [
+export const MONTH_NAMES = [
 	'January',
 	'February',
 	'March',
