@@ -85,6 +85,7 @@ export const auth = betterAuth({
 	user: {
 		additionalFields: {
 			personalBoardId: { type: 'string', required: false },
+			isOnboardingDone: { type: 'boolean', required: false, defaultValue: false },
 		},
 	},
 	databaseHooks: {

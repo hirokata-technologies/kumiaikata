@@ -11,6 +11,8 @@ export const users = pgTable("users", {
 	// Application-added field — declared as additionalFields in better-auth.ts.
 	// No .references() to avoid circular FK with boards.
 	personalBoardId: text("personal_board_id"),
+	// Set once the user finishes (or skips) the onboarding guide.
+	isOnboardingDone: boolean("is_onboarding_done").notNull().default(false),
 });
 
 export const sessions = pgTable("sessions", {
