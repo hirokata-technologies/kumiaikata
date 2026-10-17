@@ -49,18 +49,25 @@ export const TITLES = [
 ] as const;
 
 export const LEVELS = [
-	{ name: 'Goal', q: 'why', by: null, desc: 'The outcome you want. Measurable, with a date.', eg: 'Cut first response to 2 hours by Q4' },
-	{ name: 'Project', q: 'what', by: null, desc: 'A body of work that moves a goal.', eg: 'Automated ticket triage' },
-	{ name: 'Requirement', q: 'what exactly', by: 'Project Manager', desc: 'One thing the project must deliver. Testable.', eg: 'Classify tickets by topic and urgency' },
-	{ name: 'Plan', q: 'how', by: 'Strategist', desc: 'The approach to one requirement. Needs your approval.', eg: 'Classifier trained on past tickets' },
-	{ name: 'Task', q: 'who', by: 'Strategist', desc: 'A unit of work an agent picks up.', eg: 'Train and serve the classifier' },
+	{ name: 'Goal', q: 'why', discussed: true, by: 'Project Manager and Strategist', desc: 'The outcome you want. Measurable, with a date.', eg: 'Cut first response to 2 hours by Q4' },
+	{ name: 'Project', q: 'what', discussed: true, by: 'Project Manager and Strategist', desc: 'A body of work that moves a goal.', eg: 'Automated ticket triage' },
+	{ name: 'Requirement', q: 'what exactly', discussed: false, by: 'Project Manager', desc: 'One thing the project must deliver. Testable.', eg: 'Classify tickets by topic and urgency' },
+	{ name: 'Plan', q: 'how', discussed: false, by: 'Strategist', desc: 'The approach to one requirement. Needs your approval.', eg: 'Classifier trained on past tickets' },
+	{ name: 'Task', q: 'who', discussed: false, by: 'Strategist', desc: 'A unit of work an agent picks up.', eg: 'Train and serve the classifier' },
 ] as const;
 
-/** The two levels the user defines, in the order they are defined. */
-export const DEFINED_LEVELS = LEVELS.filter((l) => l.by === null);
+/** Goal and project: talked through with the user first, then written up by the Project Manager and Strategist. */
+export const DISCUSSED_LEVELS = LEVELS.filter((l) => l.discussed);
 
-/** The levels the Project Manager and Strategist create from a project. */
-export const GENERATED_LEVELS = LEVELS.filter((l) => l.by !== null);
+/** Requirement, plan and task: created by the Project Manager and Strategist without a discussion. */
+export const AUTOMATIC_LEVELS = LEVELS.filter((l) => !l.discussed);
+
+/** The user's part in getting work started: they never write a goal or project themselves. */
+export const ROLE = [
+	{ title: 'Discuss', body: 'Tell the Project Manager and Strategist what you want to achieve. They ask questions until it is clear.' },
+	{ title: 'Review', body: 'They write up the goal and project for you. Read them and ask for as many revisions as you need.' },
+	{ title: 'Approve', body: 'Approve when it is right. Nothing is built until you do.' },
+] as const;
 
 export const TEAM = [
 	{ ini: 'You', name: 'You', role: 'Owner', does: 'Set goals and priorities. Approve every plan.', bg: 'var(--paper-2)', fg: 'var(--fg-1)' },
@@ -151,8 +158,8 @@ export function tipsFor(step: number, novicePM: boolean, noviceAI: boolean): Onb
 	switch (step) {
 		case 1:
 			return novicePM
-				? [tip('Start with the goal', 'Define the outcome you want first, then a project that moves it. Keeping them apart stops a goal from turning into a to-do list.')]
-				: [tip('What differs here', 'You only define goals and projects. Plans have an approval gate: agents only pick up tasks from approved plans.')];
+				? [tip('Start with the outcome', 'Describe what you want to change, not how to build it. The Project Manager and Strategist turn that into a goal and a project.')]
+				: [tip('What differs here', 'You do not write goals or projects. They are drafted from your discussion; you revise and approve. Agents only pick up tasks from approved plans.')];
 		case 2:
 			return noviceAI ? [tip("Review, don't redo", 'The AI drafts, you correct. Editing a draft is faster than writing from scratch.')] : [];
 		case 3:

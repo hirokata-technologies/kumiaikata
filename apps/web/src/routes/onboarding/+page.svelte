@@ -6,11 +6,12 @@
 		AI_LABELS,
 		EXAMPLES,
 		LAST_STEP,
-		DEFINED_LEVELS,
-		GENERATED_LEVELS,
+		AUTOMATIC_LEVELS,
+		DISCUSSED_LEVELS,
 		PM_DESCS,
 		PM_LABELS,
 		PRIORITIES,
+		ROLE,
 		SPLIT,
 		STEPS,
 		STRUCTURE_READ_SECONDS,
@@ -61,8 +62,8 @@
 	const subs = $derived([
 		'Two questions. Setup adjusts to your answers.',
 		novicePM
-			? 'You define two things: a goal and a project. Your AI team creates the rest.'
-			: 'You define the goal and project. The PM and Strategist create the rest.',
+			? 'You talk it through with your AI team. They create the work. You review and approve.'
+			: 'Discuss, review, approve. The PM and Strategist create the work.',
 		'Two AI leads and a roster of agents. You make the calls.',
 		'Pick one to try, or write your own. The PM will sharpen it.',
 		'The PM proposed a project for this goal. Set priority and a target.',
@@ -150,6 +151,20 @@
 	}
 </script>
 
+{#snippet level(l: (typeof DISCUSSED_LEVELS)[number] | (typeof AUTOMATIC_LEVELS)[number])}
+	<div class="level">
+		<div>
+			<div class="level-name">{l.name}</div>
+			<div class="mono-sm">{l.q}</div>
+		</div>
+		<div>
+			<div class="level-desc">{l.desc}</div>
+			<div class="by">Created by the {l.by}</div>
+			{#if novicePM}<div class="eg">e.g. {l.eg}</div>{/if}
+		</div>
+	</div>
+{/snippet}
+
 <svelte:head>
 	<title>Set up your workspace · Kumiaikata</title>
 </svelte:head>
@@ -227,37 +242,32 @@
 				{:else if step === 1}
 					<div class="stack-24">
 						<section>
-							<div class="eyebrow group-label">You define</div>
+							<div class="eyebrow group-label">Your part</div>
+							<ol class="role">
+								{#each ROLE as r, i (r.title)}
+									<li class="role-step">
+										<span class="order">{i + 1}</span>
+										<div>
+											<div class="role-title">{r.title}</div>
+											<div class="role-body">{r.body}</div>
+										</div>
+									</li>
+								{/each}
+							</ol>
+						</section>
+						<section>
+							<div class="eyebrow group-label">Discussed with you, then created</div>
 							<div class="levels">
-								{#each DEFINED_LEVELS as l, i (l.name)}
-									<div class="level">
-										<div>
-											<div class="level-name">{l.name}</div>
-											<div class="mono-sm">{l.q}</div>
-										</div>
-										<div>
-											<div class="level-desc"><span class="order">{i + 1}</span>{l.desc}</div>
-											{#if novicePM}<div class="eg">e.g. {l.eg}</div>{/if}
-										</div>
-									</div>
+								{#each DISCUSSED_LEVELS as l (l.name)}
+									{@render level(l)}
 								{/each}
 							</div>
 						</section>
 						<section>
-							<div class="eyebrow group-label">Created for you</div>
-							<div class="levels generated">
-								{#each GENERATED_LEVELS as l (l.name)}
-									<div class="level">
-										<div>
-											<div class="level-name">{l.name}</div>
-											<div class="mono-sm">{l.q}</div>
-										</div>
-										<div>
-											<div class="level-desc">{l.desc}</div>
-											<div class="by">Created by the {l.by}</div>
-											{#if novicePM}<div class="eg">e.g. {l.eg}</div>{/if}
-										</div>
-									</div>
+							<div class="eyebrow group-label">Created automatically</div>
+							<div class="levels">
+								{#each AUTOMATIC_LEVELS as l (l.name)}
+									{@render level(l)}
 								{/each}
 							</div>
 						</section>
@@ -722,19 +732,41 @@
 	.group-label {
 		margin-bottom: 8px;
 	}
+	.role {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 12px;
+	}
+	.role-step {
+		display: flex;
+		gap: 12px;
+		padding: 16px;
+		border: 1px solid var(--line-1);
+		border-radius: var(--radius-lg);
+		background: var(--paper-0);
+	}
 	.order {
+		flex-shrink: 0;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 18px;
-		height: 18px;
-		margin-right: 8px;
+		width: 22px;
+		height: 22px;
 		border-radius: 50%;
 		background: var(--ink-0);
 		color: var(--paper-0);
-		font: 600 11px var(--font-sans);
+		font: 600 12px var(--font-sans);
 	}
-	.generated .level-name {
+	.role-title {
+		font: 600 14px var(--font-sans);
+		color: var(--fg-1);
+	}
+	.role-body {
+		margin-top: 4px;
+		font: 400 13px/1.5 var(--font-sans);
 		color: var(--fg-2);
 	}
 	.by {
@@ -1078,6 +1110,9 @@
 		.level {
 			grid-template-columns: 1fr;
 			gap: 6px;
+		}
+		.role {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>
