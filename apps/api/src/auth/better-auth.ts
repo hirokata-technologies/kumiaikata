@@ -10,6 +10,7 @@ import {
 } from "./email-failure.js";
 import { provisionUser } from "./provisioning.js";
 import { sendEmail } from "../services/email.js";
+import { passwordResetEmailHtml, verificationEmailHtml } from "../services/email-templates.js";
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
@@ -55,7 +56,7 @@ export const auth = betterAuth({
 				await sendEmail({
 					to: user.email,
 					subject: "Reset your Kata password",
-					html: `<p>Click <a href="${url}">here</a> to reset your password.</p><p>This link expires in 1 hour.</p><p>If you did not request this, you can safely ignore this email.</p>`,
+					html: passwordResetEmailHtml(url),
 				});
 			} catch (err) {
 				console.error("[better-auth] sendResetPassword: failed to send email:", err instanceof Error ? err.message : String(err));
@@ -70,7 +71,7 @@ export const auth = betterAuth({
 				await sendEmail({
 					to: user.email,
 					subject: "Verify your Kata email address",
-					html: `<p>Click <a href="${url}">here</a> to verify your email address.</p><p>If you did not create an account, you can safely ignore this email.</p>`,
+					html: verificationEmailHtml(url),
 				});
 				clearEmailSendFailure(user.email);
 			} catch (err) {
