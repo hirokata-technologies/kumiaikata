@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { authClient } from '$lib/auth-client';
+	import { resendVerificationEmail } from '$lib/resend-verification';
 	import { page } from '$app/state';
 	import * as Sentry from '@sentry/sveltekit';
 
@@ -86,22 +87,13 @@
 	async function resendVerification() {
 		resendLoading = true;
 		resendError = null;
-		try {
-			const { error } = await authClient.sendVerificationEmail({
-				email: email.trim(),
-				callbackURL: '/login?verified=true',
-			});
-			if (error) {
-				resendError = 'Failed to send verification email. Please try again.';
-			} else {
-				resendSent = true;
-			}
-		} catch (err) {
-			Sentry.captureException(err);
-			resendError = 'Failed to send verification email. Please try again.';
-		} finally {
-			resendLoading = false;
+		const result = await resendVerificationEmail(email);
+		if (result.ok) {
+			resendSent = true;
+		} else {
+			resendError = result.message;
 		}
+		resendLoading = false;
 	}
 </script>
 

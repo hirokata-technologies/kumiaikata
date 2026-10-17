@@ -1,5 +1,10 @@
 <script lang="ts">
 	import { authClient } from '$lib/auth-client';
+	import {
+		EMAIL_SEND_FAILED,
+		RESEND_COOLDOWN_SECONDS,
+		resendVerificationEmail,
+	} from '$lib/resend-verification';
 	import * as Sentry from '@sentry/sveltekit';
 
 	const ERROR_MESSAGES: Record<string, string> = {
@@ -18,7 +23,41 @@
 	let errorCode = $state<string | null>(null);
 	let errorMessage = $state<string | null>(null);
 	let submitted = $state(false);
+	// The account exists but the API could not send the verification email.
+	let emailFailed = $state(false);
+	let resendLoading = $state(false);
+	let resendSent = $state(false);
+	let resendError = $state<string | null>(null);
+	let cooldown = $state(0);
+	let cooldownTimer: ReturnType<typeof setInterval> | undefined;
 	let touched = $state({ name: false, email: false, password: false });
+
+	$effect(() => () => clearInterval(cooldownTimer));
+
+	function startCooldown() {
+		clearInterval(cooldownTimer);
+		cooldown = RESEND_COOLDOWN_SECONDS;
+		cooldownTimer = setInterval(() => {
+			cooldown -= 1;
+			if (cooldown <= 0) clearInterval(cooldownTimer);
+		}, 1000);
+	}
+
+	async function resendVerification() {
+		if (resendLoading || cooldown > 0) return;
+		resendLoading = true;
+		resendError = null;
+		resendSent = false;
+		const result = await resendVerificationEmail(email);
+		if (result.ok) {
+			resendSent = true;
+			emailFailed = false;
+			startCooldown();
+		} else {
+			resendError = result.message;
+		}
+		resendLoading = false;
+	}
 
 	let nameError = $derived(touched.name && !name.trim() ? 'Name is required.' : null);
 
@@ -97,7 +136,12 @@
 				email: email.trim(),
 				password,
 			});
-			if (error) {
+			if (error?.code === EMAIL_SEND_FAILED) {
+				// The account was created; only the email failed, so offer to resend it.
+				emailFailed = true;
+				submitted = true;
+				Sentry.addBreadcrumb({ category: 'auth', message: 'Sign-up verification email failed to send', level: 'warning' });
+			} else if (error) {
 				errorCode = error.code ?? 'unknown';
 				errorMessage = ERROR_MESSAGES[errorCode] ?? GENERIC_ERROR;
 				Sentry.addBreadcrumb({ category: 'auth', message: `Email sign-up failed: ${errorCode}`, level: 'warning' });
@@ -131,10 +175,39 @@
 				</svg>
 			</div>
 			<div class="head">
-				<h1>Check your inbox.</h1>
-				<p>We've sent a verification email. Click the link to activate your account.</p>
+				{#if emailFailed}
+					<h1>Account created.</h1>
+					<p>We couldn't send the verification email. Resend it to activate your account.</p>
+				{:else}
+					<h1>Check your inbox.</h1>
+					<p>We've sent a verification email. Click the link to activate your account.</p>
+				{/if}
 			</div>
 			<span class="confirm-mail">{email.trim()}</span>
+
+			{#if resendError}
+				<p class="resend-note resend-note-error" role="alert">{resendError}</p>
+			{:else if resendSent}
+				<p class="resend-note" role="status">Verification email sent again.</p>
+			{/if}
+
+			<button
+				class="secondary"
+				type="button"
+				onclick={resendVerification}
+				disabled={resendLoading || cooldown > 0}
+			>
+				{#if resendLoading}
+					<span class="spinner spinner-dark" aria-hidden="true"></span>
+					Sending…
+				{:else if cooldown > 0}
+					Resend available in {cooldown}s
+				{:else if emailFailed}
+					Send verification email
+				{:else}
+					Didn't get it? Resend email
+				{/if}
+			</button>
 		</div>
 		<a class="primary" href="/login" style="text-decoration: none;">
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -577,7 +650,40 @@
 		flex-shrink: 0;
 	}
 
+	.spinner-dark {
+		border-color: var(--line-3);
+		border-top-color: var(--ink-0);
+	}
+
 	@keyframes spin { to { transform: rotate(360deg); } }
+
+	/* Secondary */
+	.secondary {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		width: 100%;
+		padding: 12px 18px;
+		border-radius: var(--radius-md);
+		border: 1px solid var(--line-3);
+		background: var(--paper-0);
+		color: var(--ink-0);
+		font: 500 14px/1 var(--font-sans);
+		cursor: pointer;
+		transition: background var(--dur-fast) var(--ease-out);
+	}
+
+	.secondary:hover:not(:disabled) { background: var(--paper-1); }
+	.secondary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+	.resend-note {
+		margin: 0;
+		font: 400 13px/1.5 var(--font-sans);
+		color: var(--fg-2);
+	}
+
+	.resend-note-error { color: var(--danger); }
 
 	.switch {
 		font: 400 13px var(--font-sans);
