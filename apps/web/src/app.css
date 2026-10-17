@@ -206,3 +206,23 @@ kbd {
   background: var(--accent-soft);
   color: var(--ink-0);
 }
+
+/* Kumiaikata buttons — shared by the planning views and their dialogs. */
+.k-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font: 500 14px var(--font-sans);
+  cursor: pointer;
+  text-decoration: none;
+}
+.k-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.k-btn-primary { background: var(--ink-0); color: var(--paper-0); }
+.k-btn-primary:hover:not(:disabled) { background: var(--ink-1); }
+.k-btn-secondary { background: var(--paper-0); color: var(--fg-1); border-color: var(--line-3); }
+.k-btn-secondary:hover:not(:disabled) { background: var(--paper-1); }
+.k-btn-sm { padding: 8px 12px; font-size: 13px; border-radius: 6px; }
