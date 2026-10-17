@@ -62,8 +62,18 @@ whole backend. `apps/api` is a library, not a server:
 
 ## Local development
 
-Needs Node 24, pnpm and Docker (only for the Postgres container). There is no compose file for
-development: the app runs on the host and Postgres runs as a single named container.
+Two ways to run it. `pnpm dev` (below) runs the app on the host with hot reload and Postgres as a
+single named container (needs Node 24, pnpm and Docker). To run the whole stack in containers
+(Postgres, migrations and the app image) use the local compose file:
+
+```bash
+docker compose -f docker-compose.local.yml up --build -d   # http://localhost:3000
+docker compose -f docker-compose.local.yml down -v         # stop and wipe database + attachments
+```
+
+It boots with placeholders; see the header of `docker-compose.local.yml` for the settings that
+need real values (Google sign-in, email) and for what is not included (Cloud Storage, AI agents).
+The app image is rebuilt on `--build`, so there is no hot reload.
 
 ```bash
 cp apps/web/.env.example apps/web/.env   # git-ignored; put real secrets here, never in tracked files
@@ -87,7 +97,8 @@ placeholders so the app still starts, but Google sign-in and email need real val
 | `pnpm db:migrate` | Apply `apps/api/drizzle` to `DATABASE_URL` (read from `apps/web/.env` if unset) |
 
 `KATA_DB_PORT` changes the published Postgres port. To run the production image locally, build
-it (below) or use `docker-compose.yml` against an existing Postgres.
+it (below), use `docker-compose.local.yml` (includes Postgres), or `docker-compose.yml` against an
+existing Postgres.
 
 ## Tests
 
