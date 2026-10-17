@@ -1,5 +1,6 @@
 import type { PageServerLoad } from "./$types";
 import type { Project } from "$lib/kumiai/types.js";
+import { loadWorkspace } from "$lib/kumiai/load.js";
 
 export const load: PageServerLoad = async ({ params, fetch }) => {
 	let project: Project | null = null;
@@ -28,5 +29,9 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
 		// Best-effort — a failed "touch" shouldn't break the page render.
 	}
 
-	return { notFound: false as const, project };
+	// The requirements, plans and tasks that hang off the project come from the same joined
+	// workspace every planning view reads.
+	const { workspace, failed } = await loadWorkspace(fetch);
+
+	return { notFound: false as const, project, workspace, failed };
 };
