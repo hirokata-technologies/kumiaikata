@@ -18,10 +18,15 @@ export async function sendEmail(options: {
 	subject: string;
 	html: string;
 }): Promise<void> {
-	await resend.emails.send({
+	// The SDK resolves with `{ data, error }` for API-level failures (invalid key, unverified
+	// sender domain, rate limit) instead of rejecting, so check `error` explicitly.
+	const { error } = await resend.emails.send({
 		from: FROM,
 		to: options.to,
 		subject: options.subject,
 		html: options.html,
 	});
+	if (error) {
+		throw new Error(`Resend rejected the email (${error.name}): ${error.message}`);
+	}
 }

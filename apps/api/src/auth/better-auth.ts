@@ -3,6 +3,11 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../db/client.js";
 import { env } from "../env.js";
 import { assertAllowedDomain } from "./domain-allowlist.js";
+import {
+	clearEmailSendFailure,
+	failedVerificationEmailHook,
+	markEmailSendFailed,
+} from "./email-failure.js";
 import { provisionUser } from "./provisioning.js";
 import { sendEmail } from "../services/email.js";
 
@@ -29,6 +34,9 @@ export const auth = betterAuth({
 	// instead of Better Auth's built-in /api/auth/error page.
 	onAPIError: {
 		errorURL: "/login",
+	},
+	hooks: {
+		after: failedVerificationEmailHook,
 	},
 	socialProviders: {
 		google: {
@@ -64,9 +72,11 @@ export const auth = betterAuth({
 					subject: "Verify your Kata email address",
 					html: `<p>Click <a href="${url}">here</a> to verify your email address.</p><p>If you did not create an account, you can safely ignore this email.</p>`,
 				});
+				clearEmailSendFailure(user.email);
 			} catch (err) {
 				console.error("[better-auth] sendVerificationEmail: failed to send email:", err instanceof Error ? err.message : String(err));
-				throw new Error("We couldn't send the email, please try again.");
+				// Better Auth swallows errors thrown here; flag the address so the response fails.
+				markEmailSendFailed(user.email);
 			}
 		},
 		sendOnSignUp: true,

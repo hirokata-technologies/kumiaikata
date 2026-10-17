@@ -130,6 +130,19 @@ describe("sendEmail", () => {
 		).rejects.toThrow("API key is invalid");
 	});
 
+	// The Resend SDK resolves with `{ data: null, error }` for API-level failures rather
+	// than rejecting, so sendEmail must turn that into a thrown error.
+	it("throws when Resend resolves with an error object (e.g. unverified sender domain)", async () => {
+		mockEmailsSend.mockResolvedValueOnce({
+			data: null,
+			error: { name: "validation_error", message: "The hirokata.dev domain is not verified." },
+		});
+
+		await expect(
+			sendEmail({ to: "user@example.com", subject: "Test", html: "<p>Test</p>" }),
+		).rejects.toThrow("The hirokata.dev domain is not verified.");
+	});
+
 	it("does not swallow errors — the original error instance propagates unchanged", async () => {
 		const originalError = new Error("Resend domain not verified");
 		mockEmailsSend.mockRejectedValueOnce(originalError);
