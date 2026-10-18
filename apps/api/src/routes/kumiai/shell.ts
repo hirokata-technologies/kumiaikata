@@ -11,10 +11,10 @@ const r = new Hono<{ Variables: KumiaiVariables }>();
 
 r.use("*", requireSession, loadTeamAccess);
 
-// GET /api/kumiai/stats
+// GET /api/kumiai/stats[?workspaceId=]
 r.get("/stats", async (c) => {
 	const teamId = c.get("kumiaiTeamId");
-	return ok(c, await getStats(teamId));
+	return ok(c, await getStats(teamId, c.req.query("workspaceId") || undefined));
 });
 
 // GET /api/kumiai/search?q=
@@ -24,11 +24,11 @@ r.get("/search", async (c) => {
 	return ok(c, await searchWorkspace(teamId, q));
 });
 
-// GET /api/kumiai/recent-projects
+// GET /api/kumiai/recent-projects[?workspaceId=]
 r.get("/recent-projects", async (c) => {
 	const teamId = c.get("kumiaiTeamId");
 	const user = c.get("user");
-	return ok(c, await listRecentProjects(teamId, user.id));
+	return ok(c, await listRecentProjects(teamId, user.id, c.req.query("workspaceId") || undefined));
 });
 
 // POST /api/kumiai/recent-projects

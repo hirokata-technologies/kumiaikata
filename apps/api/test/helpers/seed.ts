@@ -226,15 +226,47 @@ export async function seedLabel(
 export interface SeededKumiaiGoal {
 	id: string;
 	teamId: string;
+	workspaceId: string;
 	title: string;
 	body: string;
 	status: "todo" | "in-progress" | "done";
 	priority: number;
 }
 
+export interface SeededKumiaiWorkspace {
+	id: string;
+	teamId: string;
+	name: string;
+	isDefault: boolean;
+}
+
+/** Inserts a workspace; the team's default one unless `isDefault: false` is passed. */
+export async function seedKumiaiWorkspace(
+	teamId: string,
+	input?: { name?: string; isDefault?: boolean },
+): Promise<SeededKumiaiWorkspace> {
+	const isDefault = input?.isDefault ?? true;
+	const { rows } = await pool.query<SeededKumiaiWorkspace>(
+		`INSERT INTO kumiai_workspaces (id, team_id, name, is_default, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, now(), now())
+		 RETURNING id, team_id AS "teamId", name, is_default AS "isDefault"`,
+		[newId(), teamId, input?.name ?? (isDefault ? "default" : "Workspace"), isDefault],
+	);
+	return rows[0]!;
+}
+
+async function defaultWorkspaceId(teamId: string): Promise<string> {
+	const { rows } = await pool.query<{ id: string }>(
+		`SELECT id FROM kumiai_workspaces WHERE team_id = $1 AND is_default`,
+		[teamId],
+	);
+	return rows[0]?.id ?? (await seedKumiaiWorkspace(teamId)).id;
+}
+
 export async function seedKumiaiGoal(
 	teamId: string,
 	input?: {
+		workspaceId?: string;
 		title?: string;
 		body?: string;
 		status?: "todo" | "in-progress" | "done";
@@ -246,13 +278,14 @@ export async function seedKumiaiGoal(
 	const body = input?.body ?? "";
 	const status = input?.status ?? "todo";
 	const priority = input?.priority ?? 3;
+	const workspaceId = input?.workspaceId ?? (await defaultWorkspaceId(teamId));
 	const now = new Date();
 
 	const { rows } = await pool.query<SeededKumiaiGoal>(
-		`INSERT INTO kumiai_goals (id, team_id, title, body, status, priority, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-		 RETURNING id, team_id AS "teamId", title, body, status, priority`,
-		[id, teamId, title, body, status, priority, now],
+		`INSERT INTO kumiai_goals (id, team_id, workspace_id, title, body, status, priority, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+		 RETURNING id, team_id AS "teamId", workspace_id AS "workspaceId", title, body, status, priority`,
+		[id, teamId, workspaceId, title, body, status, priority, now],
 	);
 	return rows[0]!;
 }

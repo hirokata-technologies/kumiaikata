@@ -7,6 +7,7 @@ export * from "./projects.js";
 export * from "./cards.js";
 export * from "./labels.js";
 export * from "./attachments.js";
+export * from "./kumiai-workspaces.js";
 export * from "./kumiai-goals.js";
 export * from "./kumiai-projects.js";
 export * from "./kumiai-requirements.js";

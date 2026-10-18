@@ -6,6 +6,7 @@ export {
 	seedColumn,
 	seedCard,
 	seedLabel,
+	seedKumiaiWorkspace,
 	seedKumiaiGoal,
 	seedKumiaiProject,
 	seedKumiaiRequirement,
