@@ -33,6 +33,26 @@ export const EMPTY_WORKSPACE: Workspace = {
 	tasks: []
 };
 
+/**
+ * Narrows the team-wide lists to the goals they were fetched for: a project stays when its
+ * goal is in `ws.goals`, and requirements, plans and tasks follow their project. A requirement
+ * with no project belongs to no goal, so it belongs to no workspace and is dropped.
+ */
+export function scopeToGoals(ws: Workspace): Workspace {
+	const goalIds = new Set(ws.goals.map((g) => g.id));
+	const projects = ws.projects.filter((p) => goalIds.has(p.goalId));
+	const projectIds = new Set(projects.map((p) => p.id));
+	const requirements = ws.requirements.filter((r) => r.projectId !== null && projectIds.has(r.projectId));
+	const requirementIds = new Set(requirements.map((r) => r.id));
+	return {
+		goals: ws.goals,
+		projects,
+		requirements,
+		plans: ws.plans.filter((p) => requirementIds.has(p.requirementId)),
+		tasks: ws.tasks.filter((t) => requirementIds.has(t.requirementId))
+	};
+}
+
 function newest<T extends { updatedAt: string }>(rows: T[]): T | null {
 	let best: T | null = null;
 	for (const row of rows) if (!best || row.updatedAt > best.updatedAt) best = row;

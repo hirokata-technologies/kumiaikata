@@ -42,7 +42,7 @@
 		error = null;
 		try {
 			if (dialog.kind === 'goal') {
-				await addGoal(values.title, values.priority);
+				await addGoal(values.title, values.priority, data.activeWorkspaceId);
 			} else {
 				await addProject({
 					goalId: dialog.goalId,

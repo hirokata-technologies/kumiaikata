@@ -39,6 +39,8 @@ export interface RecentProject {
 }
 
 export interface CreateGoalInput {
+	/** The team's default workspace when omitted. */
+	workspaceId?: string;
 	title: string;
 	body?: string;
 	status: GoalStatus;

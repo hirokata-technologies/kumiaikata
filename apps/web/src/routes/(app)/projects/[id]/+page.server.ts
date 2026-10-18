@@ -1,8 +1,10 @@
+import { isRedirect, redirect } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
-import type { Project } from "$lib/kumiai/types.js";
+import type { Goal, Project } from "$lib/kumiai/types.js";
+import { ACTIVE_WORKSPACE_COOKIE, WORKSPACE_COOKIE_MAX_AGE } from "$lib/kumiai/active-workspace.js";
 import { loadWorkspace } from "$lib/kumiai/load.js";
 
-export const load: PageServerLoad = async ({ params, fetch }) => {
+export const load: PageServerLoad = async ({ params, fetch, parent, cookies, url }) => {
 	let project: Project | null = null;
 	try {
 		const res = await fetch(`/api/kumiai/projects/${params.id}`);
@@ -19,6 +21,26 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
 		return { notFound: true as const, project: null };
 	}
 
+	// A project opened from a link, search or history may live in another workspace. Move to
+	// its workspace and reload, so the sidebar and the joined data agree with the page.
+	const { activeWorkspaceId } = await parent();
+	try {
+		const goalRes = await fetch(`/api/kumiai/goals/${project.goalId}`);
+		const goal = goalRes.ok ? ((await goalRes.json()) as Goal) : null;
+		if (activeWorkspaceId && goal && goal.workspaceId !== activeWorkspaceId) {
+			cookies.set(ACTIVE_WORKSPACE_COOKIE, goal.workspaceId, {
+				path: "/",
+				maxAge: WORKSPACE_COOKIE_MAX_AGE,
+				httpOnly: false,
+				sameSite: "lax",
+			});
+			redirect(303, url.pathname);
+		}
+	} catch (e) {
+		if (isRedirect(e)) throw e;
+		// Best-effort — the page still renders, just without moving workspace.
+	}
+
 	try {
 		await fetch("/api/kumiai/recent-projects", {
 			method: "POST",
@@ -31,7 +53,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
 
 	// The requirements, plans and tasks that hang off the project come from the same joined
 	// workspace every planning view reads.
-	const { workspace, failed } = await loadWorkspace(fetch);
+	const { workspace, failed } = await loadWorkspace(fetch, activeWorkspaceId);
 
 	return { notFound: false as const, project, workspace, failed };
 };

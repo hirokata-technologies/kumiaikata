@@ -25,9 +25,23 @@ export interface Pill {
 	label: string;
 }
 
+/** A planning workspace: a named set of goals. Every team has one `isDefault` workspace. */
+export interface KumiaiWorkspace {
+	id: string;
+	teamId: string;
+	name: string;
+	isDefault: boolean;
+	goalCount: number;
+	projectCount: number;
+	createdAt: string;
+	updatedAt: string;
+}
+
 export interface Goal {
 	id: string;
 	teamId: string;
+	/** The one workspace the goal belongs to. */
+	workspaceId: string;
 	title: string;
 	body: string;
 	status: GoalStatus;

@@ -41,6 +41,16 @@ export async function addProject(input: CreateProjectInput): Promise<Project> {
 	return createKumiaiProject(input);
 }
 
-export async function addGoal(title: string, priority: ProjectPriority): Promise<Goal> {
-	return createGoal({ title, status: 'todo', priority: GOAL_PRIORITY[priority] });
+/** Creates a goal in `workspaceId` (the team's default workspace when omitted). */
+export async function addGoal(
+	title: string,
+	priority: ProjectPriority,
+	workspaceId?: string | null
+): Promise<Goal> {
+	return createGoal({
+		title,
+		status: 'todo',
+		priority: GOAL_PRIORITY[priority],
+		...(workspaceId ? { workspaceId } : {})
+	});
 }
