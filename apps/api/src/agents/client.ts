@@ -45,7 +45,8 @@ export class AgentsUpstreamError extends Error {
 }
 
 export interface AgentsClient {
-	createSession(userId: string): Promise<AgentSession>;
+	/** `state` seeds the ADK session state (e.g. `planning_context`). */
+	createSession(userId: string, state?: Record<string, string>): Promise<AgentSession>;
 	listSessions(userId: string): Promise<AgentSession[]>;
 	/** Resolves to null when the session does not exist for this user. */
 	getSession(userId: string, sessionId: string): Promise<AgentSessionWithEvents | null>;
@@ -143,8 +144,10 @@ export function createAgentsClient(options: AgentsClientOptions): AgentsClient {
 		err.upstreamStatus === "FAILED_PRECONDITION";
 
 	return {
-		async createSession(userId) {
-			const session = toSession(await query("async_create_session", { user_id: userId }));
+		async createSession(userId, state) {
+			const session = toSession(
+				await query("async_create_session", { user_id: userId, ...(state && { state }) }),
+			);
 			if (!session) {
 				throw new AgentsUpstreamError("create_session returned no session id", 502);
 			}
