@@ -2,6 +2,7 @@
 	import type { PageProps } from './$types';
 	import { invalidateAll } from '$app/navigation';
 	import Plus from '@lucide/svelte/icons/plus';
+	import MessagesSquare from '@lucide/svelte/icons/messages-square';
 	import PageHeader from '$lib/components/kumiai/PageHeader.svelte';
 	import Pill from '$lib/components/kumiai/Pill.svelte';
 	import LoadError from '$lib/components/kumiai/LoadError.svelte';
@@ -123,7 +124,7 @@
 >
 	{#snippet actions()}
 		<button type="button" class="k-btn k-btn-primary" onclick={planGoal}>
-			<Plus size={15} /> New goal
+			<MessagesSquare size={15} /> Discuss Goals and Projects
 		</button>
 	{/snippet}
 </PageHeader>
