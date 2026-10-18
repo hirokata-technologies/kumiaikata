@@ -91,7 +91,8 @@ resource "google_cloud_run_v2_service" "kumiai" {
     timeout = "3600s"
 
     scaling {
-      min_instance_count = 0
+      # Keep one instance warm: no cold starts, and the in-process event bus stays up.
+      min_instance_count = 1
       # One instance: live updates use an in-process event bus (no Redis).
       max_instance_count = 1
     }
@@ -117,7 +118,7 @@ resource "google_cloud_run_v2_service" "kumiai" {
           cpu    = "1"
           memory = "512Mi"
         }
-        cpu_idle          = true # Only billed for CPU while handling requests
+        cpu_idle          = false # Instance-based billing: CPU is allocated (and billed) for the whole instance lifetime
         startup_cpu_boost = true
       }
 
