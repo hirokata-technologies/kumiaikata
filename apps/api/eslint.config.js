@@ -17,6 +17,7 @@ export default tseslint.config(...rootConfig, {
 					'src/auth/*.test.ts',
 					'src/events/*.test.ts',
 					'src/http/*.test.ts',
+					'src/mcp/*.test.ts',
 					'src/ordering/*.test.ts',
 					'src/routes/*.test.ts',
 					'src/routes/kumiai/*.test.ts',

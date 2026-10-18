@@ -17,12 +17,16 @@
 		"test:coverage": "vitest run --coverage --passWithNoTests"
 	},
 	"dependencies": {
+		"@better-auth/cimd": "1.7.10",
+		"@better-auth/mcp": "1.7.10",
+		"@better-auth/oauth-provider": "1.7.10",
 		"@google-cloud/storage": "^7.17.0",
 		"@hono/zod-validator": "^0.8.0",
 		"@kata/db": "workspace:*",
 		"@kata/http": "workspace:*",
+		"@modelcontextprotocol/server": "2.3.1",
 		"@sentry/node": "^10.75.3",
-		"better-auth": "^1.7.5",
+		"better-auth": "^1.7.10",
 		"drizzle-orm": "^0.45.3",
 		"fractional-indexing": "^3.4.0",
 		"google-auth-library": "^9.15.1",
