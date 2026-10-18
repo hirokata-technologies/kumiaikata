@@ -15,8 +15,8 @@ describe('NAV_VIEWS', () => {
 describe('NAV_PLANNING', () => {
 	it('has the Impact & effort and Roadmap entries', () => {
 		expect(NAV_PLANNING.map((e) => [e.label, e.href])).toEqual([
-			['Impact & effort', '/matrix'],
 			['Roadmap', '/roadmap'],
+			['Impact & effort', '/matrix'],
 		]);
 	});
 });

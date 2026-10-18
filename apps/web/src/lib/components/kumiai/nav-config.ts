@@ -38,8 +38,8 @@ export const NAV_VIEWS: NavEntry[] = [
  * modeled separately as `NAV_PROJECTS_ENTRY` rather than carrying a fixed `href` here.
  */
 export const NAV_PLANNING: NavEntry[] = [
-	{ label: 'Impact & effort', href: '/matrix', icon: 'ScatterChart' },
-	{ label: 'Roadmap', href: '/roadmap', icon: 'Map' }
+	{ label: 'Roadmap', href: '/roadmap', icon: 'Map' },
+	{ label: 'Impact & effort', href: '/matrix', icon: 'ScatterChart' }
 ];
 
 export const NAV_PROJECTS_ENTRY: { label: string; icon: NavIconName } = {
