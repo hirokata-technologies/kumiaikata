@@ -46,3 +46,13 @@ output "kumiai_deployer_service_account" {
   description = "Service account GitHub Actions deploys the web app as. Set as the GCP_KUMIAI_DEPLOYER_SERVICE_ACCOUNT GitHub Actions variable."
   value       = google_service_account.kumiai_deployer.email
 }
+
+output "terraform_planner_service_account" {
+  description = "Service account pull requests plan as. Set as the GCP_TERRAFORM_PLANNER_SERVICE_ACCOUNT GitHub Actions variable."
+  value       = google_service_account.terraform_planner.email
+}
+
+output "terraform_applier_service_account" {
+  description = "Service account the Terraform workflow applies as. Set as the GCP_TERRAFORM_APPLIER_SERVICE_ACCOUNT GitHub Actions variable."
+  value       = google_service_account.terraform_applier.email
+}
