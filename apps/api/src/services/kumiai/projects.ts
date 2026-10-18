@@ -1,6 +1,7 @@
 import { eq, and, asc } from "drizzle-orm";
-import { db, newId, kumiaiProjects, kumiaiGoals } from "@kata/db";
+import { db, newId, allocateKey, kumiaiProjects, kumiaiGoals } from "@kata/db";
 import { AppError } from "@kata/http";
+import { assertSameWorkspace } from "./guild-scope.js";
 
 // ── Serialisation shape ───────────────────────────────────────────────────────
 
@@ -82,15 +83,17 @@ function assertBlockedReasonValid(
 	}
 }
 
-async function assertGoalInTeam(teamId: string, goalId: string): Promise<void> {
+/** Returns the goal's workspace, which its projects share. */
+async function assertGoalInTeam(teamId: string, goalId: string): Promise<string> {
 	const [goal] = await db
-		.select({ id: kumiaiGoals.id })
+		.select({ id: kumiaiGoals.id, workspaceId: kumiaiGoals.workspaceId })
 		.from(kumiaiGoals)
 		.where(and(eq(kumiaiGoals.id, goalId), eq(kumiaiGoals.teamId, teamId)))
 		.limit(1);
 	if (!goal) {
 		throw new AppError("NOT_FOUND", "Goal not found.");
 	}
+	return goal.workspaceId;
 }
 
 // ── listProjects ──────────────────────────────────────────────────────────────
@@ -146,7 +149,7 @@ export async function createProject(
 	teamId: string,
 	input: CreateProjectInput,
 ): Promise<ProjectDetail> {
-	await assertGoalInTeam(teamId, input.goalId);
+	const workspaceId = await assertGoalInTeam(teamId, input.goalId);
 
 	const status = input.status ?? "backlog";
 	const blockedReason = input.blockedReason ?? null;
@@ -155,28 +158,32 @@ export async function createProject(
 	const targetWindow = input.targetWindow ?? null;
 	const now = new Date();
 
-	const [row] = await db
-		.insert(kumiaiProjects)
-		.values({
-			id: newId(),
-			teamId,
-			goalId: input.goalId,
-			title: input.title,
-			body: input.body ?? "",
-			ordinal: input.ordinal ?? null,
-			status,
-			priority: input.priority ?? "medium",
-			impact: input.impact ?? 50,
-			effort: input.effort ?? 5,
-			targetWindowKind: targetWindow?.kind ?? null,
-			targetWindowLabel: targetWindow?.label ?? null,
-			targetWindowYear: targetWindow?.year ?? null,
-			targetWindowNumber: targetWindow?.number ?? null,
-			blockedReason,
-			createdAt: now,
-			updatedAt: now,
-		})
-		.returning();
+	const [row] = await db.transaction(async (tx) =>
+		tx
+			.insert(kumiaiProjects)
+			.values({
+				id: newId(),
+				teamId,
+				workspaceId,
+				key: await allocateKey(tx, workspaceId, "PROJ"),
+				goalId: input.goalId,
+				title: input.title,
+				body: input.body ?? "",
+				ordinal: input.ordinal ?? null,
+				status,
+				priority: input.priority ?? "medium",
+				impact: input.impact ?? 50,
+				effort: input.effort ?? 5,
+				targetWindowKind: targetWindow?.kind ?? null,
+				targetWindowLabel: targetWindow?.label ?? null,
+				targetWindowYear: targetWindow?.year ?? null,
+				targetWindowNumber: targetWindow?.number ?? null,
+				blockedReason,
+				createdAt: now,
+				updatedAt: now,
+			})
+			.returning(),
+	);
 
 	if (!row) {
 		throw new AppError("INTERNAL_ERROR", "Project was created but could not be fetched.");
@@ -216,7 +223,7 @@ export async function updateProject(
 	}
 
 	if (input.goalId !== undefined) {
-		await assertGoalInTeam(teamId, input.goalId);
+		assertSameWorkspace(existing.workspaceId, await assertGoalInTeam(teamId, input.goalId), "A project and its goal");
 	}
 
 	// Fold PATCH's "undefined means unchanged" semantics in before validating —
