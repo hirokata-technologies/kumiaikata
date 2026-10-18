@@ -10,11 +10,19 @@ Sentry.init({
 });
 
 /**
- * Paths served entirely by the Hono app (it authenticates each request itself), so
- * the session lookup here would only be a redundant database round trip.
+ * Paths served entirely by @kata/api (the Hono app, the MCP endpoint and the OAuth
+ * discovery documents authenticate each request themselves), so the session lookup
+ * here would only be a redundant database round trip.
  */
 function skipsSession(pathname: string): boolean {
-	return pathname === "/healthz" || pathname === "/api" || pathname.startsWith("/api/");
+	return (
+		pathname === "/healthz" ||
+		pathname === "/api" ||
+		pathname.startsWith("/api/") ||
+		pathname === "/mcp" ||
+		pathname.startsWith("/mcp/") ||
+		pathname.startsWith("/.well-known/")
+	);
 }
 
 const sessionHandle: Handle = async ({ event, resolve }) => {

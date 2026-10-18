@@ -119,7 +119,7 @@ All configuration is read from the environment at runtime (nothing is baked in a
 | --- | --- | --- |
 | `DATABASE_URL` | yes | Postgres URL. Cloud SQL socket: `postgresql://kumiai:PASS@localhost/kumiai?host=/cloudsql/kumiaikata:asia-southeast1:kumiai` |
 | `BETTER_AUTH_SECRET` | yes | Long random secret used to sign sessions |
-| `BETTER_AUTH_URL` | yes | Public origin of the app, e.g. `https://kumiai.hirokata.dev` (OAuth callback base) |
+| `BETTER_AUTH_URL` | yes | Public origin of the app, e.g. `https://kumiai.hirokata.dev` (OAuth callback base). Also the OAuth issuer base and the MCP resource `<BETTER_AUTH_URL>/mcp`, so it must be `https` except on localhost |
 | `ORIGIN` | yes in production | adapter-node public origin, e.g. `https://kumiai.hirokata.dev`. Needed behind the Google load balancer so SvelteKit sees the right URL and its CSRF check passes |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | yes | Google OAuth client. Authorised redirect URI: `<BETTER_AUTH_URL>/api/auth/callback/google` |
 | `RESEND_API_KEY` | yes | Resend API key (verification and password-reset emails, sent inline) |
@@ -134,6 +134,69 @@ All configuration is read from the environment at runtime (nothing is baked in a
 | `PORT` | no | Listen port; Cloud Run sets it (image default `3000`) |
 | `BODY_SIZE_LIMIT` | no | adapter-node request body limit (image default `32M`; keep above `MAX_ATTACHMENT_BYTES`) |
 | `DB_POOL_MAX` | no | Postgres pool size (default `10`) |
+
+## MCP server
+
+Kumiai is a remote MCP server at `<BETTER_AUTH_URL>/mcp` (Streamable HTTP, stateless; the guild
+contract is [docs/guild-contract.md](docs/guild-contract.md)). Connect Claude Code to a project
+(the server name must be `kumiai`):
+
+```bash
+claude mcp add --scope project --transport http kumiai http://localhost:3000/mcp
+```
+
+Then run `/mcp` in Claude Code and pick **kumiai → Authenticate**. The flow is OAuth 2.1 with
+Better Auth as the authorization server (`@better-auth/mcp` + `jwt()`):
+
+1. The first request gets `401` with `WWW-Authenticate: Bearer resource_metadata=…`; the client
+   reads `/.well-known/oauth-protected-resource/mcp` and then the authorization-server metadata
+   (`/.well-known/oauth-authorization-server/api/auth`).
+2. The client registers itself: a Client ID Metadata Document (`@better-auth/cimd`, preferred) or
+   Dynamic Client Registration (fallback, `POST /api/auth/oauth2/register`).
+3. Your browser opens `/login`. Sign in as usual (email/password or Google; only `hirokata.dev`
+   accounts exist). The sign-in carries the signed authorization request, so it continues to
+   `/consent`, where you approve or deny the app.
+4. The client receives a short-lived JWT access token bound to `<BETTER_AUTH_URL>/mcp` (plus a
+   refresh token). `/mcp` verifies it against `/api/auth/jwks` and serves tools as that user.
+
+Try it with the `whoami` tool: it returns your user, your team and the contract version.
+
+### Tools
+
+Every guild tool is defined once in `apps/api/src/guild/` (name, zod input, handler) and served
+twice — over MCP and over REST/RPC — by `apps/api/src/mcp/guild-adapter.ts`. Groups (contract §4):
+
+| Group | Tools |
+|---|---|
+| Context (§4.1) | `whoami`, `list_workspaces`, `create_workspace`, `get_state`, `set_state` |
+| Reads (§4.2) | `read_view`, `get`, `list`, `search_docs`, `check_invariants`, `fingerprint` |
+| Direction (§4.3) | `create_goal`, `update_goal`, `create_project`, `update_project` |
+| Work (§4.4) | requirements, plans, tasks: `create_*` / `update_*`, `set_task_status`, `claim_task`, dependencies, capabilities, `log_work` |
+| Graph (§4.5) | `instantiate_graph`, `add_graph_node`, `add_graph_edge`, `add_graph_deviation`, `set_node_status`, `resolve_gate` |
+| Quality (§4.6) | findings, bugs, coverage, inspections |
+| Library (§4.7–4.8) | `upsert_doc`, `link`, `unlink`, `supersede_doc`, `doc_neighbors`, `record_event` |
+| Boards (§4.9, MCP only) | the old `apps/mcp` board/card tools (`get_board`, columns, cards, labels, assignees, comments, checklists); board projects are `*_board_project` |
+
+Every tool except `whoami` / `list_workspaces` / `create_workspace` takes a `workspace` id of your
+team, and every write takes an `actor`. Errors are `{"code","message"}` with `code` one of
+`NOT_FOUND | FORBIDDEN | VALIDATION | CONFLICT | UNAUTHENTICATED` (MCP: `isError: true`).
+
+### REST/RPC
+
+The same guild tools (not the board tools) answer over HTTP, authenticated by the browser
+session cookie **or** the same OAuth Bearer access token `/mcp` accepts:
+
+```bash
+# Tool catalog: name, title, description, readOnly and the input JSON Schema of every tool
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/kumiai/guild
+
+# Call a tool: body = the tool's input, response = its JSON result
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"workspace":"<id>"}' http://localhost:3000/api/kumiai/guild/get_state
+```
+
+Errors use HTTP 400 (`VALIDATION`, with zod `issues`), 401, 403, 404 (also for an unknown tool) and
+409. The old stdio server in `apps/mcp` is deprecated in favour of `/mcp`.
 
 ## Database migrations
 

@@ -1,7 +1,45 @@
-import { eq, inArray, asc } from "drizzle-orm";
+import { eq, inArray, asc, and } from "drizzle-orm";
 import { db } from "@kata/db";
-import { boards, columns, cards } from "@kata/db";
+import { boards, columns, cards, teamMembers, users } from "@kata/db";
 import { AppError } from "@kata/http";
+
+// ── findBoardIdByType ─────────────────────────────────────────────────────────
+
+/**
+ * The id of the user's personal board, or of their team's board. Throws
+ * NOT_FOUND when it is missing (provisioning creates both).
+ */
+export async function findBoardIdByType(userId: string, type: "personal" | "team"): Promise<string> {
+	if (type === "personal") {
+		// Use the denormalised pointer first — single-row lookup.
+		const [u] = await db.select({ personalBoardId: users.personalBoardId })
+			.from(users).where(eq(users.id, userId)).limit(1);
+
+		let boardId = u?.personalBoardId ?? null;
+		if (!boardId) {
+			// Fall back to scanning boards by ownerId in case the denormalised pointer
+			// is missing (defence-in-depth against provisioning regressions).
+			const [b] = await db.select({ id: boards.id }).from(boards)
+				.where(and(eq(boards.kind, "personal"), eq(boards.ownerId, userId)))
+				.limit(1);
+			boardId = b?.id ?? null;
+		}
+		if (!boardId) {
+			throw new AppError("NOT_FOUND", "Personal board missing — provisioning may have failed.");
+		}
+		return boardId;
+	}
+
+	const [membership] = await db.select({ teamId: teamMembers.teamId })
+		.from(teamMembers).where(eq(teamMembers.userId, userId))
+		.orderBy(asc(teamMembers.joinedAt)).limit(1);
+	if (!membership) throw new AppError("NOT_FOUND", "No team membership found.");
+	const [board] = await db.select({ id: boards.id }).from(boards)
+		.where(and(eq(boards.kind, "team"), eq(boards.teamId, membership.teamId)))
+		.limit(1);
+	if (!board) throw new AppError("NOT_FOUND", "Team board missing.");
+	return board.id;
+}
 
 export interface CardSummary {
 	id: string;

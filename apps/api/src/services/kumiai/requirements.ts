@@ -1,6 +1,8 @@
 import { eq, and, asc } from "drizzle-orm";
-import { db, newId, kumiaiRequirements, kumiaiProjects } from "@kata/db";
+import { db, newId, allocateKey, kumiaiRequirements, kumiaiProjects } from "@kata/db";
 import { AppError } from "@kata/http";
+import { assertSameWorkspace } from "./guild-scope.js";
+import { ensureDefaultWorkspace } from "./workspaces.js";
 
 // ── Serialisation shape ───────────────────────────────────────────────────────
 
@@ -32,15 +34,17 @@ function toDetail(row: typeof kumiaiRequirements.$inferSelect): RequirementDetai
 	};
 }
 
-async function assertProjectInTeam(teamId: string, projectId: string): Promise<void> {
+/** Returns the project's workspace, which its requirements share. */
+async function assertProjectInTeam(teamId: string, projectId: string): Promise<string> {
 	const [project] = await db
-		.select({ id: kumiaiProjects.id })
+		.select({ id: kumiaiProjects.id, workspaceId: kumiaiProjects.workspaceId })
 		.from(kumiaiProjects)
 		.where(and(eq(kumiaiProjects.id, projectId), eq(kumiaiProjects.teamId, teamId)))
 		.limit(1);
 	if (!project) {
 		throw new AppError("NOT_FOUND", "Project not found.");
 	}
+	return project.workspaceId;
 }
 
 // ── listRequirements ──────────────────────────────────────────────────────────
@@ -87,25 +91,30 @@ export async function createRequirement(
 	teamId: string,
 	input: CreateRequirementInput,
 ): Promise<RequirementDetail> {
-	if (input.projectId) {
-		await assertProjectInTeam(teamId, input.projectId);
-	}
+	// An unaffiliated requirement still belongs to a workspace: the team's default.
+	const workspaceId = input.projectId
+		? await assertProjectInTeam(teamId, input.projectId)
+		: (await ensureDefaultWorkspace(teamId)).id;
 
 	const now = new Date();
-	const [row] = await db
-		.insert(kumiaiRequirements)
-		.values({
-			id: newId(),
-			teamId,
-			projectId: input.projectId ?? null,
-			title: input.title,
-			body: input.body ?? "",
-			status: input.status ?? "todo",
-			priority: input.priority ?? 3,
-			createdAt: now,
-			updatedAt: now,
-		})
-		.returning();
+	const [row] = await db.transaction(async (tx) =>
+		tx
+			.insert(kumiaiRequirements)
+			.values({
+				id: newId(),
+				teamId,
+				workspaceId,
+				key: await allocateKey(tx, workspaceId, "REQ"),
+				projectId: input.projectId ?? null,
+				title: input.title,
+				body: input.body ?? "",
+				status: input.status ?? "todo",
+				priority: input.priority ?? 3,
+				createdAt: now,
+				updatedAt: now,
+			})
+			.returning(),
+	);
 
 	if (!row) {
 		throw new AppError("INTERNAL_ERROR", "Requirement was created but could not be fetched.");
@@ -130,7 +139,16 @@ export async function updateRequirement(
 	input: UpdateRequirementInput,
 ): Promise<RequirementDetail> {
 	if (input.projectId) {
-		await assertProjectInTeam(teamId, input.projectId);
+		const projectWorkspaceId = await assertProjectInTeam(teamId, input.projectId);
+		const [current] = await db
+			.select({ workspaceId: kumiaiRequirements.workspaceId })
+			.from(kumiaiRequirements)
+			.where(and(eq(kumiaiRequirements.id, requirementId), eq(kumiaiRequirements.teamId, teamId)))
+			.limit(1);
+		if (!current) {
+			throw new AppError("NOT_FOUND", "Requirement not found.");
+		}
+		assertSameWorkspace(current.workspaceId, projectWorkspaceId, "A requirement and its project");
 	}
 
 	const patch: Partial<typeof kumiaiRequirements.$inferInsert> = { updatedAt: new Date() };
