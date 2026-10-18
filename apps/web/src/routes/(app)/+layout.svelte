@@ -11,6 +11,8 @@
 		team={data.team}
 		recentProjects={data.recentProjects}
 		projectCounts={data.stats.projectCounts}
+		workspaces={data.workspaces}
+		activeWorkspaceId={data.activeWorkspaceId}
 	/>
 
 	<div class="app-shell-main">

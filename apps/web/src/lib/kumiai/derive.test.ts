@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { buildProjectViews, percent, reqLine, sortProjects, taskLine, type Workspace } from './derive.js';
+import {
+	buildProjectViews,
+	percent,
+	reqLine,
+	scopeToGoals,
+	sortProjects,
+	taskLine,
+	type Workspace
+} from './derive.js';
 import type { Plan, Project, Requirement, Task } from './types.js';
 
 const stamp = '2026-01-01T00:00:00.000Z';
@@ -61,7 +69,7 @@ const task = (id: string, requirementId: string, status: Task['status']): Task =
 
 const ws: Workspace = {
 	goals: [
-		{ id: 'g1', teamId: 't', title: 'Goal', body: '', status: 'todo', priority: 1, createdAt: stamp, updatedAt: stamp }
+		{ id: 'g1', teamId: 't', workspaceId: 'w1', title: 'Goal', body: '', status: 'todo', priority: 1, createdAt: stamp, updatedAt: stamp }
 	],
 	projects: [project('p1'), project('p2', { goalId: 'missing' })],
 	requirements: [requirement('r1', 'p1', 'done'), requirement('r2', 'p1'), requirement('r3', null)],
@@ -99,6 +107,33 @@ describe('buildProjectViews', () => {
 	it('tolerates a project whose goal is gone', () => {
 		expect(p2.goal).toBeNull();
 		expect(p2.reqsTotal).toBe(0);
+	});
+});
+
+describe('scopeToGoals', () => {
+	it('keeps only what hangs off the given goals', () => {
+		const scoped = scopeToGoals(ws);
+		expect(scoped.projects.map((p) => p.id)).toEqual(['p1']);
+		expect(scoped.requirements.map((r) => r.id)).toEqual(['r1', 'r2']);
+		expect(scoped.plans.map((p) => p.id)).toEqual(['old', 'new', 'task-plan']);
+		expect(scoped.tasks.map((t) => t.id)).toEqual(['tk1', 'tk2']);
+	});
+
+	it('drops requirements with no project, and the plans and tasks beneath them', () => {
+		const loose: Workspace = {
+			...ws,
+			plans: [...ws.plans, plan('loose-plan', 'r3', stamp)],
+			tasks: [...ws.tasks, task('loose-task', 'r3', 'todo')]
+		};
+		const scoped = scopeToGoals(loose);
+		expect(scoped.requirements.map((r) => r.id)).not.toContain('r3');
+		expect(scoped.plans.map((p) => p.id)).not.toContain('loose-plan');
+		expect(scoped.tasks.map((t) => t.id)).not.toContain('loose-task');
+	});
+
+	it('empties everything when the workspace has no goals', () => {
+		const scoped = scopeToGoals({ ...ws, goals: [] });
+		expect(scoped).toEqual({ goals: [], projects: [], requirements: [], plans: [], tasks: [] });
 	});
 });
 

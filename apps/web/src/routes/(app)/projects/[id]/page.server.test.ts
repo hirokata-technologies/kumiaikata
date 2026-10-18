@@ -8,16 +8,27 @@ import { describe, expect, it, vi } from 'vitest';
 
 const { load } = await import('./+page.server.js');
 
-const PROJECT_BODY = { id: 'p1', title: 'Project One', priority: 'medium' };
+const PROJECT_BODY = { id: 'p1', goalId: 'g1', title: 'Project One', priority: 'medium' };
+const GOAL_BODY = { id: 'g1', workspaceId: 'w1', title: 'Goal' };
 
 function jsonResponse(body: unknown, ok = true) {
 	return { ok, json: async () => body } as Response;
 }
 
-function makeEvent(overrides: { id?: string; fetch: ReturnType<typeof vi.fn> }) {
+function makeEvent(overrides: {
+	id?: string;
+	fetch: ReturnType<typeof vi.fn>;
+	activeWorkspaceId?: string | null;
+	cookieSet?: ReturnType<typeof vi.fn>;
+}) {
 	return {
 		params: { id: overrides.id ?? 'p1' },
 		fetch: overrides.fetch,
+		parent: async () => ({
+			activeWorkspaceId: overrides.activeWorkspaceId === undefined ? 'w1' : overrides.activeWorkspaceId,
+		}),
+		cookies: { set: overrides.cookieSet ?? vi.fn() },
+		url: { pathname: '/projects/p1' },
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	} as any;
 }
@@ -36,7 +47,8 @@ describe('projects/[id]/+page.server.ts — success path', () => {
 		const goal = { id: 'g1', title: 'Goal' };
 		const fetchMock = vi.fn(async (url: string) => {
 			if (url.endsWith('/api/kumiai/projects/p1')) return jsonResponse(PROJECT_BODY);
-			if (url.endsWith('/api/kumiai/goals')) return jsonResponse([goal]);
+			if (url.endsWith('/api/kumiai/goals/g1')) return jsonResponse(GOAL_BODY);
+			if (url.startsWith('/api/kumiai/goals')) return jsonResponse([goal]);
 			if (url.startsWith('/api/kumiai/')) return jsonResponse([]);
 			return jsonResponse(null);
 		});
@@ -51,6 +63,45 @@ describe('projects/[id]/+page.server.ts — success path', () => {
 		});
 		const result = await load(makeEvent({ fetch: fetchMock }));
 		expect(result).toMatchObject({ notFound: false, failed: true });
+	});
+});
+
+describe('projects/[id]/+page.server.ts — workspace of the project', () => {
+	const fetchFor = (goalWorkspace: string) =>
+		vi.fn(async (url: string, _init?: RequestInit) => {
+			if (url.endsWith('/api/kumiai/projects/p1')) return jsonResponse(PROJECT_BODY);
+			if (url.endsWith('/api/kumiai/goals/g1')) return jsonResponse({ ...GOAL_BODY, workspaceId: goalWorkspace });
+			if (url.startsWith('/api/kumiai/')) return jsonResponse([]);
+			return jsonResponse(null);
+		});
+
+	it('scopes the joined workspace to the active workspace', async () => {
+		const fetchMock = fetchFor('w1');
+		await load(makeEvent({ fetch: fetchMock }));
+		expect(fetchMock).toHaveBeenCalledWith('/api/kumiai/goals?workspaceId=w1');
+	});
+
+	it("switches to the project's workspace and reloads when it differs from the active one", async () => {
+		const cookieSet = vi.fn();
+		await expect(
+			load(makeEvent({ fetch: fetchFor('w2'), cookieSet })),
+		).rejects.toMatchObject({ status: 303, location: '/projects/p1' });
+		expect(cookieSet).toHaveBeenCalledWith(
+			'kumiai_workspace',
+			'w2',
+			expect.objectContaining({ path: '/', httpOnly: false }),
+		);
+	});
+
+	it('does not touch recent projects before moving workspace', async () => {
+		const fetchMock = fetchFor('w2');
+		await expect(load(makeEvent({ fetch: fetchMock }))).rejects.toBeDefined();
+		expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+	});
+
+	it('does not redirect when there is no active workspace to compare with', async () => {
+		const result = await load(makeEvent({ fetch: fetchFor('w2'), activeWorkspaceId: null }));
+		expect(result).toMatchObject({ notFound: false });
 	});
 });
 

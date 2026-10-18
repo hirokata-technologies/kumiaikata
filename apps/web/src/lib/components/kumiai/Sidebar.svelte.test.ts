@@ -54,6 +54,53 @@ describe("Sidebar.svelte — nav landmarks", () => {
 	});
 });
 
+describe("Sidebar.svelte — nav order", () => {
+	it("puts Planning before Views", async () => {
+		render(Sidebar, {
+			props: { team: null, recentProjects: [], projectCounts: emptyCounts },
+		});
+
+		const planning = browserPage.getByRole("navigation", { name: "Planning" }).element();
+		const views = browserPage.getByRole("navigation", { name: "Views" }).element();
+		expect(planning.compareDocumentPosition(views) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+});
+
+describe("Sidebar.svelte — workspace selector", () => {
+	const workspace = {
+		id: "w1",
+		teamId: "t",
+		name: "default",
+		isDefault: true,
+		goalCount: 3,
+		projectCount: 7,
+		createdAt: "2026-01-01T00:00:00.000Z",
+		updatedAt: "2026-01-01T00:00:00.000Z",
+	};
+
+	it("shows the active workspace under the team name", async () => {
+		render(Sidebar, {
+			props: {
+				team: null,
+				recentProjects: [],
+				projectCounts: emptyCounts,
+				workspaces: [workspace],
+				activeWorkspaceId: "w1",
+			},
+		});
+
+		await expect.element(browserPage.getByText("3 goals · 7 projects")).toBeVisible();
+	});
+
+	it("renders no selector when the workspaces could not be loaded", async () => {
+		render(Sidebar, {
+			props: { team: null, recentProjects: [], projectCounts: emptyCounts },
+		});
+
+		expect(browserPage.getByText("Workspace", { exact: true }).elements()).toHaveLength(0);
+	});
+});
+
 describe("Sidebar.svelte — Projects entry", () => {
 	it("with recentProjects: [], Projects renders disabled (no link)", async () => {
 		render(Sidebar, {
