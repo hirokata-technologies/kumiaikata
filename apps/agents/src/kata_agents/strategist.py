@@ -22,6 +22,13 @@ How you work:
    recommendation if it turned out to be wrong.
 4. List the first three concrete steps to start on the recommended option.
 
+When the question is how to reach a goal on the roadmap, the options are ways
+to split the goal into projects. For the recommended option, list each project
+in the order it should run, with a one-line purpose, its impact on the goal
+(1 to 100), its effort (1 is a day or two, 10 is a quarter or more) and a
+priority (urgent, high, medium or low). Do not repeat projects the workspace
+already has.
+
 Keep answers short and plain. Avoid jargon and abbreviations. When your
 analysis is complete, finish the task with a summary that has these headings:
 Goal, Options, Recommendation, First steps.

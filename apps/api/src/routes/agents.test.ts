@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mockBetterAuth, setCurrentUser } from "../../test/helpers/mock-session.js";
 import { apiRequest } from "../../test/helpers/request.js";
-import { seedUser, seedTeamWithBoard } from "../../test/helpers/seed.js";
+import {
+	seedUser,
+	seedTeamWithBoard,
+	seedKumiaiGoal,
+	seedKumiaiProject,
+	seedKumiaiWorkspace,
+} from "../../test/helpers/seed.js";
 
 mockBetterAuth();
 
@@ -591,4 +597,117 @@ describe("POST /api/agents/sessions/:sessionId/messages", () => {
 		const res = await apiRequest("POST", "/api/agents/sessions/12345/messages", { body: { message: "hi" } });
 		expect(res.status).toBe(404);
 	});
+});
+
+// ── roadmap planning sessions ────────────────────────────────────────────────
+
+describe("roadmap planning sessions", () => {
+	const planningContext = (runtime: ReturnType<typeof fakeAgentRuntime>) =>
+		(runtime.calls[0]?.input["state"] as Record<string, string> | undefined)?.["planning_context"];
+
+	it("creates a plain session without state when there is no body", async () => {
+		await signedInTeamMember("planning-plain.com");
+		const runtime = fakeAgentRuntime();
+		useRuntime(runtime);
+
+		const res = await apiRequest("POST", "/api/agents/sessions");
+		expect(res.status).toBe(201);
+		expect(runtime.calls[0]?.input).not.toHaveProperty("state");
+	});
+
+	it("seeds a new-goal session with the workspace's goals and projects", async () => {
+		const { team } = await signedInTeamMember("planning-goal.com");
+		const goal = await seedKumiaiGoal(team.id, { title: "Faster onboarding", priority: 2 });
+		await seedKumiaiProject(team.id, goal.id, { title: "Self-serve signup", status: "in-progress" });
+		const runtime = fakeAgentRuntime();
+		useRuntime(runtime);
+
+		const res = await apiRequest("POST", "/api/agents/sessions", { body: { planning: { kind: "goal" } } });
+
+		expect(res.status).toBe(201);
+		const context = planningContext(runtime);
+		expect(context).toContain("plan a new goal");
+		expect(context).toContain('Goal "Faster onboarding", priority 2: "Self-serve signup" (in-progress)');
+		expect(context).toContain("pass a new goal and no goal_id");
+	});
+
+	it("only lists goals of the chosen workspace", async () => {
+		const { team } = await signedInTeamMember("planning-ws.com");
+		const other = await seedKumiaiWorkspace(team.id, { name: "Side bets", isDefault: false });
+		await seedKumiaiGoal(team.id, { title: "In default" });
+		await seedKumiaiGoal(team.id, { title: "In side bets", workspaceId: other.id });
+		const runtime = fakeAgentRuntime();
+		useRuntime(runtime);
+
+		await apiRequest("POST", "/api/agents/sessions", {
+			body: { planning: { kind: "goal", workspaceId: other.id } },
+		});
+
+		const context = planningContext(runtime);
+		expect(context).toContain('workspace "Side bets"');
+		expect(context).toContain("In side bets");
+		expect(context).not.toContain("In default");
+	});
+
+	it("seeds an add-project session with the goal and the projects it already has", async () => {
+		const { team } = await signedInTeamMember("planning-project.com");
+		const goal = await seedKumiaiGoal(team.id, { title: "Notes without typing", body: "Clinicians dictate." });
+		await seedKumiaiProject(team.id, goal.id, { title: "Dictation pilot" });
+		const runtime = fakeAgentRuntime();
+		useRuntime(runtime);
+
+		const res = await apiRequest("POST", "/api/agents/sessions", {
+			body: { planning: { kind: "project", goalId: goal.id } },
+		});
+
+		expect(res.status).toBe(201);
+		const context = planningContext(runtime);
+		expect(context).toContain(`Goal id: ${goal.id}`);
+		expect(context).toContain("Clinicians dictate.");
+		expect(context).toContain('Projects it already has: "Dictation pilot" (backlog).');
+		expect(context).toContain(`pass goal_id "${goal.id}"`);
+	});
+
+	it("returns 404 for a goal in another team, without calling the runtime", async () => {
+		await signedInTeamMember("planning-mine.com");
+		const stranger = await seedUser();
+		const { team: otherTeam } = await seedTeamWithBoard({
+			domain: "planning-theirs.com",
+			members: [{ userId: stranger.id, role: "member" }],
+		});
+		const theirs = await seedKumiaiGoal(otherTeam.id);
+		const runtime = fakeAgentRuntime();
+		useRuntime(runtime);
+
+		const res = await apiRequest("POST", "/api/agents/sessions", {
+			body: { planning: { kind: "project", goalId: theirs.id } },
+		});
+
+		expect(res.status).toBe(404);
+		expect(runtime.calls).toHaveLength(0);
+	});
+
+	it("refuses planning in the personal workspace", async () => {
+		await signedInTeamMember("planning-personal.com");
+		const runtime = fakeAgentRuntime();
+		useRuntime(runtime);
+
+		const res = await apiRequest("POST", "/api/agents/sessions?workspaceId=personal", {
+			body: { planning: { kind: "goal" } },
+		});
+
+		expect(res.status).toBe(403);
+		expect(runtime.calls).toHaveLength(0);
+	});
+
+	it.each([{ planning: { kind: "milestone" } }, { planning: { kind: "project" } }])(
+		"rejects a malformed planning intent %j",
+		async (body) => {
+			await signedInTeamMember("planning-bad.com");
+			useRuntime(fakeAgentRuntime());
+
+			const res = await apiRequest("POST", "/api/agents/sessions", { body });
+			expect(res.status).toBe(422);
+		},
+	);
 });

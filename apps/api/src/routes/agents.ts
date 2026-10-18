@@ -9,7 +9,8 @@ import type { AgentsClient } from "../agents/client.js";
 import type { AgentEvent } from "../agents/events.js";
 import { zValidator } from "../http/validate.js";
 import { ok, created, noContent } from "../http/responders.js";
-import { agentUserId, resolveAgentWorkspace } from "../services/agents.js";
+import { agentUserId, resolveAgentWorkspace, PERSONAL_WORKSPACE_ID } from "../services/agents.js";
+import { buildPlanningContext, planningIntent, PLANNING_CONTEXT_KEY } from "../services/planning.js";
 
 interface AgentsVariables extends AppVariables {
 	agents: AgentsClient;
@@ -26,6 +27,7 @@ const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
 const workspaceQuery = z.object({ workspaceId: z.string().min(1).max(128).optional() });
 const messageBody = z.object({ message: z.string().trim().min(1).max(MAX_MESSAGE_LENGTH) });
+const sessionBodySchema = z.object({ planning: planningIntent.optional() });
 
 const r = new Hono<{ Variables: AgentsVariables }>();
 
@@ -89,10 +91,39 @@ function sessionJson(
 	};
 }
 
-// POST /api/agents/sessions
+/** The optional body is read by hand: existing callers POST with no body at all. */
+async function sessionBody(req: Request): Promise<z.infer<typeof sessionBodySchema>> {
+	const text = await req.text();
+	if (!text.trim()) return {};
+	let json: unknown;
+	try {
+		json = JSON.parse(text);
+	} catch {
+		throw new AppError("VALIDATION_ERROR", "Body must be JSON");
+	}
+	const parsed = sessionBodySchema.safeParse(json);
+	if (!parsed.success) {
+		throw new AppError("VALIDATION_ERROR", "Request did not match schema", z.flattenError(parsed.error));
+	}
+	return parsed.data;
+}
+
+// POST /api/agents/sessions   body (optional): { planning: { kind: "goal", workspaceId? } | { kind: "project", goalId } }
+//
+// A `planning` intent opens a Roadmap planning conversation: the Project Manager gets
+// the workspace's goals and projects as `planning_context` session state.
 r.post("/sessions", async (c) => {
-	const session = await upstream(() => c.get("agents").createSession(c.get("agentUser")));
-	return created(c, sessionJson(c.get("workspaceId"), session));
+	const { planning } = await sessionBody(c.req.raw);
+	const workspaceId = c.get("workspaceId");
+	let state: Record<string, string> | undefined;
+	if (planning) {
+		if (workspaceId === PERSONAL_WORKSPACE_ID) {
+			throw new AppError("FORBIDDEN", "Roadmap planning needs a team workspace.");
+		}
+		state = { [PLANNING_CONTEXT_KEY]: await buildPlanningContext(workspaceId, planning) };
+	}
+	const session = await upstream(() => c.get("agents").createSession(c.get("agentUser"), state));
+	return created(c, sessionJson(workspaceId, session));
 });
 
 // GET /api/agents/sessions

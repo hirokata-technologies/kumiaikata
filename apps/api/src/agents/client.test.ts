@@ -86,6 +86,17 @@ describe("createAgentsClient :query methods", () => {
 		});
 	});
 
+	it("seeds the session state when given", async () => {
+		const fetchMock = vi.fn(async () => json({ output: { id: "123", user_id: "ws:u1" } }));
+		await makeClient(fetchMock).createSession("ws:u1", { planning_context: "Plan a goal." });
+
+		const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+		expect(JSON.parse(init.body as string)).toEqual({
+			class_method: "async_create_session",
+			input: { user_id: "ws:u1", state: { planning_context: "Plan a goal." } },
+		});
+	});
+
 	it("fails when create returns no session id", async () => {
 		const fetchMock = vi.fn(async () => json({ output: {} }));
 		await expect(makeClient(fetchMock).createSession("ws:u1")).rejects.toBeInstanceOf(
