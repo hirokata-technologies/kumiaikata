@@ -9,7 +9,11 @@ const config = {
 		runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true)
 	},
 	kit: {
-		adapter: adapter()
+		adapter: adapter(),
+		// MCP clients are not browsers: their form-encoded OAuth POSTs (/api/auth/oauth2/*)
+		// carry no Origin header, so SvelteKit's origin check would answer 403. Better Auth
+		// and Hono run their own origin checks on the routes they serve.
+		csrf: { trustedOrigins: ['*'] }
 	}
 };
 
