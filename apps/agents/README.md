@@ -23,6 +23,23 @@ kumiai app (Cloud Run) ──► Agent Runtime (asia-southeast1)
 - Agent Runtime stores sessions and Memory Bank memories, so nothing is kept in
   the running instance. It scales to zero when idle.
 
+## Roadmap planning
+
+"New goal" and "Plan projects for this goal" on the Roadmap open a planning
+conversation:
+
+1. The **Project Manager** asks about the outcome, why it matters now, how the
+   team will know it is done, and how urgent it is.
+2. It brings in the **Strategist**, who splits the goal into projects, in
+   order, with impact (1 to 100), effort (1 to 10) and priority.
+3. The Project Manager calls `propose_roadmap` (`roadmap.py`). The app shows
+   the call's arguments as an editable draft, and the user creates the items.
+   The agents never write to the roadmap themselves.
+
+The Kata API opens these sessions with a `planning_context` state value
+(the workspace's goals and projects, and the goal being extended), which the
+Project Manager's instruction reads as `{planning_context?}`.
+
 ## Settings
 
 | Variable | Default | Meaning |
