@@ -1,0 +1,187 @@
+# Plans and applies the Terraform in infra/.
+#
+#   pull request  -> plan only, posted as a comment on the PR
+#   push to main  -> plan, then apply that plan when it has changes
+#   manual run    -> plan from main; ticks "apply" to also apply
+#
+# The approval is the merge. The org ruleset "Protect main" requires a pull request
+# review, and CODEOWNERS makes infra/ changes need the developer-operations team, so
+# nothing reaches main (and so nothing is applied) without a devops approval.
+#
+# The apply job runs in the `infra-production` GitHub environment, which is limited to
+# the main branch. It needs no reviewers.
+#
+# Required repository variables (Settings -> Secrets and variables -> Actions):
+#   GCP_WORKLOAD_IDENTITY_PROVIDER       workload_identity_provider (terraform output)
+#   GCP_TERRAFORM_PLANNER_SERVICE_ACCOUNT  read-only; usable from any ref in this repo
+#   GCP_TERRAFORM_APPLIER_SERVICE_ACCOUNT  can change infrastructure; usable from main only
+# Required repository secrets (the state bucket's RustFS keys, not AWS ones):
+#   TF_STATE_ACCESS_KEY_ID, TF_STATE_SECRET_ACCESS_KEY
+#
+# See infra/README.md ("Terraform in CI") for how to create those accounts.
+
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply the plan after it is made. Leave off to only plan.
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_ACCESS_KEY }}
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-24.04
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          # Keep each step's output plain; the PR comment is built from plan.txt.
+          terraform_wrapper: false
+
+      # Pull requests plan with the read-only account; main plans with the applier
+      # so the saved plan is the one that gets applied.
+      - name: Require main
+        if: github.event_name == 'workflow_dispatch'
+        run: test "$GITHUB_REF" = "refs/heads/main"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ github.event_name == 'pull_request' && vars.GCP_TERRAFORM_PLANNER_SERVICE_ACCOUNT || vars.GCP_TERRAFORM_APPLIER_SERVICE_ACCOUNT }}
+
+      - name: Init
+        run: terraform init -input=false
+
+      - name: Validate
+        run: terraform validate
+
+      - name: Plan
+        id: plan
+        run: |
+          # Pull request plans skip the state lock so they never block an apply.
+          lock="-lock-timeout=5m"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then lock="-lock=false"; fi
+
+          set +e
+          terraform plan -input=false -no-color -detailed-exitcode $lock -out=tfplan 2>&1 | tee plan.txt
+          code=${PIPESTATUS[0]}
+          set -e
+
+          # 0 = no changes, 2 = changes, anything else = failure
+          if [ "$code" -eq 0 ]; then echo "has_changes=false" >> "$GITHUB_OUTPUT"; fi
+          if [ "$code" -eq 2 ]; then echo "has_changes=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          exit "$code"
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "### Terraform plan"
+            echo '```'
+            tail -c 60000 plan.txt 2>/dev/null || echo "No plan output."
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on the pull request
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- terraform-plan -->';
+            let plan = fs.existsSync('infra/plan.txt') ? fs.readFileSync('infra/plan.txt', 'utf8') : 'No plan output.';
+            if (plan.length > 60000) plan = '…(truncated, see the job summary)\n' + plan.slice(-60000);
+            const body = `${marker}\n### Terraform plan\n\n<details><summary>Show plan</summary>\n\n\`\`\`\n${plan}\n\`\`\`\n</details>\n\nMerging to \`main\` applies this automatically, once a devops reviewer has approved the PR.`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.body?.startsWith(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+
+      # The plan file can contain secret values, so it is kept for one day only.
+      - name: Upload plan
+        if: github.event_name != 'pull_request' && steps.plan.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: infra/tfplan
+          retention-days: 1
+          if-no-files-found: error
+
+  apply:
+    name: Apply
+    needs: plan
+    # A merge to main applies on its own; a manual run applies only when asked.
+    if: >-
+      github.ref == 'refs/heads/main' && needs.plan.outputs.has_changes == 'true' &&
+      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.apply))
+    runs-on: ubuntu-24.04
+    environment: infra-production
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_TERRAFORM_APPLIER_SERVICE_ACCOUNT }}
+
+      - name: Init
+        run: terraform init -input=false
+
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: infra
+
+      # Applies exactly what was reviewed. If state changed since the plan,
+      # Terraform refuses the stale plan and the run fails instead of guessing.
+      - name: Apply
+        run: terraform apply -input=false -lock-timeout=5m tfplan
