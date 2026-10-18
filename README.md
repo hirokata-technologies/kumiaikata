@@ -56,7 +56,7 @@ whole backend. `apps/api` is a library, not a server:
   server build; their npm dependencies are installed in the runtime image.
 - Realtime events use an in-process event bus, so the app must run as a **single
   instance** (Cloud Run `max-instances: 1`). Email is sent inline through Resend.
-- Request-based CPU billing is fine: nothing runs after a response is sent.
+- Production uses instance-based CPU billing with one instance always running (see `infra/kumiai.tf`).
 
 `GET /healthz` answers `{"ok":true,"db":true}` (503 when the database is unreachable).
 
@@ -222,7 +222,7 @@ docker run --rm --env-file my.env kata-web node migrate.js        # migrations
 
 ## Deploying on Google Cloud Run
 
-- One service from the image above: `max-instances: 1`, request-based CPU, container
+- One service from the image above: `min-instances: 1`, `max-instances: 1`, instance-based CPU (`--no-cpu-throttling`), container
   port from `PORT`, Cloud SQL instance attached, service account with access to the
   `GCS_BUCKET` bucket (Storage Object Admin) — no HMAC keys.
 - Set `ORIGIN` and `BETTER_AUTH_URL` to `https://kumiai.hirokata.dev`.
