@@ -151,3 +151,30 @@ terraform apply
 
 CI runs `terraform fmt -check` and `terraform validate` on every pull request.
 Applying is always done by hand.
+
+## Terraform in CI
+
+`.github/workflows/terraform.yml` plans and applies this directory:
+
+1. **Pull request** touching `infra/`: runs `terraform plan` and posts it as a comment.
+   Nothing changes.
+2. **Review**: the org ruleset "Protect main" requires an approving review, and
+   `.github/CODEOWNERS` makes changes to `infra/` and the Terraform workflow need the
+   `developer-operations` team. **The merge is the approval.**
+3. **Merge to `main`**: plans again and, when there are changes, applies that plan
+   automatically. No changes means no apply.
+4. **Manual run** (Actions -> Terraform -> Run workflow, from `main`): plans, and also
+   applies when "apply" is ticked. Use it to re-run a failed apply or to apply drift fixes.
+
+One-time setup (not managed by Terraform on purpose, so CI cannot grant itself access):
+
+- **GitHub environment** `infra-production`, limited to the `main` branch.
+- **Two Google service accounts** trusted through the existing `github` workload identity pool:
+  - planner: read-only (for example `roles/viewer` plus access to any secret metadata the
+    plan reads); bound with `roles/iam.workloadIdentityUser` to
+    `principalSet://.../attribute.repository/hirokata-technologies/kumiaikata`.
+  - applier: the roles Terraform needs to change this project; bound only to the `main` ref,
+    like `github_deploy_principal` in `github_oidc.tf`.
+- **Repository variables** `GCP_TERRAFORM_PLANNER_SERVICE_ACCOUNT` and
+  `GCP_TERRAFORM_APPLIER_SERVICE_ACCOUNT`, and **secrets** `TF_STATE_ACCESS_KEY_ID` and
+  `TF_STATE_SECRET_ACCESS_KEY` (the RustFS keys).
