@@ -1,5 +1,9 @@
-import { betterAuth } from "better-auth";
+import { betterAuth, type BetterAuthPlugin } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { jwt } from "better-auth/plugins";
+import { mcp } from "@better-auth/mcp";
+import { cimd } from "@better-auth/cimd";
+import { fetchClientMetadataResource } from "@better-auth/cimd/node";
 import { db } from "../db/client.js";
 import { env } from "../env.js";
 import { assertAllowedDomain } from "./domain-allowlist.js";
@@ -9,8 +13,32 @@ import {
 	markEmailSendFailed,
 } from "./email-failure.js";
 import { provisionUser } from "./provisioning.js";
+import { MCP_RESOURCE } from "../mcp/resource.js";
 import { sendEmail } from "../services/email.js";
 import { passwordResetEmailHtml, verificationEmailHtml } from "../services/email-templates.js";
+
+/**
+ * OAuth 2.1 authorization server for the MCP endpoint. Users sign in on the normal
+ * /login page, so tokens are only ever issued to existing (allow-listed) users.
+ *
+ * Typed as a plain plugin: the provider's endpoint types (OpenAPI literals with
+ * `items?: undefined`) do not satisfy this package's `exactOptionalPropertyTypes`.
+ * Runtime behaviour is unchanged; its endpoints are reached through `auth.handler`.
+ */
+const mcpPlugin: BetterAuthPlugin = mcp({
+	loginPage: "/login",
+	consentPage: "/consent",
+	resource: MCP_RESOURCE,
+	scopes: ["openid", "profile", "email", "offline_access"],
+	// DCR fallback: CIMD (below) is the preferred registration method, but current
+	// Claude Code clients may still register dynamically. Registration only
+	// creates a client; it never creates or authenticates a user.
+	allowDynamicClientRegistration: true,
+	allowUnauthenticatedClientRegistration: true,
+	// Claude Code registers a loopback `http://localhost:<port>/callback` without an
+	// `application_type`; infer `native` for such clients instead of the OIDC `web` default.
+	clientRegistrationDefaultApplicationType: "infer",
+}) as unknown as BetterAuthPlugin;
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
@@ -83,6 +111,18 @@ export const auth = betterAuth({
 		sendOnSignUp: true,
 		autoSignInAfterVerification: false,
 	},
+	plugins: [
+		// Signs the OAuth access tokens (JWT, verified against /api/auth/jwks). The model is
+		// renamed so the plural table export is `jwks` (packages/db/src/schema/oauth.ts).
+		jwt({ schema: { jwks: { modelName: "jwk" } } }),
+		mcpPlugin,
+		// Client ID Metadata Documents: an MCP client's client_id is an HTTPS URL to its
+		// metadata, fetched with DNS pinning (public-routable addresses only).
+		cimd({
+			fetchClientMetadataResource,
+			metadataProfile: "mcp-2026-07-28",
+		}),
+	],
 	user: {
 		additionalFields: {
 			personalBoardId: { type: 'string', required: false },

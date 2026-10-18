@@ -28,5 +28,12 @@ vi.mock("../src/auth/better-auth.js", () => ({
 			}),
 		},
 		handler: vi.fn(async () => new Response("not implemented", { status: 501 })),
+		// What `requireMcpAuth` (src/mcp/handler.ts) reads: the issuer base URL and the
+		// adapter backing its DPoP replay store (unused without DPoP proofs).
+		$context: Promise.resolve({
+			baseURL: `${process.env.BETTER_AUTH_URL ?? ""}/api/auth`,
+			internalAdapter: {},
+		}),
+		options: {},
 	},
 }));

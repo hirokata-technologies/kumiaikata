@@ -1,4 +1,13 @@
 #!/usr/bin/env node
+/**
+ * @deprecated The stdio `kata-board` MCP server is superseded by the authenticated remote
+ * MCP endpoint `POST <kumiai-host>/mcp` (apps/api/src/mcp, docs/guild-contract.md §1, §4.9),
+ * which serves every tool below in-process with OAuth instead of a copied session cookie.
+ * Board project tools are named `create_board_project` / `update_board_project` /
+ * `delete_board_project` / `list_board_projects` there. Kept only until clients move over:
+ *
+ *   claude mcp add --scope project --transport http kumiai https://<kumiai-host>/mcp
+ */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";

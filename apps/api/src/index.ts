@@ -3,3 +3,4 @@
 // in apps/web).
 export { app } from "./app.js";
 export { auth } from "./auth/better-auth.js";
+export { mcpHandler, wellKnownHandler } from "./mcp/index.js";
