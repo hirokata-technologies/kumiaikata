@@ -33,9 +33,18 @@
 		errorCode && /^[a-zA-Z0-9_-]+$/.test(errorCode) ? errorCode : null
 	);
 
+	// Opened by an OAuth authorization request (e.g. an MCP client): Better Auth signs
+	// the query (`sig`). The auth client re-sends it with the sign-in call, and the
+	// server then continues the authorization instead of using `callbackURL`.
+	const isOAuthSignIn = page.url.searchParams.has('sig') && page.url.searchParams.has('client_id');
+
 	$effect(() => {
 		if (errorCode || verifiedSuccess || resetSuccess) {
-			history.replaceState(null, '', window.location.pathname);
+			// Drop only the one-shot banner params: the signed OAuth query must survive a
+			// failed attempt so the next sign-in still continues the authorization.
+			const url = new URL(window.location.href);
+			for (const key of ['error', 'verified', 'reset']) url.searchParams.delete(key);
+			history.replaceState(history.state, '', url.pathname + url.search);
 		}
 	});
 
@@ -109,6 +118,12 @@
 		<h1>Welcome back.</h1>
 		<p>Sign in to pick up where you left off.</p>
 	</div>
+
+	{#if isOAuthSignIn}
+		<div class="banner banner-info" role="status">
+			An app is asking to connect to your Kumiai account. Sign in to review its request.
+		</div>
+	{/if}
 
 	<!-- Success banners -->
 	{#if verifiedSuccess}
@@ -307,6 +322,13 @@
 	.banner-success {
 		background: color-mix(in srgb, var(--paper-1) 90%, var(--success) 10%);
 		border: 1px solid color-mix(in srgb, var(--line-1) 70%, var(--success) 30%);
+		font: 500 13px/1.5 var(--font-sans);
+		color: var(--fg-2);
+	}
+
+	.banner-info {
+		background: var(--paper-1);
+		border: 1px solid var(--line-1);
 		font: 500 13px/1.5 var(--font-sans);
 		color: var(--fg-2);
 	}

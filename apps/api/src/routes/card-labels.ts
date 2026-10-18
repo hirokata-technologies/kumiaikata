@@ -1,14 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { eq, and, sql } from "drizzle-orm";
-import { db } from "@kata/db";
 import { requireSession, loadBoardAccess } from "../auth/middleware.js";
 import { zValidator, validateId } from "../http/validate.js";
 import { ok, noContent } from "../http/responders.js";
 import type { AppVariables } from "@kata/http";
-import { cards, labels } from "@kata/db";
-import { AppError } from "@kata/http";
-import { eventBus } from "../events/bus.js";
+import { addCardLabel, removeCardLabel } from "../services/card-parts.js";
 
 const r = new Hono<{ Variables: AppVariables }>();
 
@@ -21,42 +17,8 @@ r.post(
 	async (c) => {
 		const board = c.get("board");
 		const cardId = validateId(c.req.param("cardId"), "cardId");
-		const { labelId: rawLabelId } = c.req.valid("json");
-		const labelId = validateId(rawLabelId, "labelId");
-
-		// Verify label belongs to this board.
-		const [label] = await db
-			.select()
-			.from(labels)
-			.where(and(eq(labels.id, labelId), eq(labels.boardId, board.id)))
-			.limit(1);
-		if (!label) {
-			throw new AppError(
-				"VALIDATION_ERROR",
-				"Label does not belong to this board.",
-			);
-		}
-
-		// Idempotent add: append only if the label isn't already in the array.
-		const result = await db
-			.update(cards)
-			.set({
-				labelIds: sql`CASE WHEN ${labelId} = ANY(${cards.labelIds}) THEN ${cards.labelIds} ELSE array_append(${cards.labelIds}, ${labelId}) END`,
-			})
-			.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
-			.returning({ id: cards.id });
-
-		if (result.length === 0) {
-			throw new AppError("NOT_FOUND", "Card not found.");
-		}
-
-		eventBus.emit({
-			type: "card.label.added",
-			boardId: board.id,
-			payload: { cardId, labelId },
-		});
-
-		return ok(c, { cardId, labelId });
+		const labelId = validateId(c.req.valid("json").labelId, "labelId");
+		return ok(c, await addCardLabel(board.id, cardId, labelId));
 	},
 );
 
@@ -65,23 +27,7 @@ r.delete("/:labelId", async (c) => {
 	const board = c.get("board");
 	const cardId = validateId(c.req.param("cardId"), "cardId");
 	const labelId = validateId(c.req.param("labelId"), "labelId");
-
-	const result = await db
-		.update(cards)
-		.set({ labelIds: sql`array_remove(${cards.labelIds}, ${labelId})` })
-		.where(and(eq(cards.id, cardId), eq(cards.boardId, board.id)))
-		.returning({ id: cards.id });
-
-	if (result.length === 0) {
-		throw new AppError("NOT_FOUND", "Card not found.");
-	}
-
-	eventBus.emit({
-		type: "card.label.removed",
-		boardId: board.id,
-		payload: { cardId, labelId },
-	});
-
+	await removeCardLabel(board.id, cardId, labelId);
 	return noContent(c);
 });
 
