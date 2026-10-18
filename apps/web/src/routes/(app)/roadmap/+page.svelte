@@ -11,7 +11,10 @@
 	import { priorityLevelPill, projectPriorityPill, statusPill } from '$lib/kumiai/index.js';
 	import { buildProjectViews, displayId, percent, reqLine } from '$lib/kumiai/derive.js';
 	import { addGoal, addProject, errorMessage } from '$lib/kumiai/actions.js';
+	import { createGoal } from '$lib/api/kumiai/goals.js';
 	import { formatTargetWindow } from '$lib/kumiai/target-window.js';
+	import PlanningPanel from '$lib/components/kumiai/PlanningPanel.svelte';
+	import type { DraftWriter, PlanningIntent } from '$lib/kumiai/planning.js';
 
 	let { data }: PageProps = $props();
 
@@ -19,6 +22,50 @@
 	let dialog = $state<{ kind: 'goal' } | { kind: 'project'; goalId: string } | null>(null);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
+
+	/**
+	 * The planning conversation, the default way to add to the roadmap: the user talks it
+	 * through with the Project Manager and the Strategist, then creates the reviewed draft.
+	 * The form above stays as the quick path.
+	 */
+	let planning = $state<{ intent: PlanningIntent; goalTitle: string } | null>(null);
+
+	function planGoal() {
+		planning = {
+			intent: { kind: 'goal', ...(data.activeWorkspaceId ? { workspaceId: data.activeWorkspaceId } : {}) },
+			goalTitle: ''
+		};
+	}
+
+	function planProjects(goalId: string, goalTitle: string) {
+		planning = { intent: { kind: 'project', goalId }, goalTitle };
+	}
+
+	/** Leaves the conversation for the form, keeping what was being added. */
+	function useForm() {
+		const intent = planning?.intent;
+		planning = null;
+		error = null;
+		dialog = intent?.kind === 'project' ? { kind: 'project', goalId: intent.goalId } : { kind: 'goal' };
+	}
+
+	const writer: DraftWriter = {
+		createGoal: (goal) =>
+			createGoal({
+				title: goal.title,
+				body: goal.body,
+				status: 'todo',
+				priority: goal.priority,
+				...(data.activeWorkspaceId ? { workspaceId: data.activeWorkspaceId } : {})
+			}),
+		createProject: (goalId, project) =>
+			addProject({ goalId, status: 'backlog', ...project })
+	};
+
+	async function planned() {
+		planning = null;
+		await invalidateAll();
+	}
 
 	const views = $derived(buildProjectViews(data.workspace));
 	const goals = $derived(
@@ -75,14 +122,7 @@
 	sub="Goals, their projects, and how far the requirements under each have got."
 >
 	{#snippet actions()}
-		<button
-			type="button"
-			class="k-btn k-btn-primary"
-			onclick={() => {
-				error = null;
-				dialog = { kind: 'goal' };
-			}}
-		>
+		<button type="button" class="k-btn k-btn-primary" onclick={planGoal}>
 			<Plus size={15} /> New goal
 		</button>
 	{/snippet}
@@ -129,18 +169,26 @@
 		<button
 			type="button"
 			class="add"
-			onclick={() => {
-				error = null;
-				dialog = { kind: 'project', goalId: goal.id };
-			}}
+			onclick={() => planProjects(goal.id, goal.title)}
 		>
-			<Plus size={15} /> <span>Add a project to this goal</span>
+			<Plus size={15} /> <span>Plan projects for this goal</span>
 		</button>
 	</section>
 {/each}
 
 {#if goals.length === 0 && !data.failed}
 	<p class="empty">No goals yet. Create the first one to start a roadmap.</p>
+{/if}
+
+{#if planning}
+	<PlanningPanel
+		intent={planning.intent}
+		goalTitle={planning.goalTitle}
+		{writer}
+		onclose={() => (planning = null)}
+		oncreated={planned}
+		onuseform={useForm}
+	/>
 {/if}
 
 {#if dialog}
