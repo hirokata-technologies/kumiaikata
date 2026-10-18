@@ -227,6 +227,7 @@ export interface SeededKumiaiGoal {
 	id: string;
 	teamId: string;
 	workspaceId: string;
+	key: string;
 	title: string;
 	body: string;
 	status: "todo" | "in-progress" | "done";
@@ -284,7 +285,7 @@ export async function seedKumiaiGoal(
 	const { rows } = await pool.query<SeededKumiaiGoal>(
 		`INSERT INTO kumiai_goals (id, team_id, workspace_id, title, body, status, priority, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-		 RETURNING id, team_id AS "teamId", workspace_id AS "workspaceId", title, body, status, priority`,
+		 RETURNING id, team_id AS "teamId", workspace_id AS "workspaceId", key, title, body, status, priority`,
 		[id, teamId, workspaceId, title, body, status, priority, now],
 	);
 	return rows[0]!;
@@ -295,6 +296,8 @@ export async function seedKumiaiGoal(
 export interface SeededKumiaiProject {
 	id: string;
 	teamId: string;
+	workspaceId: string;
+	key: string;
 	goalId: string;
 	title: string;
 	body: string;
@@ -355,7 +358,7 @@ export async function seedKumiaiProject(
 			blocked_reason, created_at, updated_at
 		 )
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
-		 RETURNING id, team_id AS "teamId", goal_id AS "goalId", title, body, ordinal, status,
+		 RETURNING id, team_id AS "teamId", workspace_id AS "workspaceId", key, goal_id AS "goalId", title, body, ordinal, status,
 			priority, impact, effort, target_window_kind AS "targetWindowKind",
 			target_window_label AS "targetWindowLabel", target_window_year AS "targetWindowYear",
 			target_window_number AS "targetWindowNumber", blocked_reason AS "blockedReason"`,
@@ -386,6 +389,8 @@ export async function seedKumiaiProject(
 export interface SeededKumiaiRequirement {
 	id: string;
 	teamId: string;
+	workspaceId: string;
+	key: string;
 	projectId: string | null;
 	title: string;
 	body: string;
@@ -409,13 +414,16 @@ export async function seedKumiaiRequirement(
 	const body = input?.body ?? "";
 	const status = input?.status ?? "todo";
 	const priority = input?.priority ?? 3;
+	// An unaffiliated requirement lives in the team's default workspace; one under a project
+	// gets the project's workspace from the kumiai_a_scope trigger.
+	const workspaceId = projectId === null ? await defaultWorkspaceId(teamId) : null;
 	const now = new Date();
 
 	const { rows } = await pool.query<SeededKumiaiRequirement>(
-		`INSERT INTO kumiai_requirements (id, team_id, project_id, title, body, status, priority, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-		 RETURNING id, team_id AS "teamId", project_id AS "projectId", title, body, status, priority`,
-		[id, teamId, projectId, title, body, status, priority, now],
+		`INSERT INTO kumiai_requirements (id, team_id, workspace_id, project_id, title, body, status, priority, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+		 RETURNING id, team_id AS "teamId", workspace_id AS "workspaceId", key, project_id AS "projectId", title, body, status, priority`,
+		[id, teamId, workspaceId, projectId, title, body, status, priority, now],
 	);
 	return rows[0]!;
 }
@@ -425,6 +433,8 @@ export async function seedKumiaiRequirement(
 export interface SeededKumiaiPlan {
 	id: string;
 	teamId: string;
+	workspaceId: string;
+	key: string;
 	requirementId: string;
 	taskId: string | null;
 	title: string;
@@ -464,7 +474,7 @@ export async function seedKumiaiPlan(
 			approved_by, approved_at, created_at, updated_at
 		 )
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
-		 RETURNING id, team_id AS "teamId", requirement_id AS "requirementId", task_id AS "taskId",
+		 RETURNING id, team_id AS "teamId", workspace_id AS "workspaceId", key, requirement_id AS "requirementId", task_id AS "taskId",
 			title, body, status, approval, approved_by AS "approvedBy", approved_at AS "approvedAt"`,
 		[id, teamId, requirementId, taskId, title, body, status, approval, approvedBy, approvedAt, now],
 	);
@@ -476,6 +486,8 @@ export async function seedKumiaiPlan(
 export interface SeededKumiaiTask {
 	id: string;
 	teamId: string;
+	workspaceId: string;
+	key: string;
 	requirementId: string;
 	planId: string | null;
 	title: string;
@@ -509,7 +521,7 @@ export async function seedKumiaiTask(
 	const { rows } = await pool.query<SeededKumiaiTask>(
 		`INSERT INTO kumiai_tasks (id, team_id, requirement_id, plan_id, title, objective, body, status, priority, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
-		 RETURNING id, team_id AS "teamId", requirement_id AS "requirementId", plan_id AS "planId",
+		 RETURNING id, team_id AS "teamId", workspace_id AS "workspaceId", key, requirement_id AS "requirementId", plan_id AS "planId",
 			title, objective, body, status, priority`,
 		[id, teamId, requirementId, planId, title, objective, body, status, priority, now],
 	);

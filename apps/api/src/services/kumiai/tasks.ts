@@ -1,6 +1,7 @@
 import { eq, and, asc } from "drizzle-orm";
-import { db, newId, kumiaiTasks, kumiaiRequirements, kumiaiPlans } from "@kata/db";
+import { db, newId, allocateKey, kumiaiTasks, kumiaiRequirements, kumiaiPlans } from "@kata/db";
 import { AppError } from "@kata/http";
+import { assertSameWorkspace } from "./guild-scope.js";
 
 // ── Serialisation shape ───────────────────────────────────────────────────────
 
@@ -36,26 +37,30 @@ function toDetail(row: typeof kumiaiTasks.$inferSelect): TaskDetail {
 	};
 }
 
-async function assertRequirementInTeam(teamId: string, requirementId: string): Promise<void> {
+/** Returns the requirement's workspace, which its tasks share. */
+async function assertRequirementInTeam(teamId: string, requirementId: string): Promise<string> {
 	const [requirement] = await db
-		.select({ id: kumiaiRequirements.id })
+		.select({ id: kumiaiRequirements.id, workspaceId: kumiaiRequirements.workspaceId })
 		.from(kumiaiRequirements)
 		.where(and(eq(kumiaiRequirements.id, requirementId), eq(kumiaiRequirements.teamId, teamId)))
 		.limit(1);
 	if (!requirement) {
 		throw new AppError("NOT_FOUND", "Requirement not found.");
 	}
+	return requirement.workspaceId;
 }
 
-async function assertPlanInTeam(teamId: string, planId: string): Promise<void> {
+/** Returns the plan's workspace. */
+async function assertPlanInTeam(teamId: string, planId: string): Promise<string> {
 	const [plan] = await db
-		.select({ id: kumiaiPlans.id })
+		.select({ id: kumiaiPlans.id, workspaceId: kumiaiPlans.workspaceId })
 		.from(kumiaiPlans)
 		.where(and(eq(kumiaiPlans.id, planId), eq(kumiaiPlans.teamId, teamId)))
 		.limit(1);
 	if (!plan) {
 		throw new AppError("NOT_FOUND", "Plan not found.");
 	}
+	return plan.workspaceId;
 }
 
 // ── listTasks ─────────────────────────────────────────────────────────────────
@@ -101,28 +106,32 @@ export async function createTask(
 	teamId: string,
 	input: CreateTaskInput,
 ): Promise<TaskDetail> {
-	await assertRequirementInTeam(teamId, input.requirementId);
+	const workspaceId = await assertRequirementInTeam(teamId, input.requirementId);
 	if (input.planId) {
-		await assertPlanInTeam(teamId, input.planId);
+		assertSameWorkspace(workspaceId, await assertPlanInTeam(teamId, input.planId), "A task and its plan");
 	}
 
 	const now = new Date();
-	const [row] = await db
-		.insert(kumiaiTasks)
-		.values({
-			id: newId(),
-			teamId,
-			requirementId: input.requirementId,
-			planId: input.planId ?? null,
-			title: input.title,
-			objective: input.objective ?? "",
-			body: input.body ?? "",
-			status: input.status ?? "todo",
-			priority: input.priority ?? 3,
-			createdAt: now,
-			updatedAt: now,
-		})
-		.returning();
+	const [row] = await db.transaction(async (tx) =>
+		tx
+			.insert(kumiaiTasks)
+			.values({
+				id: newId(),
+				teamId,
+				workspaceId,
+				key: await allocateKey(tx, workspaceId, "TASK"),
+				requirementId: input.requirementId,
+				planId: input.planId ?? null,
+				title: input.title,
+				objective: input.objective ?? "",
+				body: input.body ?? "",
+				status: input.status ?? "todo",
+				priority: input.priority ?? 3,
+				createdAt: now,
+				updatedAt: now,
+			})
+			.returning(),
+	);
 
 	if (!row) {
 		throw new AppError("INTERNAL_ERROR", "Task was created but could not be fetched.");
@@ -148,11 +157,22 @@ export async function updateTask(
 	taskId: string,
 	input: UpdateTaskInput,
 ): Promise<TaskDetail> {
-	if (input.requirementId !== undefined) {
-		await assertRequirementInTeam(teamId, input.requirementId);
-	}
-	if (input.planId) {
-		await assertPlanInTeam(teamId, input.planId);
+	if (input.requirementId !== undefined || input.planId) {
+		const [current] = await db
+			.select({ workspaceId: kumiaiTasks.workspaceId })
+			.from(kumiaiTasks)
+			.where(and(eq(kumiaiTasks.id, taskId), eq(kumiaiTasks.teamId, teamId)))
+			.limit(1);
+		if (!current) {
+			throw new AppError("NOT_FOUND", "Task not found.");
+		}
+		if (input.requirementId !== undefined) {
+			const requirementWorkspaceId = await assertRequirementInTeam(teamId, input.requirementId);
+			assertSameWorkspace(current.workspaceId, requirementWorkspaceId, "A task and its requirement");
+		}
+		if (input.planId) {
+			assertSameWorkspace(current.workspaceId, await assertPlanInTeam(teamId, input.planId), "A task and its plan");
+		}
 	}
 
 	const patch: Partial<typeof kumiaiTasks.$inferInsert> = { updatedAt: new Date() };

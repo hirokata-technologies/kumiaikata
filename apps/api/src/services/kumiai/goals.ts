@@ -1,5 +1,5 @@
 import { eq, and, asc } from "drizzle-orm";
-import { db, newId, kumiaiGoals } from "@kata/db";
+import { db, newId, allocateKey, kumiaiGoals } from "@kata/db";
 import { AppError } from "@kata/http";
 import { resolveWorkspaceId } from "./workspaces.js";
 
@@ -88,20 +88,23 @@ export async function createGoal(
 ): Promise<GoalDetail> {
 	const workspaceId = await resolveWorkspaceId(teamId, input.workspaceId);
 	const now = new Date();
-	const [row] = await db
-		.insert(kumiaiGoals)
-		.values({
-			id: newId(),
-			teamId,
-			workspaceId,
-			title: input.title,
-			body: input.body ?? "",
-			status: input.status ?? "todo",
-			priority: input.priority ?? 3,
-			createdAt: now,
-			updatedAt: now,
-		})
-		.returning();
+	const [row] = await db.transaction(async (tx) =>
+		tx
+			.insert(kumiaiGoals)
+			.values({
+				id: newId(),
+				teamId,
+				workspaceId,
+				key: await allocateKey(tx, workspaceId, "GOAL"),
+				title: input.title,
+				body: input.body ?? "",
+				status: input.status ?? "todo",
+				priority: input.priority ?? 3,
+				createdAt: now,
+				updatedAt: now,
+			})
+			.returning(),
+	);
 
 	if (!row) {
 		throw new AppError("INTERNAL_ERROR", "Goal was created but could not be fetched.");
