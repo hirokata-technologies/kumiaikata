@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+	createDraftItem,
 	applyStreamEvent,
 	createDraft,
 	createLabel,
@@ -220,5 +221,34 @@ describe('parseAgentMarkdown', () => {
 		expect(parseAgentMarkdown('[click](javascript:alert(1))')).toEqual([
 			{ type: 'paragraph', children: [{ type: 'text', text: 'click' }] }
 		]);
+	});
+});
+
+describe('createDraftItem', () => {
+	const proposal = {
+		goal: { title: 'G', body: '', priority: 3 as const },
+		goalId: null,
+		projects: [{ title: 'P', body: '', priority: 'high' as const, impact: 50, effort: 5 }]
+	};
+	const writer = () => ({
+		createGoal: vi.fn(async () => ({ id: 'g1' })),
+		createProject: vi.fn(async () => ({ id: 'p1' }))
+	});
+
+	it('makes a project only after its goal exists', async () => {
+		const d = toDraft(proposal);
+		const w = writer();
+		await expect(createDraftItem(d, w, 0)).rejects.toThrow('goal first');
+		expect(await createDraftItem(d, w, 'goal')).toBe('g1');
+		expect(await createDraftItem(d, w, 0)).toBe('p1');
+		expect(w.createProject).toHaveBeenCalledWith('g1', expect.objectContaining({ title: 'P' }));
+	});
+
+	it('does not create an item twice', async () => {
+		const d = toDraft(proposal);
+		const w = writer();
+		await createDraftItem(d, w, 'goal');
+		await createDraftItem(d, w, 'goal');
+		expect(w.createGoal).toHaveBeenCalledTimes(1);
 	});
 });
