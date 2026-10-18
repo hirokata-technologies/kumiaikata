@@ -1,20 +1,24 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import X from '@lucide/svelte/icons/x';
+	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import ArrowUp from '@lucide/svelte/icons/arrow-up';
 	import Square from '@lucide/svelte/icons/square';
 	import PlanningProposal from './PlanningProposal.svelte';
+	import PlanningCards from './PlanningCards.svelte';
 	import AgentMarkdown from './AgentMarkdown.svelte';
 	import { PlanningConversation, type PlanningDeps } from '$lib/kumiai/planning.svelte.js';
-	import { agentLabel, type DraftWriter, type PlanningIntent } from '$lib/kumiai/planning.js';
+	import { agentLabel, type DraftTarget, type DraftWriter, type PlanningIntent } from '$lib/kumiai/planning.js';
 
 	let {
 		intent,
 		goalTitle = '',
 		writer,
 		deps,
+		page = false,
 		onclose,
 		oncreated,
+		onadded,
 		onuseform
 	}: {
 		intent: PlanningIntent;
@@ -24,11 +28,15 @@
 		writer: DraftWriter;
 		/** Overrides the agents API, for tests. */
 		deps?: PlanningDeps;
+		/** Renders as a full page (the Discuss screen) instead of a drawer over the Roadmap. */
+		page?: boolean;
 		onclose: () => void;
 		/** Called once everything in the draft exists. */
 		oncreated: (goalId: string) => void;
+		/** Page mode: called after each card is added on its own. */
+		onadded?: () => void | Promise<void>;
 		/** Leave the conversation for the plain form. */
-		onuseform: () => void;
+		onuseform?: () => void;
 	} = $props();
 
 	// The panel is mounted per conversation, so reading the props once is intended.
@@ -83,6 +91,10 @@
 		if (goalId) oncreated(goalId);
 	}
 
+	async function add(target: DraftTarget) {
+		if (await chat.add(writer, target)) await onadded?.();
+	}
+
 	function handoffLine(from: string, to: string): string {
 		return to === 'strategist'
 			? `${agentLabel(from)} brought in the ${agentLabel(to)}`
@@ -92,29 +104,49 @@
 
 <svelte:window
 	onkeydown={(e) => {
-		if (e.key === 'Escape' && !chat.creating) onclose();
+		if (!page && e.key === 'Escape' && !chat.creating) onclose();
 	}}
 />
 
 <div
 	class="backdrop"
+	class:page
 	role="presentation"
 	onpointerdown={(e) => {
-		if (e.target === e.currentTarget && !chat.creating) onclose();
+		if (!page && e.target === e.currentTarget && !chat.creating) onclose();
 	}}
 >
-	<div class="panel" role="dialog" aria-modal="true" aria-labelledby="planning-title">
-		<header class="head">
-			<div>
-				<span class="eyebrow">Planning conversation</span>
-				<h2 id="planning-title">
-					{isGoal ? 'Plan a new goal' : `New projects for ${goalTitle}`}
-				</h2>
-			</div>
-			<button type="button" class="icon" aria-label="Close" onclick={onclose} disabled={chat.creating}>
-				<X size={18} />
-			</button>
-		</header>
+	<div
+		class="panel"
+		role={page ? undefined : 'dialog'}
+		aria-modal={page ? undefined : 'true'}
+		aria-labelledby="planning-title"
+	>
+		{#if page}
+			<header class="head page-head">
+				<button type="button" class="back" onclick={onclose} disabled={chat.creating}>
+					<ArrowLeft size={15} /> Roadmap
+				</button>
+				<span class="eyebrow">Direction</span>
+				<h2 id="planning-title">Discuss Goals and Projects</h2>
+				<p class="sub">
+					Work out what comes next with the Project Manager and the Strategist. Drafts reach the
+					roadmap only when you create them.
+				</p>
+			</header>
+		{:else}
+			<header class="head">
+				<div>
+					<span class="eyebrow">Planning conversation</span>
+					<h2 id="planning-title">
+						{isGoal ? 'Plan a new goal' : `New projects for ${goalTitle}`}
+					</h2>
+				</div>
+				<button type="button" class="icon" aria-label="Close" onclick={onclose} disabled={chat.creating}>
+					<X size={18} />
+				</button>
+			</header>
+		{/if}
 
 		<ul class="cast" aria-label="Participants">
 			{#each PARTICIPANTS as p (p.id)}
@@ -129,7 +161,9 @@
 			{#if chat.phase === 'unavailable'}
 				<div class="notice">
 					<p>The planning agents are not set up on this server, so this conversation can't start.</p>
-					<button type="button" class="k-btn k-btn-secondary" onclick={onuseform}>Use the form instead</button>
+					{#if onuseform}
+						<button type="button" class="k-btn k-btn-secondary" onclick={onuseform}>Use the form instead</button>
+					{/if}
 				</div>
 			{:else if entries.length === 0}
 				<div class="intro">
@@ -164,7 +198,18 @@
 				{:else if entry.kind === 'handoff'}
 					<div class="handoff"><span>{handoffLine(entry.from, entry.to)}</span></div>
 				{:else if entry.kind === 'proposal'}
-					{#if entry.version === latestProposal && chat.draft}
+					{#if entry.version === latestProposal && chat.draft && page}
+						<div class="cards-indent">
+							<PlanningCards
+								draft={chat.draft}
+								{goalTitle}
+								adding={chat.adding}
+								error={chat.addError}
+								onadd={add}
+								onview={onclose}
+							/>
+						</div>
+					{:else if entry.version === latestProposal && chat.draft}
 						<PlanningProposal
 							bind:draft={chat.draft}
 							version={entry.version}
@@ -220,7 +265,11 @@
 			{/if}
 		</form>
 		<p class="foot">
-			Prefer to fill it in yourself? <button type="button" class="link" onclick={onuseform}>Use the form</button>
+			{#if onuseform}
+				Prefer to fill it in yourself? <button type="button" class="link" onclick={onuseform}>Use the form</button>
+			{:else}
+				Enter to send, Shift + Enter for a new line
+			{/if}
 		</p>
 	</div>
 </div>
@@ -260,6 +309,90 @@
 		gap: var(--space-4);
 		padding: 20px 24px 12px;
 		background: var(--paper-0);
+	}
+
+	/* The Discuss screen: the same conversation as a centred page, not a drawer. */
+	.backdrop.page {
+		position: static;
+		display: block;
+		min-height: 100%;
+		background: none;
+	}
+
+	.page .panel {
+		width: min(760px, 100%);
+		height: auto;
+		min-height: 100%;
+		margin: 0 auto;
+		background: transparent;
+		border-left: none;
+		box-shadow: none;
+		animation: none;
+	}
+
+	.page .head {
+		display: block;
+		padding: 0 0 12px;
+		background: transparent;
+	}
+
+	.page .head h2 {
+		font-size: 36px;
+		letter-spacing: -0.02em;
+	}
+
+	.page .sub {
+		max-width: 68ch;
+		margin: 6px 0 0;
+		font: 400 14px var(--font-sans);
+		color: var(--fg-3);
+	}
+
+	.back {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-bottom: 16px;
+		padding: 0;
+		border: none;
+		background: transparent;
+		font: 500 13px var(--font-sans);
+		color: var(--fg-3);
+		cursor: pointer;
+	}
+
+	.back:hover {
+		color: var(--ink-1);
+	}
+
+	.page .cast {
+		padding: 0 0 20px;
+		background: transparent;
+	}
+
+	.page .transcript {
+		flex: none;
+		overflow: visible;
+		padding: 28px 0 32px;
+		gap: 28px;
+	}
+
+	.cards-indent {
+		margin-left: 44px;
+	}
+
+	.page .composer {
+		position: sticky;
+		bottom: 0;
+		margin: 0;
+		box-shadow: var(--shadow-sm);
+	}
+
+	.page .foot {
+		position: sticky;
+		bottom: 0;
+		padding: 8px 4px 0;
+		color: var(--fg-4);
 	}
 
 	.eyebrow {

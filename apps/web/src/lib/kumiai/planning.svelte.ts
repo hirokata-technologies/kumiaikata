@@ -3,9 +3,11 @@ import { createAgentSession, streamAgentMessage } from '$lib/api/agents.js';
 import {
 	applyStreamEvent,
 	createDraft,
+	createDraftItem,
 	emptyTranscript,
 	toDraft,
 	type Draft,
+	type DraftTarget,
 	type DraftWriter,
 	type PlanningIntent,
 	type StreamEvent,
@@ -34,6 +36,9 @@ export class PlanningConversation {
 	phase = $state<'idle' | 'thinking' | 'unavailable'>('idle');
 	creating = $state(false);
 	createError = $state<string | null>(null);
+	/** The card being added right now, or null. */
+	adding = $state<DraftTarget | null>(null);
+	addError = $state<string | null>(null);
 
 	#sessionId: string | null = null;
 	#abort: AbortController | null = null;
@@ -103,6 +108,22 @@ export class PlanningConversation {
 		}
 	}
 
+	/** Adds one card of the draft to the roadmap. Returns whether it was created. */
+	async add(writer: DraftWriter, target: DraftTarget): Promise<boolean> {
+		if (!this.draft || this.adding !== null || this.creating) return false;
+		this.adding = target;
+		this.addError = null;
+		try {
+			await createDraftItem(this.draft, writer, target);
+			return true;
+		} catch (e) {
+			this.addError = e instanceof Error ? e.message : 'Something went wrong.';
+			return false;
+		} finally {
+			this.adding = null;
+		}
+	}
+
 	#apply(event: StreamEvent): void {
 		const before = this.transcript.proposalVersion;
 		this.transcript = applyStreamEvent(this.transcript, event);
@@ -119,6 +140,7 @@ export class PlanningConversation {
 			}
 			this.draft = next;
 			this.createError = null;
+			this.addError = null;
 		}
 	}
 }

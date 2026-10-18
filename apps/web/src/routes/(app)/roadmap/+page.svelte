@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import Plus from '@lucide/svelte/icons/plus';
 	import MessagesSquare from '@lucide/svelte/icons/messages-square';
 	import PageHeader from '$lib/components/kumiai/PageHeader.svelte';
@@ -31,12 +31,6 @@
 	 */
 	let planning = $state<{ intent: PlanningIntent; goalTitle: string } | null>(null);
 
-	function planGoal() {
-		planning = {
-			intent: { kind: 'goal', ...(data.activeWorkspaceId ? { workspaceId: data.activeWorkspaceId } : {}) },
-			goalTitle: ''
-		};
-	}
 
 	function planProjects(goalId: string, goalTitle: string) {
 		planning = { intent: { kind: 'project', goalId }, goalTitle };
@@ -123,7 +117,7 @@
 	sub="Goals, their projects, and how far the requirements under each have got."
 >
 	{#snippet actions()}
-		<button type="button" class="k-btn k-btn-primary" onclick={planGoal}>
+		<button type="button" class="k-btn k-btn-primary" onclick={() => goto('/roadmap/discuss')}>
 			<MessagesSquare size={15} /> Discuss Goals and Projects
 		</button>
 	{/snippet}
