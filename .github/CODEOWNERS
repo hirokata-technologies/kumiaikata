@@ -1,0 +1,5 @@
+# Infrastructure changes need an approval from the devops team. The org ruleset
+# "Protect main" enforces code owner review, and merging to main applies them.
+/infra/                              @hirokata-technologies/developer-operations
+/.github/workflows/terraform.yml     @hirokata-technologies/developer-operations
+/.github/CODEOWNERS                  @hirokata-technologies/developer-operations
