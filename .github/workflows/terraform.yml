@@ -15,8 +15,9 @@
 #   GCP_WORKLOAD_IDENTITY_PROVIDER       workload_identity_provider (terraform output)
 #   GCP_TERRAFORM_PLANNER_SERVICE_ACCOUNT  read-only; usable from any ref in this repo
 #   GCP_TERRAFORM_APPLIER_SERVICE_ACCOUNT  can change infrastructure; usable from main only
-# Required repository secrets (the state bucket's RustFS keys, not AWS ones):
-#   TF_STATE_ACCESS_KEY_ID, TF_STATE_SECRET_ACCESS_KEY
+# Required organization secrets, shared with this repo (the state bucket's RustFS keys,
+# the same ones hirokata-main uses):
+#   RUSTFS_ACCESS_KEY_ID, RUSTFS_SECRET_ACCESS_KEY
 #
 # See infra/README.md ("Terraform in CI") for how to create those accounts.
 
@@ -51,8 +52,8 @@ concurrency:
 env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
-  AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_ACCESS_KEY }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.RUSTFS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.RUSTFS_SECRET_ACCESS_KEY }}
 
 jobs:
   plan:
