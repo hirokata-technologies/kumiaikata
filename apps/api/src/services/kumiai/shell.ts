@@ -9,6 +9,14 @@ import {
 } from "@kata/db";
 import { AppError } from "@kata/http";
 import type { ProjectStatus, ProjectPriority } from "./projects.js";
+import { resolveWorkspaceId } from "./workspaces.js";
+
+// ── workspace scoping ─────────────────────────────────────────────────────────
+
+/** Ids of the goals in a workspace, as a subquery to filter projects by. */
+function goalIdsIn(workspaceId: string) {
+	return db.select({ id: kumiaiGoals.id }).from(kumiaiGoals).where(eq(kumiaiGoals.workspaceId, workspaceId));
+}
 
 // ── getStats ──────────────────────────────────────────────────────────────────
 
@@ -35,16 +43,48 @@ const PROJECT_STATUS_KEY: Record<ProjectStatus, keyof KumiaiStats["projectCounts
 // tasks actively in progress.
 const OPEN_TASK_STATUSES = ["todo", "in-progress", "blocked"] as const;
 
-export async function getStats(teamId: string): Promise<KumiaiStats> {
+export async function getStats(
+	teamId: string,
+	workspaceId?: string | undefined,
+): Promise<KumiaiStats> {
+	// With a workspace, only projects under its goals count, and only the tasks of
+	// requirements that belong to those projects.
+	const inWorkspace = workspaceId
+		? await resolveWorkspaceId(teamId, workspaceId)
+		: undefined;
+	const projectScope = inWorkspace
+		? and(eq(kumiaiProjects.teamId, teamId), inArray(kumiaiProjects.goalId, goalIdsIn(inWorkspace)))
+		: eq(kumiaiProjects.teamId, teamId);
+	const taskScope = inWorkspace
+		? and(
+				eq(kumiaiTasks.teamId, teamId),
+				inArray(
+					kumiaiTasks.requirementId,
+					db
+						.select({ id: kumiaiRequirements.id })
+						.from(kumiaiRequirements)
+						.where(
+							inArray(
+								kumiaiRequirements.projectId,
+								db
+									.select({ id: kumiaiProjects.id })
+									.from(kumiaiProjects)
+									.where(inArray(kumiaiProjects.goalId, goalIdsIn(inWorkspace))),
+							),
+						),
+				),
+			)
+		: eq(kumiaiTasks.teamId, teamId);
+
 	const [openTasksRow] = await db
 		.select({ count: sql<number>`count(*)` })
 		.from(kumiaiTasks)
-		.where(and(eq(kumiaiTasks.teamId, teamId), inArray(kumiaiTasks.status, OPEN_TASK_STATUSES)));
+		.where(and(taskScope, inArray(kumiaiTasks.status, OPEN_TASK_STATUSES)));
 
 	const statusRows = await db
 		.select({ status: kumiaiProjects.status, count: sql<number>`count(*)` })
 		.from(kumiaiProjects)
-		.where(eq(kumiaiProjects.teamId, teamId))
+		.where(projectScope)
 		.groupBy(kumiaiProjects.status);
 
 	const projectCounts: KumiaiStats["projectCounts"] = {
@@ -144,7 +184,11 @@ const RECENT_PROJECTS_LIMIT = 5;
 export async function listRecentProjects(
 	teamId: string,
 	userId: string,
+	workspaceId?: string | undefined,
 ): Promise<RecentProjectDetail[]> {
+	const inWorkspace = workspaceId
+		? await resolveWorkspaceId(teamId, workspaceId)
+		: undefined;
 	const rows = await db
 		.select({
 			id: kumiaiProjects.id,
@@ -155,7 +199,13 @@ export async function listRecentProjects(
 		})
 		.from(kumiaiRecentProjects)
 		.innerJoin(kumiaiProjects, eq(kumiaiProjects.id, kumiaiRecentProjects.projectId))
-		.where(and(eq(kumiaiRecentProjects.userId, userId), eq(kumiaiProjects.teamId, teamId)))
+		.where(
+			and(
+				eq(kumiaiRecentProjects.userId, userId),
+				eq(kumiaiProjects.teamId, teamId),
+				inWorkspace ? inArray(kumiaiProjects.goalId, goalIdsIn(inWorkspace)) : undefined,
+			),
+		)
 		.orderBy(desc(kumiaiRecentProjects.openedAt))
 		.limit(RECENT_PROJECTS_LIMIT);
 

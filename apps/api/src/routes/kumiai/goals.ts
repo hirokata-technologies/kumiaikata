@@ -13,6 +13,7 @@ const statusField = z.enum(["todo", "in-progress", "done"]);
 const priorityField = z.number().int().min(1).max(5);
 
 const createSchema = z.object({
+	workspaceId: z.string().min(1).optional(),
 	title: titleField,
 	body: bodyField.optional(),
 	status: statusField.optional(),
@@ -30,10 +31,10 @@ const r = new Hono<{ Variables: KumiaiVariables }>();
 
 r.use("*", requireSession, loadTeamAccess);
 
-// GET /api/kumiai/goals
+// GET /api/kumiai/goals[?workspaceId=]
 r.get("/", async (c) => {
 	const teamId = c.get("kumiaiTeamId");
-	return ok(c, await listGoals(teamId));
+	return ok(c, await listGoals(teamId, c.req.query("workspaceId") || undefined));
 });
 
 // GET /api/kumiai/goals/:id
@@ -48,6 +49,7 @@ r.post("/", zValidator("json", createSchema), async (c) => {
 	const teamId = c.get("kumiaiTeamId");
 	const input = c.req.valid("json");
 	const goal = await createGoal(teamId, {
+		...(input.workspaceId !== undefined && { workspaceId: input.workspaceId }),
 		title: input.title,
 		...(input.body !== undefined && { body: input.body }),
 		...(input.status !== undefined && { status: input.status }),

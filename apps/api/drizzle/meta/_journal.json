@@ -29,6 +29,13 @@
       "when": 1792242348671,
       "tag": "0003_keen_ares",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792283261332,
+      "tag": "0004_kumiai_workspaces",
+      "breakpoints": true
     }
   ]
 }

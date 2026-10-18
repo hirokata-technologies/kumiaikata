@@ -50,6 +50,7 @@ export async function truncateAll(): Promise<void> {
 			kumiai_requirements,
 			kumiai_projects,
 			kumiai_goals,
+			kumiai_workspaces,
 			teams,
 			sessions,
 			accounts,

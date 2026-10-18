@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { KumiaiVariables } from "../../auth/team-access.js";
+import workspacesRouter from "./workspaces.js";
 import goalsRouter from "./goals.js";
 import projectsRouter from "./projects.js";
 import requirementsRouter from "./requirements.js";
@@ -9,6 +10,7 @@ import shellRouter from "./shell.js";
 
 const r = new Hono<{ Variables: KumiaiVariables }>();
 
+r.route("/workspaces", workspacesRouter);
 r.route("/goals", goalsRouter);
 r.route("/projects", projectsRouter);
 r.route("/requirements", requirementsRouter);

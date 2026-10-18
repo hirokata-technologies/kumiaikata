@@ -1,6 +1,7 @@
 import { eq, and, asc } from "drizzle-orm";
 import { db, newId, kumiaiGoals } from "@kata/db";
 import { AppError } from "@kata/http";
+import { resolveWorkspaceId } from "./workspaces.js";
 
 // ── Serialisation shape ───────────────────────────────────────────────────────
 
@@ -9,6 +10,7 @@ export type GoalStatus = "todo" | "in-progress" | "done";
 export interface GoalDetail {
 	id: string;
 	teamId: string;
+	workspaceId: string;
 	title: string;
 	body: string;
 	status: GoalStatus;
@@ -21,6 +23,7 @@ function toDetail(row: typeof kumiaiGoals.$inferSelect): GoalDetail {
 	return {
 		id: row.id,
 		teamId: row.teamId,
+		workspaceId: row.workspaceId,
 		title: row.title,
 		body: row.body,
 		status: row.status as GoalStatus,
@@ -32,11 +35,22 @@ function toDetail(row: typeof kumiaiGoals.$inferSelect): GoalDetail {
 
 // ── listGoals ─────────────────────────────────────────────────────────────────
 
-export async function listGoals(teamId: string): Promise<GoalDetail[]> {
+/** Every goal in the team, or only those of one workspace when `workspaceId` is given. */
+export async function listGoals(
+	teamId: string,
+	workspaceId?: string | undefined,
+): Promise<GoalDetail[]> {
+	const scope =
+		workspaceId === undefined
+			? eq(kumiaiGoals.teamId, teamId)
+			: and(
+					eq(kumiaiGoals.teamId, teamId),
+					eq(kumiaiGoals.workspaceId, await resolveWorkspaceId(teamId, workspaceId)),
+				);
 	const rows = await db
 		.select()
 		.from(kumiaiGoals)
-		.where(eq(kumiaiGoals.teamId, teamId))
+		.where(scope)
 		.orderBy(asc(kumiaiGoals.priority), asc(kumiaiGoals.title));
 	return rows.map(toDetail);
 }
@@ -60,6 +74,8 @@ export async function getGoal(teamId: string, goalId: string): Promise<GoalDetai
 // ── createGoal ────────────────────────────────────────────────────────────────
 
 export interface CreateGoalInput {
+	/** The workspace the goal belongs to for good; the team's default when omitted. */
+	workspaceId?: string | undefined;
 	title: string;
 	body?: string | undefined;
 	status?: GoalStatus | undefined;
@@ -70,12 +86,14 @@ export async function createGoal(
 	teamId: string,
 	input: CreateGoalInput,
 ): Promise<GoalDetail> {
+	const workspaceId = await resolveWorkspaceId(teamId, input.workspaceId);
 	const now = new Date();
 	const [row] = await db
 		.insert(kumiaiGoals)
 		.values({
 			id: newId(),
 			teamId,
+			workspaceId,
 			title: input.title,
 			body: input.body ?? "",
 			status: input.status ?? "todo",
