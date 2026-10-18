@@ -176,5 +176,5 @@ One-time setup (not managed by Terraform on purpose, so CI cannot grant itself a
   - applier: the roles Terraform needs to change this project; bound only to the `main` ref,
     like `github_deploy_principal` in `github_oidc.tf`.
 - **Repository variables** `GCP_TERRAFORM_PLANNER_SERVICE_ACCOUNT` and
-  `GCP_TERRAFORM_APPLIER_SERVICE_ACCOUNT`, and **secrets** `TF_STATE_ACCESS_KEY_ID` and
-  `TF_STATE_SECRET_ACCESS_KEY` (the RustFS keys).
+  `GCP_TERRAFORM_APPLIER_SERVICE_ACCOUNT`, and **organization secrets** `RUSTFS_ACCESS_KEY_ID` and
+  `RUSTFS_SECRET_ACCESS_KEY` (the RustFS keys), shared with this repository.
