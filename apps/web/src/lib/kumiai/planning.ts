@@ -251,6 +251,33 @@ export async function createDraft(d: Draft, writer: DraftWriter): Promise<string
 	return goalId;
 }
 
+/** One card of the draft: the new goal, or the project at this index. */
+export type DraftTarget = 'goal' | number;
+
+/**
+ * Creates a single item of the draft, for the inline cards. A project needs its goal to
+ * exist first (new goals are added from their own card). Returns the new item's id.
+ */
+export async function createDraftItem(
+	d: Draft,
+	writer: DraftWriter,
+	target: DraftTarget
+): Promise<string> {
+	if (target === 'goal') {
+		if (!d.goal) throw new Error('There is no goal to add.');
+		if (!d.goal.value.title.trim()) throw new Error('Give the goal a name.');
+		d.goal.createdId ??= (await writer.createGoal({ ...d.goal.value, title: d.goal.value.title.trim() })).id;
+		return d.goal.createdId;
+	}
+	const item = d.projects[target];
+	if (!item) throw new Error('That project is no longer in the draft.');
+	const goalId = d.goal ? d.goal.createdId : d.goalId;
+	if (!goalId) throw new Error('Add its goal first.');
+	if (!item.value.title.trim()) throw new Error('Give the project a name.');
+	item.createdId ??= (await writer.createProject(goalId, { ...item.value, title: item.value.title.trim() })).id;
+	return item.createdId;
+}
+
 // ── Rendering ─────────────────────────────────────────────────────────────────
 
 /**
