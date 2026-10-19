@@ -16,6 +16,7 @@ const schema = z.object({
 	GOOGLE_CLIENT_ID: z.string().min(1),
 	GOOGLE_CLIENT_SECRET: z.string().min(1),
 	RESEND_API_KEY: z.string().min(1),
+	// Email domains allowed to sign in; "*" allows every domain.
 	ALLOWED_DOMAINS: commaSeparated,
 	// Extra origins Better Auth should trust besides BETTER_AUTH_URL (e.g. a local
 	// dev server on another port). Optional: the app is served same-origin.

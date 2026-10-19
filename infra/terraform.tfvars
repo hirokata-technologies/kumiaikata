@@ -5,4 +5,4 @@ github_owner_id      = "88931196"
 github_repository_id = "1414316340"
 
 kumiai_domain          = "kumiai.hirokata.dev"
-kumiai_allowed_domains = ["hirokata.dev"]
+kumiai_allowed_domains = ["*"]

@@ -12,5 +12,6 @@
 
 ## Business Rules
 
-- **Allowed domains:** Only `hirokata.dev` is permitted. Reject or refuse any operation that would create or associate data with any other domain.
+- **Allowed domains:** Sign-up is public: production sets `ALLOWED_DOMAINS=*`, which allows every email domain. A list of domains still restricts sign-up to those domains (local and CI use lists).
 - **Team workspaces:** A team workspace is the domain workspace. Users may not create multiple workspaces — one domain maps to exactly one team workspace.
+- **Free-mail domains:** Public mailbox providers (`gmail.com`, `outlook.com`, …, see `apps/api/src/auth/free-mail-domains.ts`) never share a team. Each such user gets a private team keyed by their full email address, and is its only member.

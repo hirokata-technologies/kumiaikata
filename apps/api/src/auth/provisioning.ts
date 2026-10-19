@@ -5,6 +5,7 @@ import { newId } from "../db/ids.js";
 import { boards, columns, teams, teamMembers, users } from "../db/schema/index.js";
 import { AppError } from "../http/error.js";
 import { domainOf } from "./domain-allowlist.js";
+import { isFreeMailDomain } from "./free-mail-domains.js";
 
 const DEFAULT_COLUMNS = ["Backlog", "Priorities", "In Progress", "Done"] as const;
 
@@ -63,7 +64,11 @@ export async function provisionUser(user: {
 			//    the existing row when the unique constraint fires, the new row
 			//    when it inserts. Updating updated_at is a harmless no-op-ish
 			//    side effect that lets us use DO UPDATE for the RETURNING clause.
-			const domain = domainOf(user.email);
+			//    Free-mail domains (gmail.com, …) are not shared: the team is keyed by
+			//    the full address instead, giving that user a private team. A full
+			//    address contains "@", so it can never collide with a real domain.
+			const emailDomain = domainOf(user.email);
+			const domain = isFreeMailDomain(emailDomain) ? user.email.toLowerCase() : emailDomain;
 			const [team] = await tx.insert(teams).values({
 				id: newId(),
 				domain,

@@ -147,3 +147,39 @@ describe("provisionUser — idempotency", () => {
 		expect(memberRows).toHaveLength(1);
 	});
 });
+
+describe("provisionUser — free-mail domains", () => {
+	it("gives each free-mail user a private team instead of a shared domain team", async () => {
+		const alice = await seedUser({ email: "alice@gmail.com", name: "Alice" });
+		const bob = await seedUser({ email: "bob@gmail.com", name: "Bob" });
+		await provisionUser({ id: alice.id, email: alice.email, name: "Alice" });
+		await provisionUser({ id: bob.id, email: bob.email, name: "Bob" });
+
+		// No shared gmail.com team exists.
+		const shared = await db.select().from(teams).where(eq(teams.domain, "gmail.com"));
+		expect(shared).toHaveLength(0);
+
+		// Each user has their own team and is its only member, as admin.
+		const aliceTeams = await db.select().from(teams).where(eq(teams.domain, "alice@gmail.com"));
+		const bobTeams = await db.select().from(teams).where(eq(teams.domain, "bob@gmail.com"));
+		expect(aliceTeams).toHaveLength(1);
+		expect(bobTeams).toHaveLength(1);
+		expect(aliceTeams[0]!.id).not.toBe(bobTeams[0]!.id);
+
+		const members = await db
+			.select()
+			.from(teamMembers)
+			.where(eq(teamMembers.teamId, aliceTeams[0]!.id));
+		expect(members).toHaveLength(1);
+		expect(members[0]!.userId).toBe(alice.id);
+		expect(members[0]!.role).toBe("admin");
+	});
+
+	it("keys the private team by the lower-cased address", async () => {
+		const user = await seedUser({ email: "Carol@Gmail.com", name: "Carol" });
+		await provisionUser({ id: user.id, email: user.email, name: "Carol" });
+
+		const rows = await db.select().from(teams).where(eq(teams.domain, "carol@gmail.com"));
+		expect(rows).toHaveLength(1);
+	});
+});
