@@ -123,7 +123,7 @@ All configuration is read from the environment at runtime (nothing is baked in a
 | `ORIGIN` | yes in production | adapter-node public origin, e.g. `https://kumiai.hirokata.dev`. Needed behind the Google load balancer so SvelteKit sees the right URL and its CSRF check passes |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | yes | Google OAuth client. Authorised redirect URI: `<BETTER_AUTH_URL>/api/auth/callback/google` |
 | `RESEND_API_KEY` | yes | Resend API key (verification and password-reset emails, sent inline) |
-| `ALLOWED_DOMAINS` | yes | Comma-separated email domains allowed to sign in (production: `hirokata.dev`) |
+| `ALLOWED_DOMAINS` | yes | Comma-separated email domains allowed to sign in. `*` allows every domain (production). Free-mail users (gmail.com and similar) get a private team instead of a shared domain team |
 | `AGENT_RUNTIME_NAME` | no | Vertex AI Agent Runtime instance of the AI agents, `projects/{project}/locations/{location}/reasoningEngines/{id}`. Uses Application Default Credentials (service account needs `roles/aiplatform.user`). When unset, `/api/agents` answers 503. See `apps/api/README.md` |
 | `GCS_BUCKET` | no | Cloud Storage bucket for attachments (Application Default Credentials). When unset, files go to `ATTACHMENTS_DIR` on local disk |
 | `ATTACHMENTS_DIR` | no | Local-disk attachment directory (default `/data/attachments`) |

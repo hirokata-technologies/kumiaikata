@@ -5,8 +5,10 @@ import { describe, it, expect } from "vitest";
 import {
 	domainOf,
 	isAllowedDomain,
+	isDomainInList,
 	assertAllowedDomain,
 } from "./domain-allowlist.js";
+import { isFreeMailDomain } from "./free-mail-domains.js";
 import { AppError } from "../http/error.js";
 
 describe("domainOf", () => {
@@ -65,5 +67,46 @@ describe("assertAllowedDomain", () => {
 		} catch (err) {
 			expect((err as AppError).code).toBe("VALIDATION_ERROR");
 		}
+	});
+});
+
+describe("isDomainInList", () => {
+	it("matches a listed domain case-insensitively", () => {
+		expect(isDomainInList(["Corp.com"], "corp.com")).toBe(true);
+		expect(isDomainInList(["corp.com"], "CORP.COM")).toBe(true);
+	});
+
+	it("rejects an unlisted domain", () => {
+		expect(isDomainInList(["corp.com"], "evil.com")).toBe(false);
+	});
+
+	it("allows every non-empty domain when the list contains the wildcard", () => {
+		expect(isDomainInList(["*"], "gmail.com")).toBe(true);
+		expect(isDomainInList(["corp.com", "*"], "anything.org")).toBe(true);
+	});
+
+	it("rejects an empty domain even with the wildcard", () => {
+		expect(isDomainInList(["*"], "")).toBe(false);
+	});
+
+	it("rejects everything for an empty list", () => {
+		expect(isDomainInList([], "corp.com")).toBe(false);
+	});
+});
+
+describe("isFreeMailDomain", () => {
+	it("recognises public mailbox providers", () => {
+		expect(isFreeMailDomain("gmail.com")).toBe(true);
+		expect(isFreeMailDomain("outlook.com")).toBe(true);
+		expect(isFreeMailDomain("yahoo.com")).toBe(true);
+	});
+
+	it("is case-insensitive", () => {
+		expect(isFreeMailDomain("GMAIL.COM")).toBe(true);
+	});
+
+	it("does not match company domains", () => {
+		expect(isFreeMailDomain("hirokata.dev")).toBe(false);
+		expect(isFreeMailDomain("corp.com")).toBe(false);
 	});
 });

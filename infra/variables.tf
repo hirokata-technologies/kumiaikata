@@ -35,12 +35,14 @@ variable "kumiai_domain" {
 }
 
 variable "kumiai_allowed_domains" {
-  description = "Email domains allowed to sign in. Only hirokata.dev is permitted."
+  description = "Email domains allowed to sign in. Use [\"*\"] to open sign-up to every domain."
   type        = list(string)
 
   validation {
-    condition     = alltrue([for d in var.kumiai_allowed_domains : d == "hirokata.dev"])
-    error_message = "Only hirokata.dev is allowed."
+    condition = length(var.kumiai_allowed_domains) > 0 && alltrue([
+      for d in var.kumiai_allowed_domains : d == "*" || can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", d))
+    ])
+    error_message = "Each entry must be \"*\" or a lower-case email domain such as hirokata.dev, and the list must not be empty."
   }
 }
 
