@@ -17,6 +17,12 @@ jobs:
   test-web:
     name: Web Unit Tests
     runs-on: [self-hosted, Linux, X64]
+    # Playwright's image ships Chromium and the system libraries it needs, so the runner host
+    # needs neither sudo nor apt. Keep the tag equal to the playwright version in
+    # pnpm-lock.yaml: a mismatch fails the browser tests with "Executable doesn't exist".
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --init --ipc=host
     steps:
       - uses: actions/checkout@v4
 
@@ -29,23 +35,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Resolve Playwright version
-        id: playwright-version
-        run: |
-          echo "version=$(pnpm --filter @kata/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-
-      - name: Restore Playwright browser cache
-        id: playwright-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
-      - name: Install Chromium
-        run: pnpm --filter @kata/web exec playwright install --with-deps chromium
 
       - name: Lint
         run: pnpm lint:web
@@ -61,12 +50,12 @@ jobs:
       - name: Build web app
         run: pnpm --filter @kata/web build
 
-      - name: Save Playwright browser cache
-        if: always() && steps.playwright-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+      # The container runs as root, so everything it wrote under the shared _work directory
+      # (the checkout, node_modules, the tool cache) is root-owned on the host. Hand it back to
+      # the runner's user, or the next job's checkout cannot clean it.
+      - name: Hand the workspace back to the runner user
+        if: always()
+        run: chown -R "$(stat -c '%u:%g' /__w/_temp)" /__w
 
   test-api:
     name: API Tests
