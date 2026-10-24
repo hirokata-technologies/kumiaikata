@@ -1,21 +1,18 @@
 import { Pool } from "pg";
+import { databaseNameOf, quoteIdent, withDatabase } from "./worker-db.js";
 
 export { pool } from "../../src/db/client.js";
 
 /**
- * Create the kata_test database if it does not already exist.
+ * Create the test database named by DATABASE_URL if it does not already exist.
  * Connects to the default "postgres" admin database using the same
  * host/port/credentials as DATABASE_URL.
  */
 export async function createTestDbIfMissing(): Promise<void> {
 	const dataUrl = process.env["DATABASE_URL"] ?? "";
-	// Parse the URL to extract connection info, then replace the database name
-	// with the default "postgres" admin database.
-	const adminUrl = dataUrl.replace(/\/[^/?]+(\?|$)/, "/postgres$1");
-
-	const adminPool = new Pool({ connectionString: adminUrl });
+	const adminPool = new Pool({ connectionString: withDatabase(dataUrl, "postgres") });
 	try {
-		await adminPool.query("CREATE DATABASE kata_test");
+		await adminPool.query(`CREATE DATABASE ${quoteIdent(databaseNameOf(dataUrl))}`);
 	} catch (err: unknown) {
 		// Ignore "database already exists" error (code 42P04)
 		if (

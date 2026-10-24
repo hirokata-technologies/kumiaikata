@@ -1,10 +1,12 @@
+import { availableParallelism } from "node:os";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	test: {
 		environment: "node",
-		// Serial execution — tests share a single Postgres connection pool
-		fileParallelism: false,
+		// Test files run in parallel, each worker on its own clone of the migrated database
+		// (test/global-setup.ts). Capped so workers x pool size stays under max_connections (100).
+		maxWorkers: Math.max(1, Math.min(availableParallelism() - 1, 8)),
 		// Migrates the test database once for the whole run
 		globalSetup: ["./test/global-setup.ts"],
 		setupFiles: [
