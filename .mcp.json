@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "kumiai": {
+      "type": "http",
+      "url": "https://kumiai.hirokata.dev/mcp"
+    }
+  }
+}
