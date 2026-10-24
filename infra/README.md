@@ -9,6 +9,7 @@ Railway.
 |---|---|
 | `apis.tf` | Google Cloud APIs the project needs |
 | `service_accounts.tf` | Agents runtime and deployer service accounts and their roles |
+| `local_dev.tf` | Key-less service account developers impersonate to run the agents locally |
 | `github_oidc.tf` | Workload Identity Federation so GitHub Actions can deploy without a stored key |
 | `agent_runtime.tf` | The Agent Runtime instance that hosts both agents |
 | `kumiai.tf` | kumiai app on Cloud Run (service `kumiai`), its migration job (`kumiai-migrate`), image repository and deployer |
@@ -137,6 +138,20 @@ one-off access, run a Cloud Run Job or a temporary VM on the `kumiai` network.
 The kumiai app runs as `kumiai-runtime`, which has `roles/aiplatform.user`, so
 it calls Agent Runtime with its own identity and no key. The instance's full
 resource name reaches the app as `AGENT_RUNTIME_NAME`.
+
+### Running the agents from a local machine
+
+`local_dev.tf` defines `kumiai-local`, a service account with
+`roles/aiplatform.user` and no key. The members listed in `local_dev_members`
+(`terraform.tfvars`) may impersonate it. After `terraform apply`:
+
+```bash
+gcloud auth application-default login \
+  --impersonate-service-account="$(terraform -chdir=infra output -raw local_dev_service_account)"
+```
+
+Then set `AGENT_RUNTIME_NAME` (from `terraform output agent_runtime_name`) in
+`apps/web/.env` and restart `pnpm dev`.
 
 ## Day-to-day
 

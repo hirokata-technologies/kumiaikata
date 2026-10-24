@@ -46,6 +46,17 @@ variable "kumiai_allowed_domains" {
   }
 }
 
+variable "local_dev_members" {
+  description = "IAM members (for example user:name@hirokata.dev) allowed to impersonate the local development service account."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for m in var.local_dev_members : can(regex("^(user|group):[^@\\s]+@[^@\\s]+$", m))])
+    error_message = "Each entry must look like user:name@hirokata.dev or group:team@hirokata.dev."
+  }
+}
+
 variable "kumiai_sentry_dsn" {
   description = "Sentry DSN (the Sentry project is still named kata-web). Empty disables Sentry."
   type        = string

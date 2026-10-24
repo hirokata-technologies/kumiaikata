@@ -13,6 +13,11 @@ output "runtime_service_account" {
   value       = google_service_account.agents_runtime.email
 }
 
+output "local_dev_service_account" {
+  description = "Service account developers impersonate to run kumiai locally against the agents."
+  value       = google_service_account.kumiai_local.email
+}
+
 output "deployer_service_account" {
   description = "Service account GitHub Actions deploys as. Set as the GCP_DEPLOYER_SERVICE_ACCOUNT GitHub Actions variable."
   value       = google_service_account.agents_deployer.email
