@@ -16,6 +16,7 @@ export default tseslint.config(...rootConfig, {
 					'src/agents/*.test.ts',
 					'src/auth/*.test.ts',
 					'src/events/*.test.ts',
+					'src/guild/tools/*.test.ts',
 					'src/http/*.test.ts',
 					'src/mcp/*.test.ts',
 					'src/ordering/*.test.ts',
