@@ -22,7 +22,7 @@ uv export --frozen --no-dev --no-hashes --no-emit-project --output-file "$agent_
 
 # `adk deploy` replaces the env_vars in .agent_engine_config.json with the
 # contents of the agent folder's .env file, so write that file from the config.
-python3 -c '
+uv run --frozen python -c '
 import json, sys
 env = json.load(open(sys.argv[1]))["env_vars"]
 print("\n".join(f"{name}={value}" for name, value in env.items()))

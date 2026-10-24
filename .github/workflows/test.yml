@@ -60,6 +60,10 @@ jobs:
   test-api:
     name: API Tests
     runs-on: [self-hosted, Linux, X64]
+    # Running in a container puts the job and its Postgres service on one Docker network, so the
+    # database is reached by hostname (`postgres`) and no port is published on the runner host.
+    container:
+      image: node:24
     services:
       postgres:
         image: postgres:18-alpine
@@ -72,10 +76,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-        ports:
-          - 5432:5432
     env:
-      DATABASE_URL: postgresql://kata:kata@localhost:5432/kata_test
+      DATABASE_URL: postgresql://kata:kata@postgres:5432/kata_test
       BETTER_AUTH_SECRET: test-secret-value-at-least-32-characters-long
       BETTER_AUTH_URL: http://localhost:3000
       GOOGLE_CLIENT_ID: test-google-client-id
@@ -106,6 +108,12 @@ jobs:
 
       - name: Run package tests
         run: pnpm test:packages
+
+      # The container runs as root: hand the shared _work directory back to the runner's user
+      # (see the web job).
+      - name: Hand the workspace back to the runner user
+        if: always()
+        run: chown -R "$(stat -c '%u:%g' /__w/_temp)" /__w
 
   test-agents:
     name: Agents Tests
