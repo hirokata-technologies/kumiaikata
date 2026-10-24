@@ -58,7 +58,7 @@ env:
 jobs:
   plan:
     name: Plan
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64]
     outputs:
       has_changes: ${{ steps.plan.outputs.has_changes }}
     permissions:
@@ -155,7 +155,7 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main' && needs.plan.outputs.has_changes == 'true' &&
       (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.apply))
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64]
     environment: infra-production
     defaults:
       run:
