@@ -280,7 +280,7 @@
 									<span class="avatar" style:background={t.bg} style:color={t.fg}>{t.ini}</span>
 									<div>
 										<div class="person-name">{t.name}</div>
-										<div class="role">{t.role}</div>
+										<div class="person-role">{t.role}</div>
 										<div class="person-does">{t.does}</div>
 									</div>
 								</div>
@@ -809,7 +809,7 @@
 		font: 600 14px var(--font-sans);
 		color: var(--fg-1);
 	}
-	.role {
+	.person-role {
 		margin-top: 3px;
 		font: 600 10px var(--font-sans);
 		letter-spacing: 0.1em;

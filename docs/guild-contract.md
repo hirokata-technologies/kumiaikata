@@ -47,9 +47,9 @@ claude mcp add --scope project --transport http kumiai https://<kumiai-host>/mcp
    not apply.
 5. **One tool call = one transaction.** Composite tools (`create_task`, `instantiate_graph`,
    `resolve_gate`, `supersede_doc`, …) are atomic: all of it lands or none of it does.
-6. **The guild deletes nothing.** There are no delete tools except `unlink` (a knowledge edge) and
-   `remove_task_dependency` — the two removals the guild prose actually performs. Work is retired
-   by status.
+6. **The guild deletes almost nothing.** The only delete tools are `unlink` (a knowledge edge),
+   `remove_task_dependency`, and the direction deletes `delete_goal(s)` / `delete_project(s)`
+   (§4.3). Work — requirements, plans, tasks, bugs — is retired by status.
 7. **Every mutation writes an `event` row** (verb, subject_type, subject_id, payload), the same
    vocabulary as the guild's triggers, so `v_recent_activity` reads identically.
 8. **Vocabularies are the guild's.** CHECK constraints from `schema.sql` are enforced in Postgres
@@ -128,6 +128,15 @@ as instants. All conditions are ANDed.
 | `update_goal` | `expect_status?, workspace, actor, key, title?, body?, priority?, status?` |
 | `create_project` | `workspace, actor, goal: Key, title, body?, ordinal?: int\|null, priority?, status?, concurrent?: bool, isolation?: 'shared'\|'worktree', worktree_path?` |
 | `update_project` | `expect_status?, workspace, actor, key, …any create field except goal` |
+| `delete_goal` | `workspace, actor, key, cascade_projects?: bool, expect_status?` — permanent. `CONFLICT` while the goal has projects unless `cascade_projects` is true, which deletes them too. Returns `{ deleted: [key], projects_deleted: [key], requirements_detached: [key] }`. |
+| `delete_goals` | `workspace, actor, keys: Key[] (1–100), cascade_projects?: bool` — `delete_goal` for many, in one transaction: all or none. `NOT_FOUND` names every missing key. Duplicate keys count once. |
+| `delete_project` | `workspace, actor, key, expect_status?` — permanent. Requirements under it are **detached** (they become unaffiliated), never deleted. Returns `{ deleted: [key], requirements_detached: [key] }`. |
+| `delete_projects` | `workspace, actor, keys: Key[] (1–100)` — `delete_project` for many, in one transaction: all or none. |
+
+The four delete tools also remove the knowledge edges that name the deleted goal or project (so
+`v_knowledge_dangling` stays empty) and each write a `deleted` event. They are the exception to
+rule 6, and only for direction rows: requirements, plans, tasks and everything beneath them are
+still retired by status, never deleted.
 
 ### 4.4 Work — requirements, plans, tasks
 

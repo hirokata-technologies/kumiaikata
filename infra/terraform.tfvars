@@ -6,3 +6,5 @@ github_repository_id = "1414316340"
 
 kumiai_domain          = "kumiai.hirokata.dev"
 kumiai_allowed_domains = ["*"]
+
+local_dev_members = ["user:gian.quintana@hirokata.dev"]
