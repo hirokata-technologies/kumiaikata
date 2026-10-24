@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { truncateAll, pool } from "../helpers/index.js";
+import { describe, it, expect } from "vitest";
+import { pool } from "../helpers/index.js";
 import {
 	seedGuildBoard,
 	one,
@@ -15,8 +15,6 @@ import {
 	logWork,
 	type GuildBoard,
 } from "../helpers/guild.js";
-
-beforeEach(() => truncateAll());
 
 /** Every v_* view in guild schema.sql v9.3. */
 const GUILD_VIEWS = [

@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
-	truncateAll,
 	pool,
 	seedUser,
 	seedTeamWithBoard,
@@ -10,8 +9,6 @@ import {
 	seedKumiaiPlan,
 	seedKumiaiTask,
 } from "../helpers/index.js";
-
-beforeEach(() => truncateAll());
 
 let domainCounter = 0;
 

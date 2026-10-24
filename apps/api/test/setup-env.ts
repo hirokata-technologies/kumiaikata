@@ -1,4 +1,5 @@
 import { config } from "dotenv";
+import { workerDatabaseUrl } from "./helpers/worker-db.js";
 
 // Must run before any module that imports env.ts.
 // This ensures DATABASE_URL and other required vars are set before env.ts
@@ -11,3 +12,8 @@ if (!process.env.DATABASE_URL) {
     'Example: DATABASE_URL=postgresql://postgres:postgres@localhost:5432/kata_test'
   );
 }
+
+// A vitest worker uses its own clone of the migrated test database (see global-setup.ts), so test
+// files can run in parallel. The main process (global setup) keeps the template's URL.
+const poolId = process.env.VITEST_POOL_ID;
+if (poolId) process.env.DATABASE_URL = workerDatabaseUrl(process.env.DATABASE_URL, poolId);

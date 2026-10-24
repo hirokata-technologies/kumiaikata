@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { eq, and } from "drizzle-orm";
 
 // Mock storage before any service imports to avoid disk/GCS I/O in tests.
@@ -13,7 +13,6 @@ vi.mock("../../src/storage/index.js", () => ({
 import { db } from "../../src/db/client.js";
 import { cards, attachments } from "../../src/db/schema/index.js";
 import {
-	truncateAll,
 	seedUser,
 	seedPersonalBoard,
 	seedColumn,
@@ -28,8 +27,6 @@ import {
 	reorderCardsInColumn,
 } from "../../src/services/cards.js";
 import { newId } from "../../src/db/ids.js";
-
-beforeEach(() => truncateAll());
 
 describe("createCard", () => {
 	it("creates a card with empty arrays and returns the summary", async () => {

@@ -1,9 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { truncateAll, pool, seedUser, seedPersonalBoard } from "../helpers/index.js";
+import { describe, it, expect } from "vitest";
+import { pool, seedUser, seedPersonalBoard } from "../helpers/index.js";
 import { createProject, updateProject, deleteProject, listProjects } from "../../src/services/projects.js";
 import { newId } from "../../src/db/ids.js";
-
-beforeEach(() => truncateAll());
 
 // ── listProjects ──────────────────────────────────────────────────────────────
 

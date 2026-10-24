@@ -28,7 +28,6 @@ import { mockBetterAuth, setCurrentUser } from "../helpers/mock-session.js";
 import { apiRequest, apiRequestRaw } from "../helpers/request.js";
 import { clearMockStorage, mockStorage } from "../helpers/mock-storage.js";
 import {
-	truncateAll,
 	seedUser,
 	seedPersonalBoard,
 	seedTeamWithBoard,
@@ -60,7 +59,6 @@ beforeEach(async () => {
 	clearMockStorage();
 	vi.restoreAllMocks(); // restore spied methods to originals between tests
 	vi.clearAllMocks();
-	await truncateAll();
 });
 
 // ── Finding 1: SSE — stream.close() does not fire onAbort ────────────────────

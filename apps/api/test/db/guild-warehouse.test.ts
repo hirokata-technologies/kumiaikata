@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { sql } from "drizzle-orm";
 import { db, allocateKey, withGuildTx } from "@kata/db";
-import { truncateAll, pool, seedUser } from "../helpers/index.js";
+import { pool, seedUser } from "../helpers/index.js";
 import {
 	seedGuildBoard,
 	one,
@@ -17,8 +17,6 @@ import {
 	logWork,
 	type GuildBoard,
 } from "../helpers/guild.js";
-
-beforeEach(() => truncateAll());
 
 interface EventRow {
 	actor: string;
