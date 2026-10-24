@@ -47,7 +47,7 @@ env:
 jobs:
   deploy:
     name: Build & Deploy to Cloud Run
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
 
