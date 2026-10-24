@@ -14,8 +14,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decides which jobs a pull request needs. A push to main always runs everything.
+  # A job skipped by its `if` counts as passing for required checks.
+  changes:
+    name: Changed Paths
+    runs-on: [self-hosted, Linux, X64]
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+      api: ${{ steps.filter.outputs.api }}
+      agents: ${{ steps.filter.outputs.agents }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            workspace: &workspace
+              - "package.json"
+              - "pnpm-lock.yaml"
+              - "pnpm-workspace.yaml"
+              - ".npmrc"
+              - ".nvmrc"
+              - "packages/**"
+              - ".github/workflows/test.yml"
+            api:
+              - *workspace
+              - "apps/api/**"
+            web:
+              - *workspace
+              - "apps/web/**"
+              # The web build bundles the Hono API from source.
+              - "apps/api/**"
+            agents:
+              - "apps/agents/**"
+              - ".github/workflows/test.yml"
+            infra:
+              - "infra/**"
+              - ".github/workflows/test.yml"
+
   test-web:
     name: Web Unit Tests
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.web == 'true'
     runs-on: [self-hosted, Linux, X64]
     # Playwright's image ships Chromium and the system libraries it needs, so the runner host
     # needs neither sudo nor apt. Keep the tag equal to the playwright version in
@@ -23,6 +67,11 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
       options: --init --ipc=host
+    # The pnpm store lives in the runner's _work directory, next to the workspace: it survives
+    # between runs (checkout only cleans the workspace) and shares a filesystem with node_modules,
+    # so pnpm hard-links packages instead of copying them. This replaces setup-node's cache.
+    env:
+      npm_config_store_dir: /__w/_pnpm-store
     steps:
       - uses: actions/checkout@v4
 
@@ -31,7 +80,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -52,13 +100,16 @@ jobs:
 
       # The container runs as root, so everything it wrote under the shared _work directory
       # (the checkout, node_modules, the tool cache) is root-owned on the host. Hand it back to
-      # the runner's user, or the next job's checkout cannot clean it.
+      # the runner's user, or the next job's checkout cannot clean it. The pnpm store stays as
+      # it is: it is large and nothing but pnpm in these containers touches it.
       - name: Hand the workspace back to the runner user
         if: always()
-        run: chown -R "$(stat -c '%u:%g' /__w/_temp)" /__w
+        run: find /__w -mindepth 1 -maxdepth 1 ! -name _pnpm-store -exec chown -R "$(stat -c '%u:%g' /__w/_temp)" {} +
 
   test-api:
     name: API Tests
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.api == 'true'
     runs-on: [self-hosted, Linux, X64]
     # Running in a container puts the job and its Postgres service on one Docker network, so the
     # database is reached by hostname (`postgres`) and no port is published on the runner host.
@@ -77,6 +128,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
+      # See the web job: the pnpm store persists in the runner's _work directory.
+      npm_config_store_dir: /__w/_pnpm-store
       DATABASE_URL: postgresql://kata:kata@postgres:5432/kata_test
       BETTER_AUTH_SECRET: test-secret-value-at-least-32-characters-long
       BETTER_AUTH_URL: http://localhost:3000
@@ -92,7 +145,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -113,10 +165,12 @@ jobs:
       # (see the web job).
       - name: Hand the workspace back to the runner user
         if: always()
-        run: chown -R "$(stat -c '%u:%g' /__w/_temp)" /__w
+        run: find /__w -mindepth 1 -maxdepth 1 ! -name _pnpm-store -exec chown -R "$(stat -c '%u:%g' /__w/_temp)" {} +
 
   test-agents:
     name: Agents Tests
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.agents == 'true'
     runs-on: [self-hosted, Linux, X64]
     defaults:
       run:
@@ -146,6 +200,8 @@ jobs:
 
   test-infra:
     name: Terraform Checks
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.infra == 'true'
     runs-on: [self-hosted, Linux, X64]
     defaults:
       run:
