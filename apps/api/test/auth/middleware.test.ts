@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
-	truncateAll,
 	seedUser,
 	seedPersonalBoard,
 	seedTeamWithBoard,
@@ -10,8 +9,6 @@ import {
 	fetchBoardWithMembership,
 	type BoardWithMembership,
 } from "../../src/auth/middleware.js";
-
-beforeEach(() => truncateAll());
 
 // ── deriveAccess (pure, no DB) ────────────────────────────────────────────────
 

@@ -1,9 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "../../src/db/client.js";
 import { columns } from "../../src/db/schema/index.js";
 import {
-	truncateAll,
 	seedUser,
 	seedPersonalBoard,
 	seedColumn,
@@ -15,8 +14,6 @@ import {
 	deleteColumn,
 	reorderColumns,
 } from "../../src/services/columns.js";
-
-beforeEach(() => truncateAll());
 
 describe("createColumn", () => {
 	it("creates a column and returns the summary", async () => {

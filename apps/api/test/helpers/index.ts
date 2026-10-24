@@ -1,4 +1,4 @@
-export { truncateAll, pool } from "./db.js";
+export { resetDatabase, pool } from "./db.js";
 export {
 	seedUser,
 	seedPersonalBoard,

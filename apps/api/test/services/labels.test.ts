@@ -1,9 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "../../src/db/client.js";
 import { cards } from "../../src/db/schema/index.js";
 import {
-	truncateAll,
 	seedUser,
 	seedPersonalBoard,
 	seedColumn,
@@ -16,8 +15,6 @@ import {
 	updateLabel,
 	deleteLabel,
 } from "../../src/services/labels.js";
-
-beforeEach(() => truncateAll());
 
 describe("createLabel", () => {
 	it("creates a label and returns the detail", async () => {

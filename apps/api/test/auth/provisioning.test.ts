@@ -1,11 +1,9 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { eq, and } from "drizzle-orm";
 import { db } from "../../src/db/client.js";
 import { boards, teams, teamMembers, users } from "../../src/db/schema/index.js";
-import { truncateAll, seedUser } from "../helpers/index.js";
+import { seedUser } from "../helpers/index.js";
 import { provisionUser } from "../../src/auth/provisioning.js";
-
-beforeEach(() => truncateAll());
 
 describe("provisionUser — first user for a domain", () => {
 	it("creates a personal board, links it to the user, creates team and team board, and makes user admin", async () => {

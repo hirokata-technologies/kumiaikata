@@ -5,6 +5,8 @@ export default defineConfig({
 		environment: "node",
 		// Serial execution — tests share a single Postgres connection pool
 		fileParallelism: false,
+		// Migrates the test database once for the whole run
+		globalSetup: ["./test/global-setup.ts"],
 		setupFiles: [
 			"./test/setup-env.ts",
 			"./test/setup-mocks.ts",

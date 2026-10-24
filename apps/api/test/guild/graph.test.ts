@@ -1,11 +1,9 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { truncateAll, seedUser } from "../helpers/index.js";
+import { describe, it, expect } from "vitest";
+import { seedUser } from "../helpers/index.js";
 import { seedGuildBoard, all, one, type GuildBoard } from "../helpers/guild.js";
 import { graphTools } from "../../src/guild/tools/graph.js";
 import { workTools } from "../../src/guild/tools/work.js";
 import type { GuildCaller } from "../../src/guild/registry.js";
-
-beforeEach(() => truncateAll());
 
 interface Ctx {
 	board: GuildBoard;

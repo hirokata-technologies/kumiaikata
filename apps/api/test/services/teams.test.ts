@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
-	truncateAll,
 	seedUser,
 	seedTeamWithBoard,
 } from "../helpers/index.js";
@@ -9,8 +8,6 @@ import {
 	listMembers,
 	setMemberRole,
 } from "../../src/services/teams.js";
-
-beforeEach(() => truncateAll());
 
 describe("getTeamForUser", () => {
 	it("returns team info and role for a team member", async () => {

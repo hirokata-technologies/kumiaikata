@@ -30,50 +30,46 @@ export async function createTestDbIfMissing(): Promise<void> {
 	}
 }
 
+/** What the reset needs from a connection pool: `pg.Pool` and the app's pool both fit. */
+type ResetPool = Pick<Pool, "query" | "connect">;
+
 /**
- * Truncate all application and auth tables in dependency order.
- * RESTART IDENTITY resets sequences; CASCADE handles any remaining FKs.
+ * The statement that empties every table, built once per process from the catalog so a new
+ * migration's tables are reset without anyone remembering to list them.
+ *
+ * It runs as DELETEs under `session_replication_role = replica`, which skips triggers and
+ * foreign-key checks: table order does not matter and the guild's delete-event triggers do
+ * not write new rows into the tables just emptied. (Needs a superuser, as the test role is.)
+ * Identity sequences are not restarted, so tests must not assert absolute ids.
  */
-export async function truncateAll(): Promise<void> {
+let resetScript: Promise<string> | undefined;
+
+function buildResetScript(pool: ResetPool): Promise<string> {
+	resetScript ??= pool
+		.query<{ tablename: string }>("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")
+		.then(({ rows }) => {
+			const deletes = rows.map(({ tablename }) => `DELETE FROM "${tablename.replaceAll('"', '""')}";`).join("\n");
+			return `BEGIN;\nSET LOCAL session_replication_role = replica;\n${deletes}\nCOMMIT;`;
+		});
+	return resetScript;
+}
+
+/** Empty every table of `pool`'s database. One round trip: DELETE costs ~7ms, TRUNCATE ~50ms. */
+export async function resetDatabaseOn(pool: ResetPool): Promise<void> {
+	const script = await buildResetScript(pool);
+	const client = await pool.connect();
+	try {
+		await client.query(script);
+	} catch (err) {
+		await client.query("ROLLBACK").catch(() => undefined);
+		throw err;
+	} finally {
+		client.release();
+	}
+}
+
+/** Empty every table of the app's database. `setup-db.ts` runs it after each test. */
+export async function resetDatabase(): Promise<void> {
 	const { pool } = await import("../../src/db/client.js");
-	await pool.query(`
-		TRUNCATE TABLE
-			attachments,
-			cards,
-			labels,
-			columns,
-			team_members,
-			boards,
-			kumiai_event,
-			kumiai_doc_revision,
-			kumiai_knowledge_edge,
-			kumiai_doc,
-			kumiai_inspection_coverage,
-			kumiai_inspection,
-			kumiai_coverage,
-			kumiai_bug,
-			kumiai_review_finding,
-			kumiai_work_log,
-			kumiai_gate,
-			kumiai_graph_deviation,
-			kumiai_graph_edge,
-			kumiai_graph_node,
-			kumiai_task_capability,
-			kumiai_task_dependency,
-			kumiai_guild_state,
-			kumiai_key_counters,
-			kumiai_recent_projects,
-			kumiai_tasks,
-			kumiai_plans,
-			kumiai_requirements,
-			kumiai_projects,
-			kumiai_goals,
-			kumiai_workspaces,
-			teams,
-			sessions,
-			accounts,
-			verifications,
-			users
-		RESTART IDENTITY CASCADE
-	`);
+	await resetDatabaseOn(pool);
 }
