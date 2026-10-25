@@ -95,6 +95,7 @@ placeholders so the app still starts, but Google sign-in and email need real val
 | `pnpm db:down` | Stop it; data is kept |
 | `pnpm db:reset` | Remove the container and its data volume |
 | `pnpm db:migrate` | Apply `apps/api/drizzle` to `DATABASE_URL` (read from `apps/web/.env` if unset) |
+| `pnpm guild:import` | Import a local guild board (`.guild/guild.db`) into a workspace; see [Importing a local guild](#importing-a-local-guild) |
 
 `KATA_DB_PORT` changes the published Postgres port. To run the production image locally, build
 it (below), use `docker-compose.local.yml` (includes Postgres), or `docker-compose.yml` against an
@@ -175,6 +176,7 @@ twice — over MCP and over REST/RPC — by `apps/api/src/mcp/guild-adapter.ts`.
 | Graph (§4.5) | `instantiate_graph`, `add_graph_node`, `add_graph_edge`, `add_graph_deviation`, `set_node_status`, `resolve_gate` |
 | Quality (§4.6) | findings, bugs, coverage, inspections |
 | Library (§4.7–4.8) | `upsert_doc`, `link`, `unlink`, `supersede_doc`, `doc_neighbors`, `record_event` |
+| Import (§4.10) | `import_guild`: load a local `.guild/guild.db` (sent as JSON) into an empty workspace |
 | Boards (§4.9, MCP only) | the old `apps/mcp` board/card tools (`get_board`, columns, cards, labels, assignees, comments, checklists); board projects are `*_board_project` |
 
 Every tool except `whoami` / `list_workspaces` / `create_workspace` takes a `workspace` id of your
@@ -197,6 +199,45 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/jso
 
 Errors use HTTP 400 (`VALIDATION`, with zod `issues`), 401, 403, 404 (also for an unknown tool) and
 409. The old stdio server in `apps/mcp` is deprecated in favour of `/mcp`.
+
+## Importing a local guild
+
+A project whose guild still runs on `backend: local` keeps its board in `.guild/guild.db`
+(tursodb, a SQLite file). `pnpm guild:import` copies that board into a Kumiai workspace, straight
+into `DATABASE_URL` (from `apps/web/.env` if unset), so the guild can switch to `backend: kumiai`
+without losing its history:
+
+```bash
+pnpm guild:import ~/Projects/some-project --workspace some-project --team <team id> --create --dry-run
+pnpm guild:import ~/Projects/some-project --workspace some-project --team <team id> --create
+```
+
+Through a running Kumiai instead, with the `import_guild` tool (§4.10): the file is on your machine,
+so export it as JSON and send it. The REST route takes the same input as the MCP tool:
+
+```bash
+pnpm guild:import ~/Projects/some-project --export /tmp/board.json
+jq -n --arg ws "<workspace id>" --slurpfile source /tmp/board.json \
+  '{workspace: $ws, actor: "user", source: $source[0], dry_run: true}' |
+  curl -X POST -H "Authorization: Bearer $TOKEN" -H "content-type: application/json" \
+    -d @- https://<kumiai-host>/api/kumiai/guild/import_guild
+```
+
+Drop `dry_run` to import. An agent can also call `import_guild` over MCP with the same `source`.
+
+The first argument is a `guild.db` file or a project directory containing `.guild/guild.db`.
+`--workspace` is an existing workspace's id or name; with `--create` (and `--team`) it is created.
+The workspace must hold no guild data yet. `--dry-run` runs the whole import and rolls it back.
+
+Every table comes across (goals through tasks, the execution graph and gates, work log, findings,
+bugs, coverage, inspections, the library and its knowledge edges, `guild_state`) and the event
+feed keeps its original times and actors. Guild keys (`TASK-044`, `REQ-004/implement.TASK-011`,
+doc slugs) are kept as they are; integer ids (findings, log lines, events) are renumbered because
+Kumiai's are unique across workspaces. The import is one transaction and checks its row counts
+before committing. Known differences: a project of priority 5 is stored as 4 (contract §3); rows
+whose time the guild never filled in (a literal `%Y-%m-%dT%H:%M:%SZ`) take the time of the row
+before and are reported. The importer is `apps/api/src/guild/tursodb-import.ts`; it reads the
+file with Node's built-in `node:sqlite`, so Node 24 is all it needs.
 
 ## Database migrations
 

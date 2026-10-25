@@ -31,7 +31,8 @@
 		"db:up": "node scripts/dev-db.mjs up",
 		"db:down": "node scripts/dev-db.mjs down",
 		"db:reset": "node scripts/dev-db.mjs reset",
-		"db:migrate": "pnpm --filter @kata/api migrate"
+		"db:migrate": "pnpm --filter @kata/api migrate",
+		"guild:import": "pnpm --filter @kata/api import:guild"
 	},
 	"devDependencies": {
 		"eslint": "^10.11.0",

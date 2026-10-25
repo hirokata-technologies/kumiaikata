@@ -10,6 +10,7 @@
 		"check": "tsc -p tsconfig.json --noEmit",
 		"lint": "eslint src",
 		"migrate": "node --env-file-if-exists=../web/.env migrate.js",
+		"import:guild": "node --env-file-if-exists=../web/.env scripts/import-guild.mjs",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"test": "vitest run --passWithNoTests",

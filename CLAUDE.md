@@ -8,7 +8,7 @@
 
 **Restart preview:** Stop the `kata-local` server and start it again. Code changes hot-reload, so a restart is only needed after changing `.env` or the dev scripts. Migrations are re-applied on every start.
 
-**Database only:** `pnpm db:up` starts Postgres, `pnpm db:down` stops it (data is kept), `pnpm db:reset` deletes the container and its data, and `pnpm db:migrate` applies migrations.
+**Database only:** `pnpm db:up` starts Postgres, `pnpm db:down` stops it (data is kept), `pnpm db:reset` deletes the container and its data, `pnpm db:migrate` applies migrations, and `pnpm guild:import <project> --workspace <name>` loads a project's local `.guild/guild.db` into a workspace (README: "Importing a local guild").
 
 ## Business Rules
 

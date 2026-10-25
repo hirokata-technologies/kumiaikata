@@ -204,6 +204,16 @@ delete_label, add_card_label, remove_card_label, list_projects, create_project_b
 `create_board_project`, update/delete likewise `*_board_project`, add/remove_card_assignee,
 add/update/delete_card_comment, add/delete_checklist, add/update/delete_checklist_item`. Same inputs as before. MCP only (not on the REST route); list results are wrapped (`{labels}`), deletes return `{ok:true}`.
 
+### 4.10 Import
+
+| Tool | Input |
+|---|---|
+| `import_guild` | `workspace, actor, source, dry_run?: bool` — loads a local guild board into an **empty** workspace. `source` is the `.guild/guild.db` as JSON: `schema_version` (9) plus, per table (`goal, project, requirement, plan, task, task_dependency, task_capability, graph_node, graph_edge, graph_deviation, gate, work_log, review_finding, bug, coverage, inspection, inspection_coverage, doc, doc_revision, knowledge_edge, event, guild_state`), the rows as `SELECT *` returns them; a table left out is empty. Atomic. Keys are kept; integer ids (findings, log lines, events) are renumbered and every reference to them follows; the event feed is the file's own. `CONFLICT` when the workspace already holds guild data; `VALIDATION` for a wrong `schema_version`, an unknown table, a row pointing at a key not in the file, or a value Postgres refuses. `dry_run` does everything and rolls it back. Returns `{ workspace, dry_run, counts: {<table>: n}, warnings: [..] }`. |
+
+The server cannot read a file on the caller's machine, so the caller sends the rows. `pnpm guild:import
+<project> --export board.json` writes `source` for you; `pnpm guild:import <project> --workspace …` imports
+the file directly into `DATABASE_URL` with the same code.
+
 ## 5. Guild-side configuration
 
 ```yaml
