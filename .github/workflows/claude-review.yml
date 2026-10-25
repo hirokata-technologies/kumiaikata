@@ -49,14 +49,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         with:
-          # Workload Identity Federation: the job's GitHub OIDC token is exchanged for a short-lived
-          # Anthropic token, so there is no API key to store or rotate. These are identifiers, not
-          # credentials, hence repository variables. Do not add anthropic_api_key next to them.
-          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
-          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
-          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
-          # The workspace Claude runs in. Needed when the service account is in several.
-          anthropic_workspace_id: wrkspc_01NHNsb2o4mkrR1kB9q9C4yE
+          # A workspace-scoped key from platform.claude.com, stored as a repository secret. Only
+          # this job sees it, and pull requests from forks never run it.
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # Temporary, to see why the model call fails. Remove once the review works: the
           # repository is public, so this prints Claude's whole session in the job log.
           show_full_output: true

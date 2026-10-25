@@ -263,17 +263,11 @@ deliberately not used. Do not add it, and do not run this on fork code with `wor
 **One-time setup** (a repository admin):
 
 1. Install the Claude GitHub app on the repository (`/install-github-app` in Claude Code).
-2. Let the workflow call the Claude API without a stored key, with Workload Identity Federation
-   (an Admin of the Anthropic organization, in the Claude Console at platform.claude.com;
-   [docs](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation)):
-   - Settings > Workload identity: register an issuer, URL `https://token.actions.githubusercontent.com`,
-     JWKS source `discovery`.
-   - Settings > Service accounts: create one and add it to the workspace Claude should use.
-   - Create a federation rule for that service account. Match this repository's pull request token
-     as tightly as possible, e.g. subject `repo:hirokata-technologies/kumiaikata:pull_request`.
-   - Set three repository variables (identifiers, not secrets): `ANTHROPIC_FEDERATION_RULE_ID`
-     (`fdrl_…`), `ANTHROPIC_ORGANIZATION_ID` and `ANTHROPIC_SERVICE_ACCOUNT_ID` (`svac_…`).
-   If the rule covers more than one workspace, also pass `anthropic_workspace_id` in the workflow.
+2. Give the workflow an Anthropic API key: create a key in the workspace Claude should use (Claude
+   Console at platform.claude.com, API keys) and store it as the repository secret
+   `ANTHROPIC_API_KEY` (Settings > Secrets and variables > Actions). Only the review job reads it,
+   and pull requests from forks never run it. The workspace needs credit, or the review fails with
+   "Credit balance is too low".
 3. Set the repository variable `CLAUDE_AUTO_APPROVE_AUTHORS`, e.g. `HirogaKatageri`. Leave it
    unset to get reviews without approvals.
 4. In the "Protect main" ruleset, turn on "Dismiss stale pull request approvals when new commits
