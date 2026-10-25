@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `pnpm guild:import` and the `import_guild` MCP/REST tool (contract §4.10): import a local guild board (`.guild/guild.db`, tursodb) into a Kumiai workspace, with dry run, row-count check and the original event feed
 - AI agents API (/api/agents): workspace-scoped sessions and streamed replies from the Project Manager and Strategist on Agent Runtime
 - Removed docker-compose.local.yml; local dev is `pnpm dev` with a Postgres container (`pnpm db:up`)
 - Removed Railway CI and IaC (publish-images, railway-config, .railway, Railway tests); CI now lints and type-checks web and API and runs package tests
