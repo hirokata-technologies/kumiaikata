@@ -49,7 +49,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Workload Identity Federation: the job's GitHub OIDC token is exchanged for a short-lived
+          # Anthropic token, so there is no API key to store or rotate. These are identifiers, not
+          # credentials, hence repository variables. Do not add anthropic_api_key next to them.
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}
             (head commit ${{ github.event.pull_request.head.sha }}).
