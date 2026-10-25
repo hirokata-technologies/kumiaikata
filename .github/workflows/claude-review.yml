@@ -55,6 +55,8 @@ jobs:
           anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
           anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          # The workspace Claude runs in. Needed when the service account is in several.
+          anthropic_workspace_id: wrkspc_01NHNsb2o4mkrR1kB9q9C4yE
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}
             (head commit ${{ github.event.pull_request.head.sha }}).
