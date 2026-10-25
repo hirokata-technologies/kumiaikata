@@ -57,6 +57,9 @@ jobs:
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           # The workspace Claude runs in. Needed when the service account is in several.
           anthropic_workspace_id: wrkspc_01NHNsb2o4mkrR1kB9q9C4yE
+          # Temporary, to see why the model call fails. Remove once the review works: the
+          # repository is public, so this prints Claude's whole session in the job log.
+          show_full_output: true
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}
             (head commit ${{ github.event.pull_request.head.sha }}).
@@ -80,6 +83,7 @@ jobs:
             Keep the summary under 400 words: what the change does and what you checked.
           claude_args: >-
             --max-turns 15
+            --model claude-sonnet-5-5
             --allowedTools "Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
             --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["approve","comment","request_changes"]},"summary":{"type":"string"},"blocking_issues":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","blocking_issues"]}'
 
