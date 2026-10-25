@@ -22,11 +22,18 @@ jobs:
             const token = await core.getIDToken('https://api.anthropic.com');
             core.setSecret(token);
             core.exportVariable('JWT', token);
+      # The payload of the token is not secret (repo, ref, actor and so on); this is what the
+      # federation rule is matched against. Compare it with the rule when an exchange is denied.
+      - name: Show the token claims the rule is matched against
+        run: |
+          jq -rR 'split(".")[1] | gsub("-";"+") | gsub("_";"/") | @base64d | fromjson
+            | {iss, sub, aud, repository, repository_owner, event_name, ref, actor, actor_id, job_workflow_ref}' <<<"$JWT"
       - name: Exchange for an Anthropic access token
         run: |
+          set -o pipefail
           curl -sS https://api.anthropic.com/v1/oauth/token \
             -H "content-type: application/json" \
-            --data @- <<JSON | jq 'with_entries(if (.key | test("token$")) then .value = "<redacted>" else . end)'
+            --data @- <<JSON | jq 'with_entries(if (.key | test("token$")) then .value = "<redacted>" else . end)' | tee response.json
           {
             "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
             "assertion": "$JWT",
@@ -36,3 +43,5 @@ jobs:
             "workspace_id": "wrkspc_01NHNsb2o4mkrR1kB9q9C4yE"
           }
           JSON
+          # curl succeeds on a 401, so fail here when Anthropic denied the exchange.
+          jq -e 'has("access_token")' response.json >/dev/null || { echo "::error::The exchange was denied"; exit 1; }
