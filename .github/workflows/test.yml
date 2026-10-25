@@ -65,7 +65,7 @@ jobs:
     # neither sudo nor apt. Keep the tag equal to the playwright version in
     # pnpm-lock.yaml: a mismatch fails the browser tests with "Executable doesn't exist".
     container:
-      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --init --ipc=host
     steps:
       - uses: actions/checkout@v4
