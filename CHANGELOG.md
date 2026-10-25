@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - CI runs on GitHub-hosted runners (`ubuntu-latest`) instead of the self-hosted runner; the pnpm store is cached with `setup-node` again
 - Claude pull request review: every PR from this repository gets a Claude review comment, and Claude can approve (via a gated workflow, off until `CLAUDE_AUTO_APPROVE_AUTHORS` is set)
+- Claude pull request review: the Claude GitHub App's Code Review reviews every PR, and a gated workflow approves from its result (off until `CLAUDE_AUTO_APPROVE_AUTHORS` is set)
 - `pnpm guild:import` and the `import_guild` MCP/REST tool (contract §4.10): import a local guild board (`.guild/guild.db`, tursodb) into a Kumiai workspace, with dry run, row-count check and the original event feed
 - AI agents API (/api/agents): workspace-scoped sessions and streamed replies from the Project Manager and Strategist on Agent Runtime
 - Removed docker-compose.local.yml; local dev is `pnpm dev` with a Postgres container (`pnpm db:up`)

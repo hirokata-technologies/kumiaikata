@@ -241,38 +241,39 @@ file with Node's built-in `node:sqlite`, so Node 24 is all it needs.
 
 ## Claude pull request review
 
-`.github/workflows/claude-review.yml` has Claude review every pull request from this repository
-and post one comment (updated on each push). It can also approve, under strict rules.
+The Claude GitHub App's **Code Review** reviews every pull request (inline comments, a summary and
+a check run named `Claude Code Review`). It never approves or blocks a pull request, so
+`.github/workflows/claude-approve.yml` approves from its result, with plain shell: no model and no
+secret. It approves only when all of these hold:
 
-**Who decides.** Claude only returns a verdict (`approve`, `comment` or `request_changes`) and has
-no tool that writes to GitHub. A second job with no Anthropic secret approves, with plain shell,
-only when all of these hold:
-
-- the verdict is `approve`;
+- the review finished with no Important finding (or kept an earlier clean result);
 - the author is in the repository variable `CLAUDE_AUTO_APPROVE_AUTHORS` (comma-separated GitHub
   logins) and is a repository member. Unset or empty means it never approves;
 - the change touches nothing in `PROTECTED_PATHS` (workflows, `infra/`, migrations and
   `packages/db/`, `apps/api/src/auth/` and `apps/api/src/mcp/`, dependencies, Dockerfile, Claude
-  config), which always need a person (and, for the code-owner paths, the devops team);
-- the `Tests` workflow passed on the commit that was reviewed.
+  config, `REVIEW.md`), which always need a person (and, for the code-owner paths, the devops team);
+- the `Tests` workflow passed on the same commit;
+- the pull request is open, not a draft, and from this repository.
 
-Every push dismisses the bot's earlier approval and re-evaluates. Pull requests from forks are not
-reviewed: the `pull_request` trigger gives them no secrets, and `pull_request_target` is
-deliberately not used. Do not add it, and do not run this on fork code with `workflow_run`.
+It runs when the review finishes and when `Tests` finishes, and re-checks everything each time. A
+push dismisses the bot's approval of the older commit. Pull requests from forks are never
+approved, and the workflow never checks out or runs pull request code.
 
-**One-time setup** (a repository admin):
+**One-time setup:**
 
-1. Install the Claude GitHub app on the repository (`/install-github-app` in Claude Code).
-2. Add the repository secret `ANTHROPIC_API_KEY`.
-3. Set the repository variable `CLAUDE_AUTO_APPROVE_AUTHORS`, e.g. `HirogaKatageri`. Leave it
-   unset to get reviews without approvals.
-4. In the "Protect main" ruleset, turn on "Dismiss stale pull request approvals when new commits
+1. A Claude organization Owner turns on Code Review (claude.ai > Admin settings > Claude Code >
+   Code review; Team or Enterprise plan) and adds this repository, with "Review runs" set to
+   "After every push" or "Once after PR creation". The Claude GitHub App must be installed on it.
+2. A repository admin sets the repository variable `CLAUDE_AUTO_APPROVE_AUTHORS`, e.g.
+   `HirogaKatageri`. Leave it unset to get reviews without approvals.
+3. In the "Protect main" ruleset, turn on "Dismiss stale pull request approvals when new commits
    are pushed" so an approval cannot outlive the commit it was for.
-5. The org already lets Actions approve pull requests (`can_approve_pull_request_reviews`). A
+4. The org already lets Actions approve pull requests (`can_approve_pull_request_reviews`). A
    dedicated GitHub App for approvals would be tighter and give a clearer audit trail.
 
 An approval from `github-actions[bot]` counts toward the required reviews, but not toward
-code-owner review of the paths in `.github/CODEOWNERS`.
+code-owner review of the paths in `.github/CODEOWNERS`. Tune what the review flags with `REVIEW.md`
+and `CLAUDE.md` at the repository root.
 
 ## Database migrations
 
