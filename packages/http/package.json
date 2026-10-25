@@ -16,12 +16,12 @@
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
-    "@sentry/node": "^10.75.3",
-    "hono": "^4.13.9"
+    "@sentry/node": "^10.76.2",
+    "hono": "^4.13.13"
   },
   "devDependencies": {
-    "@types/node": "^24.13.6",
+    "@types/node": "^24.19.2",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }

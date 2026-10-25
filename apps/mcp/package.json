@@ -16,11 +16,11 @@
 		"check": "tsc -p tsconfig.json --noEmit"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.32.0",
-		"zod": "^4.6.6"
+		"@modelcontextprotocol/sdk": "^1.32.2",
+		"zod": "^4.6.7"
 	},
 	"devDependencies": {
-		"@types/node": "^24.13.6",
+		"@types/node": "^24.19.2",
 		"tsx": "^4.23.15",
 		"typescript": "^6.0.3"
 	}
