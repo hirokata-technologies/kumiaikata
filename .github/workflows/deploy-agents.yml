@@ -34,7 +34,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy to Agent Runtime
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/agents
