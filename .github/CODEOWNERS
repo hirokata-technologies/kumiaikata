@@ -3,4 +3,4 @@
 /infra/                              @hirokata-technologies/developer-operations
 /.github/workflows/terraform.yml     @hirokata-technologies/developer-operations
 /.github/CODEOWNERS                  @hirokata-technologies/developer-operations
-/.github/workflows/claude-approve.yml   @hirokata-technologies/developer-operations
+/.github/workflows/claude-review.yml     @hirokata-technologies/developer-operations
