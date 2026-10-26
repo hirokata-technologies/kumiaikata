@@ -10,7 +10,14 @@
 		type NewItemValues
 	} from '$lib/components/kumiai/ProjectFormModal.svelte';
 	import { priorityLevelPill, projectPriorityPill, statusPill } from '$lib/kumiai/index.js';
-	import { buildProjectViews, displayId, percent, reqLine } from '$lib/kumiai/derive.js';
+	import {
+		buildProjectViews,
+		displayId,
+		percent,
+		projectTaskLine,
+		reqLine,
+		taskLine
+	} from '$lib/kumiai/derive.js';
 	import { addGoal, addProject, errorMessage } from '$lib/kumiai/actions.js';
 	import { createGoal } from '$lib/api/kumiai/goals.js';
 	import { formatTargetWindow } from '$lib/kumiai/target-window.js';
@@ -66,9 +73,11 @@
 	const goals = $derived(
 		data.workspace.goals.map((goal) => {
 			const projects = views.filter((v) => v.project.goalId === goal.id);
-			const total = projects.reduce((n, v) => n + v.reqsTotal, 0);
-			const done = projects.reduce((n, v) => n + v.reqsDone, 0);
-			return { goal, projects, total, done };
+			const total = projects.reduce((n, v) => n + v.tasksTotal, 0);
+			const done = projects.reduce((n, v) => n + v.tasksDone, 0);
+			const reqsTotal = projects.reduce((n, v) => n + v.reqsTotal, 0);
+			const reqsDone = projects.reduce((n, v) => n + v.reqsDone, 0);
+			return { goal, projects, total, done, reqsTotal, reqsDone };
 		})
 	);
 	const dialogGoal = $derived.by(() => {
@@ -123,7 +132,7 @@
 	{/snippet}
 </PageHeader>
 
-{#each goals as { goal, projects, total, done } (goal.id)}
+{#each goals as { goal, projects, total, done, reqsTotal, reqsDone } (goal.id)}
 	<section class="goal">
 		<div class="goal-head">
 			<div class="tags">
@@ -134,7 +143,7 @@
 			<div class="progress">
 				<div class="bar"><div class="fill" style:width="{percent(done, total)}%"></div></div>
 				<span class="mono">
-					{done} of {total} requirements done · {projects.length}
+					{done} of {total} tasks done · {reqsDone} of {reqsTotal} requirements done · {projects.length}
 					{projects.length === 1 ? 'project' : 'projects'}
 				</span>
 			</div>
@@ -142,21 +151,46 @@
 
 		{#each projects as view (view.project.id)}
 			{@const p = view.project}
-			<a class="project" href="/projects/{p.id}">
-				<div class="project-title">
-					<span class="id" title={p.id}>{displayId(p.id)}</span>
-					<span class="name">{p.title}</span>
-					<Pill variant="priority" pill={projectPriorityPill(p.priority)} />
-				</div>
-				<Pill pill={statusPill(p.status)} />
-				<div class="project-progress">
-					<div class="bar small">
-						<div class="fill grey" style:width="{percent(view.reqsDone, view.reqsTotal)}%"></div>
+			<div class="project-block">
+				<a class="project" href="/projects/{p.id}">
+					<div class="project-title">
+						<span class="id" title={p.id}>{displayId(p.id)}</span>
+						<span class="name">{p.title}</span>
+						<Pill variant="priority" pill={projectPriorityPill(p.priority)} />
 					</div>
-					<span class="id">{reqLine(view)}</span>
-				</div>
-				<span class="target">{p.targetWindow ? formatTargetWindow(p.targetWindow) : 'no target'}</span>
-			</a>
+					<Pill pill={statusPill(p.status)} />
+					<div class="project-progress">
+						<div class="bar small">
+							<div class="fill grey" style:width="{percent(view.tasksDone, view.tasksTotal)}%"></div>
+							<div class="fill active" style:width="{percent(view.tasksActive, view.tasksTotal)}%"></div>
+						</div>
+						<span class="id">{projectTaskLine(view)}</span>
+					</div>
+					<span class="target">{p.targetWindow ? formatTargetWindow(p.targetWindow) : 'no target'}</span>
+				</a>
+				{#if view.requirements.length}
+					<ul class="reqs">
+						<li class="reqs-sum id">{reqLine(view)}</li>
+						{#each view.requirements as r (r.requirement.id)}
+							<li>
+								<a class="req" href="/projects/{p.id}">
+									<span class="id" title={r.requirement.id}>{displayId(r.requirement.id)}</span>
+									<span class="req-name">{r.requirement.title}</span>
+									<Pill pill={statusPill(r.requirement.status)} />
+									<span class="bar small req-bar">
+										<span class="fill grey" style:width="{percent(r.tasksDone, r.tasks.length)}%"></span>
+										<span
+											class="fill active"
+											style:width="{percent(r.tasks.filter((t) => t.status === 'in-progress').length, r.tasks.length)}%"
+										></span>
+									</span>
+									<span class="id req-tasks">{taskLine(r)}</span>
+								</a>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</div>
 		{:else}
 			<div class="none">No projects under this goal yet.</div>
 		{/each}
@@ -248,6 +282,7 @@
 	}
 
 	.bar.small {
+		display: flex;
 		height: 5px;
 		max-width: none;
 	}
@@ -257,6 +292,10 @@
 		background: var(--ink-2);
 	}
 
+	.fill.active {
+		background: var(--success);
+	}
+
 	.fill.grey {
 		background: var(--ink-3);
 	}
@@ -264,6 +303,57 @@
 	.mono {
 		font: 400 12px var(--font-mono);
 		color: var(--fg-3);
+	}
+
+	.project-block {
+		border-bottom: 1px solid var(--line-1);
+	}
+
+	.project-block .project {
+		border-bottom: none;
+	}
+
+	.reqs {
+		margin: 0;
+		padding: 0 24px 12px 48px;
+		list-style: none;
+	}
+
+	.reqs-sum {
+		padding: 0 0 4px;
+	}
+
+	.req {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 6px 0;
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.req:hover .req-name {
+		color: var(--ink-1);
+		text-decoration: underline;
+	}
+
+	.req-name {
+		flex: 1 1 200px;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font: 400 13px var(--font-sans);
+		color: var(--fg-2);
+	}
+
+	.req-bar {
+		flex: 0 0 110px;
+	}
+
+	.req-tasks {
+		flex: 0 0 90px;
+		text-align: right;
 	}
 
 	.project {

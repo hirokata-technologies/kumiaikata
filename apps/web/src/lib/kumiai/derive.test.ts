@@ -88,6 +88,8 @@ describe('buildProjectViews', () => {
 		expect(p1.goal?.id).toBe('g1');
 		expect(p1.reqsTotal).toBe(2);
 		expect(p1.reqsDone).toBe(1);
+		expect(p1.tasksTotal).toBe(p1.requirements.reduce((n, r) => n + r.tasks.length, 0));
+		expect(p1.tasksDone).toBe(p1.requirements.reduce((n, r) => n + r.tasksDone, 0));
 	});
 
 	it('leaves requirements that belong to no project out', () => {
