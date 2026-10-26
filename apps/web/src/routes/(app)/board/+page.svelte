@@ -170,6 +170,24 @@
 		grid-template-columns: repeat(4, minmax(240px, 1fr));
 		gap: var(--space-4);
 		align-items: start;
+		overflow-x: auto;
+	}
+
+	/* Phones: one column per screen, swiped sideways. */
+	@media (max-width: 768px) {
+		.board {
+			grid-template-columns: repeat(4, 82vw);
+			gap: var(--space-3);
+			overflow-x: auto;
+			scroll-snap-type: x mandatory;
+			margin: 0 calc(-1 * var(--space-4));
+			padding: 0 var(--space-4) var(--space-2);
+			scroll-padding: 0 var(--space-4);
+		}
+
+		.column {
+			scroll-snap-align: start;
+		}
 	}
 
 	.column {

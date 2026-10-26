@@ -2,7 +2,7 @@
 // Sidebar.test.ts (deleted by this ticket). Composition and the "Projects" derived-href
 // logic — the only real logic Sidebar itself owns — are proven against the real DOM.
 
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { page as browserPage } from "vitest/browser";
 import { render } from "@testing-library/svelte";
 import Sidebar from "./Sidebar.svelte";
@@ -183,5 +183,25 @@ describe("Sidebar.svelte — active nav state from $app/state", () => {
 		await expect
 			.element(browserPage.getByRole("link", { name: /Backlog/ }))
 			.toHaveAttribute("aria-current", "page");
+	});
+});
+
+describe("Sidebar.svelte — narrow-screen drawer", () => {
+	beforeAll(async () => {
+		await browserPage.viewport(390, 844);
+	});
+	afterAll(async () => {
+		await browserPage.viewport(1280, 800);
+	});
+
+	it("is hidden until opened", async () => {
+		const { rerender } = render(Sidebar, {
+			props: { team: null, recentProjects: [], projectCounts: emptyCounts },
+		});
+		const views = browserPage.getByRole("navigation", { name: "Views", includeHidden: true });
+		await expect.element(views).not.toBeVisible();
+
+		await rerender({ team: null, recentProjects: [], projectCounts: emptyCounts, open: true });
+		await expect.element(views).toBeVisible();
 	});
 });

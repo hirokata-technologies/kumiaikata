@@ -161,7 +161,32 @@
 
 	.cards {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
 		gap: var(--space-4);
+	}
+
+	@media (max-width: 768px) {
+		.stats {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: var(--space-3);
+		}
+
+		.stat {
+			padding: var(--space-4);
+		}
+
+		.stat-value {
+			font-size: 28px;
+		}
+
+		.group-head {
+			flex-wrap: wrap;
+			row-gap: var(--space-1);
+		}
+
+		.group-head h3 {
+			flex-basis: 100%;
+			order: -1;
+		}
 	}
 </style>
