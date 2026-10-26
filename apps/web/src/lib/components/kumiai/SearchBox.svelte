@@ -151,6 +151,18 @@
 		max-width: 40vw;
 	}
 
+	@media (max-width: 768px) {
+		.search-wrap {
+			flex: 1;
+			min-width: 0;
+			max-width: none;
+		}
+
+		.search-wrap .search-results {
+			min-width: 0;
+		}
+	}
+
 	.search-input-wrap {
 		position: relative;
 		display: flex;

@@ -19,13 +19,16 @@
 		recentProjects,
 		projectCounts,
 		workspaces = [],
-		activeWorkspaceId = null
+		activeWorkspaceId = null,
+		open = false
 	}: {
 		team: TeamInfo | null;
 		recentProjects: RecentProject[];
 		projectCounts: ProjectCounts;
 		workspaces?: KumiaiWorkspace[];
 		activeWorkspaceId?: string | null;
+		/** Drawer state on narrow screens; ignored on wide ones. */
+		open?: boolean;
 	} = $props();
 
 	// The "Projects" nav item has no static route — it opens the most recently opened
@@ -51,7 +54,7 @@
 	}
 </script>
 
-<aside class="sidebar">
+<aside id="app-sidebar" class="sidebar" class:open>
 	<div class="sidebar-head">
 		<WorkspaceBlock teamName={team?.name ?? null} />
 		<WorkspaceSelector
@@ -107,7 +110,7 @@
 		flex-direction: column;
 		width: 248px;
 		flex-shrink: 0;
-		height: 100vh;
+		height: 100%;
 		overflow-y: auto;
 		background: var(--paper-1);
 		border-right: 1px solid var(--line-1);
@@ -137,5 +140,25 @@
 		flex-shrink: 0;
 		background: var(--line-1);
 		margin: 0 var(--space-1);
+	}
+
+	@media (max-width: 768px) {
+		.sidebar {
+			position: fixed;
+			inset: 0 auto 0 0;
+			z-index: 50;
+			width: min(280px, 85vw);
+			box-shadow: var(--shadow-md);
+			transform: translateX(-100%);
+			visibility: hidden;
+			transition:
+				transform var(--dur-fast) ease,
+				visibility var(--dur-fast);
+		}
+
+		.sidebar.open {
+			transform: none;
+			visibility: visible;
+		}
 	}
 </style>
