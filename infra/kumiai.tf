@@ -83,6 +83,13 @@ resource "google_cloud_run_v2_service" "kumiai" {
   invoker_iam_disabled = true
   deletion_protection  = true
 
+  # Service-level limits across all revisions receiving traffic. The revision-level
+  # limits below only cover one revision, so these keep a split rollout at one too.
+  scaling {
+    min_instance_count = 1
+    max_instance_count = 1
+  }
+
   template {
     service_account = google_service_account.kumiai_runtime.email
     # Live board updates hold a request open, so allow many per instance.
