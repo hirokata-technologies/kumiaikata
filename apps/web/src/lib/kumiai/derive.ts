@@ -23,6 +23,10 @@ export interface ProjectView {
 	requirements: RequirementView[];
 	reqsTotal: number;
 	reqsDone: number;
+	/** Tasks across every requirement of the project: the work that actually moves. */
+	tasksTotal: number;
+	tasksDone: number;
+	tasksActive: number;
 }
 
 export const EMPTY_WORKSPACE: Workspace = {
@@ -77,12 +81,16 @@ export function buildProjectViews(ws: Workspace): ProjectView[] {
 					tasksDone: tasks.filter((t) => t.status === 'done').length
 				};
 			});
+		const tasks = requirements.flatMap((r) => r.tasks);
 		return {
 			project,
 			goal: goals.get(project.goalId) ?? null,
 			requirements,
 			reqsTotal: requirements.length,
-			reqsDone: requirements.filter((r) => r.requirement.status === 'done').length
+			reqsDone: requirements.filter((r) => r.requirement.status === 'done').length,
+			tasksTotal: tasks.length,
+			tasksDone: tasks.filter((t) => t.status === 'done').length,
+			tasksActive: tasks.filter((t) => t.status === 'in-progress').length
 		};
 	});
 }
@@ -95,6 +103,11 @@ export function reqLine(view: Pick<ProjectView, 'reqsTotal' | 'reqsDone'>): stri
 /** "2/3 tasks" or "no tasks yet". */
 export function taskLine(view: Pick<RequirementView, 'tasks' | 'tasksDone'>): string {
 	return view.tasks.length ? `${view.tasksDone}/${view.tasks.length} tasks` : 'no tasks yet';
+}
+
+/** Project-level "2/7 tasks" or "no tasks yet". */
+export function projectTaskLine(view: Pick<ProjectView, 'tasksTotal' | 'tasksDone'>): string {
+	return view.tasksTotal ? `${view.tasksDone}/${view.tasksTotal} tasks` : 'no tasks yet';
 }
 
 export function percent(done: number, total: number): number {
