@@ -11,7 +11,12 @@ import {
 	type GuildToolDef,
 } from "../registry.js";
 import { GUILD_CONTRACT_VERSION } from "../../mcp/resource.js";
-import { createWorkspace, listWorkspaces, type WorkspaceDetail } from "../../services/kumiai/workspaces.js";
+import {
+	createWorkspace,
+	listWorkspaces,
+	renameWorkspace,
+	type WorkspaceDetail,
+} from "../../services/kumiai/workspaces.js";
 
 /** The guild_state key the contract reserves: the per-call `actor` param replaces it (§4.1). */
 const RESERVED_STATE_KEY = "actor";
@@ -72,6 +77,21 @@ const createWorkspaceTool = defineTool({
 	handler: async ({ caller }, { name }) => serializeWorkspace(await createWorkspace(caller.teamId, name)),
 });
 
+const renameWorkspaceTool = defineTool({
+	name: "rename_workspace",
+	title: "Rename workspace",
+	description:
+		"Rename a workspace of the caller's team. Names are unique per team (CONFLICT otherwise); the id and the default flag never change.",
+	input: z.object({
+		workspace: workspaceInput,
+		name: z.string().trim().min(1).max(60).describe("New workspace name"),
+	}),
+	handler: async ({ caller }, { workspace, name }) => {
+		await assertWorkspace(caller, workspace);
+		return serializeWorkspace(await renameWorkspace(caller.teamId, workspace, name));
+	},
+});
+
 const getState = defineTool({
 	name: "get_state",
 	title: "Get guild state",
@@ -121,4 +141,11 @@ const setState = defineTool({
 });
 
 /** Contract §4.1 — whoami, workspaces, guild_state. */
-export const contextTools: GuildToolDef[] = [whoami, listWorkspacesTool, createWorkspaceTool, getState, setState];
+export const contextTools: GuildToolDef[] = [
+	whoami,
+	listWorkspacesTool,
+	createWorkspaceTool,
+	renameWorkspaceTool,
+	getState,
+	setState,
+];

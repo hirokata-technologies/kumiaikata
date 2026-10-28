@@ -147,3 +147,51 @@ export async function createWorkspace(teamId: string, name: string): Promise<Wor
 		updatedAt: now,
 	};
 }
+
+// ── renameWorkspace ───────────────────────────────────────────────────────────
+
+function isUniqueViolation(err: unknown): boolean {
+	// drizzle wraps driver errors; walk `cause` to the pg error.
+	let cur: unknown = err;
+	for (let i = 0; i < 5 && cur && typeof cur === "object"; i++) {
+		const o = cur as { code?: unknown; cause?: unknown };
+		if (o.code === "23505") return true;
+		cur = o.cause;
+	}
+	return false;
+}
+
+/**
+ * Renames one of the team's workspaces. Renaming to the name it already has succeeds as a
+ * no-op; a name another workspace of the team holds is a CONFLICT. The id, the default flag
+ * and everything under the workspace are untouched.
+ */
+export async function renameWorkspace(
+	teamId: string,
+	workspaceId: string,
+	name: string,
+): Promise<WorkspaceDetail> {
+	let updated: Array<{ id: string }>;
+	try {
+		updated = await db
+			.update(kumiaiWorkspaces)
+			.set({ name, updatedAt: new Date() })
+			.where(and(eq(kumiaiWorkspaces.id, workspaceId), eq(kumiaiWorkspaces.teamId, teamId)))
+			.returning({ id: kumiaiWorkspaces.id });
+	} catch (err) {
+		if (isUniqueViolation(err)) {
+			throw new AppError("CONFLICT", "A workspace with that name already exists.");
+		}
+		throw err;
+	}
+
+	if (updated.length === 0) {
+		throw new AppError("NOT_FOUND", "Workspace not found.");
+	}
+
+	const detail = (await listWorkspaces(teamId)).find((w) => w.id === workspaceId);
+	if (!detail) {
+		throw new AppError("NOT_FOUND", "Workspace not found.");
+	}
+	return detail;
+}

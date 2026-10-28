@@ -169,7 +169,7 @@ twice — over MCP and over REST/RPC — by `apps/api/src/mcp/guild-adapter.ts`.
 
 | Group | Tools |
 |---|---|
-| Context (§4.1) | `whoami`, `list_workspaces`, `create_workspace`, `get_state`, `set_state` |
+| Context (§4.1) | `whoami`, `list_workspaces`, `create_workspace`, `rename_workspace`, `get_state`, `set_state` |
 | Reads (§4.2) | `read_view`, `get`, `list`, `search_docs`, `check_invariants`, `fingerprint` |
 | Direction (§4.3) | `create_goal`, `update_goal`, `create_project`, `update_project` |
 | Work (§4.4) | requirements, plans, tasks: `create_*` / `update_*`, `set_task_status`, `claim_task`, dependencies, capabilities, `log_work` |

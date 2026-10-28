@@ -100,6 +100,7 @@ Rows carry the guild's column types: flags the guild stores as `0`/`1` (`project
 | `whoami` | — | `{ user: {id,email,name}, team: {id,name}, contract: "1.0.0" }` |
 | `list_workspaces` | — | `{ workspaces: [...] }` — the caller's team, default first. A workspace is `{id, name, isDefault, goalCount, projectCount, createdAt, updatedAt}` (Kumiai's own shape, camelCase). |
 | `create_workspace` | `name` | the workspace (same shape). `CONFLICT` when the team already has that name. |
+| `rename_workspace` | `workspace, name` | the workspace (same shape) with its new name. `CONFLICT` when another workspace of the team already has that name; renaming to its current name succeeds. The id, the default flag and the workspace's data never change. Writes no event (workspaces have none), so it takes no `actor`. |
 | `get_state` | `workspace, key?` | `{ rows: [{key, value}] }` (all, or one) |
 | `set_state` | `workspace, actor, key, value` | the row (upsert). Key `actor` writes nothing and returns `{key:'actor', value:<actor param>, ignored:true}` — attribution is per call. No event is written (the guild has no trigger on guild_state). |
 
