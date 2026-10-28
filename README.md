@@ -239,45 +239,6 @@ whose time the guild never filled in (a literal `%Y-%m-%dT%H:%M:%SZ`) take the t
 before and are reported. The importer is `apps/api/src/guild/tursodb-import.ts`; it reads the
 file with Node's built-in `node:sqlite`, so Node 24 is all it needs.
 
-## Claude pull request review
-
-`.github/workflows/claude-review.yml` has Claude review every pull request from this repository
-and post one comment (updated on each push). It can also approve, under strict rules.
-
-**Who decides.** Claude only returns a verdict (`approve`, `comment` or `request_changes`) and has
-no tool that writes to GitHub. A second job with no Anthropic access approves, with plain shell,
-only when all of these hold:
-
-- the verdict is `approve`;
-- the author is in the repository variable `CLAUDE_AUTO_APPROVE_AUTHORS` (comma-separated GitHub
-  logins) and is a repository member. Unset or empty means it never approves;
-- the change touches nothing in `PROTECTED_PATHS` (workflows, `infra/`, migrations and
-  `packages/db/`, `apps/api/src/auth/` and `apps/api/src/mcp/`, dependencies, Dockerfile, Claude
-  config), which always need a person (and, for the code-owner paths, the devops team);
-- the `Tests` workflow passed on the commit that was reviewed.
-
-Every push dismisses the bot's earlier approval and re-evaluates. Pull requests from forks are not
-reviewed: the `pull_request` trigger gives them no secrets, and `pull_request_target` is
-deliberately not used. Do not add it, and do not run this on fork code with `workflow_run`.
-
-**One-time setup** (a repository admin):
-
-1. Install the Claude GitHub app on the repository (`/install-github-app` in Claude Code).
-2. Give the workflow an Anthropic API key: create a key in the workspace Claude should use (Claude
-   Console at platform.claude.com, API keys) and store it as the repository secret
-   `ANTHROPIC_API_KEY` (Settings > Secrets and variables > Actions). Only the review job reads it,
-   and pull requests from forks never run it. The workspace needs credit, or the review fails with
-   "Credit balance is too low".
-3. Set the repository variable `CLAUDE_AUTO_APPROVE_AUTHORS`, e.g. `HirogaKatageri`. Leave it
-   unset to get reviews without approvals.
-4. In the "Protect main" ruleset, turn on "Dismiss stale pull request approvals when new commits
-   are pushed" so an approval cannot outlive the commit it was for.
-5. The org already lets Actions approve pull requests (`can_approve_pull_request_reviews`). A
-   dedicated GitHub App for approvals would be tighter and give a clearer audit trail.
-
-An approval from `github-actions[bot]` counts toward the required reviews, but not toward
-code-owner review of the paths in `.github/CODEOWNERS`.
-
 ## Database migrations
 
 The app does **not** migrate on startup. The runtime image contains `migrate.js` and the
