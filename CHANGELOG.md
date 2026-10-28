@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Project page renders plan bodies as markdown (headings, lists, code, links) instead of plain text
 - CI runs on GitHub-hosted runners (`ubuntu-latest`) instead of the self-hosted runner; the pnpm store is cached with `setup-node` again
 - Removed the Claude pull request review workflow (`claude-review.yml`): its review job failed on every PR, and the job that could approve PRs went with it
 - `pnpm guild:import` and the `import_guild` MCP/REST tool (contract §4.10): import a local guild board (`.guild/guild.db`, tursodb) into a Kumiai workspace, with dry run, row-count check and the original event feed
