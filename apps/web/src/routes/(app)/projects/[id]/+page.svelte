@@ -6,6 +6,7 @@
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import AlertTriangle from '@lucide/svelte/icons/triangle-alert';
 	import Pill from '$lib/components/kumiai/Pill.svelte';
+	import AgentMarkdown from '$lib/components/kumiai/AgentMarkdown.svelte';
 	import BarSlider from '$lib/components/kumiai/BarSlider.svelte';
 	import TargetPicker from '$lib/components/kumiai/TargetPicker.svelte';
 	import EmptyState from '$lib/components/kumiai/EmptyState.svelte';
@@ -162,7 +163,7 @@
 									<span class="plan-title">{r.plan.title}</span>
 									<Pill pill={approvalPill(r.plan.approval)} />
 								</div>
-								{#if r.plan.body}<p>{r.plan.body}</p>{/if}
+								{#if r.plan.body}<div class="plan-body"><AgentMarkdown source={r.plan.body} /></div>{/if}
 							</div>
 						{/if}
 
@@ -468,12 +469,9 @@
 		color: var(--fg-1);
 	}
 
-	.plan p {
-		margin: 8px 0 0;
-		max-width: 68ch;
-		white-space: pre-wrap;
-		font: 400 13px var(--font-sans);
-		color: var(--fg-2);
+	.plan-body {
+		margin-top: 8px;
+		max-width: 76ch;
 	}
 
 	.tasks {
