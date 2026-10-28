@@ -1,6 +1,6 @@
 // Render tests for Sidebar (REQ-002 US-2 AC1/AC2), replacing the source-string audit in
-// Sidebar.test.ts (deleted by this ticket). Composition and the "Projects" derived-href
-// logic — the only real logic Sidebar itself owns — are proven against the real DOM.
+// Sidebar.test.ts (deleted by this ticket). Composition and the active-route state are
+// proven against the real DOM.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { page as browserPage } from "vitest/browser";
@@ -12,21 +12,12 @@ import Sidebar from "./Sidebar.svelte";
 // instance whose mockPage is not the one the `vi.mock('$app/state', ...)` factory (wired
 // through Vitest's setupFiles pipeline) actually hands to a rendered component.
 import { page as appPage } from "$app/state";
-import type { ProjectCounts } from "./nav-config.js";
 import type { RecentProject } from "$lib/api/kumiai/types.js";
 
 function setPathname(pathname: string): void {
 	// @ts-expect-error -- the mocked `page` is a plain mutable object in test builds only.
 	appPage.url = new URL(pathname, "http://localhost/");
 }
-
-const emptyCounts: ProjectCounts = {
-	backlog: 0,
-	todo: 0,
-	inProgress: 0,
-	blocked: 0,
-	done: 0,
-};
 
 function makeRecentProject(overrides: Partial<RecentProject> = {}): RecentProject {
 	return {
@@ -40,29 +31,41 @@ function makeRecentProject(overrides: Partial<RecentProject> = {}): RecentProjec
 }
 
 describe("Sidebar.svelte — nav landmarks", () => {
-	it("renders two <nav> landmarks: Views and Planning", async () => {
+	it("renders the Planning <nav> landmark and no Views landmark", async () => {
 		render(Sidebar, {
-			props: { team: null, recentProjects: [], projectCounts: emptyCounts },
+			props: { team: null, recentProjects: [] },
 		});
 
-		await expect
-			.element(browserPage.getByRole("navigation", { name: "Views" }))
-			.toBeInTheDocument();
 		await expect
 			.element(browserPage.getByRole("navigation", { name: "Planning" }))
 			.toBeInTheDocument();
+		expect(browserPage.getByRole("navigation", { name: "Views" }).elements()).toHaveLength(0);
 	});
-});
 
-describe("Sidebar.svelte — nav order", () => {
-	it("puts Planning before Views", async () => {
+	it("links Goals & Projects to /roadmap and Impact & effort to /matrix", async () => {
 		render(Sidebar, {
-			props: { team: null, recentProjects: [], projectCounts: emptyCounts },
+			props: { team: null, recentProjects: [] },
 		});
 
-		const planning = browserPage.getByRole("navigation", { name: "Planning" }).element();
-		const views = browserPage.getByRole("navigation", { name: "Views" }).element();
-		expect(planning.compareDocumentPosition(views) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		await expect
+			.element(browserPage.getByRole("link", { name: "Goals & Projects" }))
+			.toHaveAttribute("href", "/roadmap");
+		await expect
+			.element(browserPage.getByRole("link", { name: "Impact & effort" }))
+			.toHaveAttribute("href", "/matrix");
+	});
+
+	it("renders no removed view links", async () => {
+		render(Sidebar, {
+			props: { team: null, recentProjects: [] },
+		});
+
+		await expect
+			.element(browserPage.getByRole("link", { name: "Goals & Projects" }))
+			.toBeInTheDocument();
+		for (const name of ["This week", "Backlog", "To do", "In progress", "Projects"]) {
+			expect(browserPage.getByRole("link", { name, exact: true }).elements()).toHaveLength(0);
+		}
 	});
 });
 
@@ -83,7 +86,6 @@ describe("Sidebar.svelte — workspace selector", () => {
 			props: {
 				team: null,
 				recentProjects: [],
-				projectCounts: emptyCounts,
 				workspaces: [workspace],
 				activeWorkspaceId: "w1",
 			},
@@ -94,47 +96,17 @@ describe("Sidebar.svelte — workspace selector", () => {
 
 	it("renders no selector when the workspaces could not be loaded", async () => {
 		render(Sidebar, {
-			props: { team: null, recentProjects: [], projectCounts: emptyCounts },
+			props: { team: null, recentProjects: [] },
 		});
 
 		expect(browserPage.getByText("Workspace", { exact: true }).elements()).toHaveLength(0);
 	});
 });
 
-describe("Sidebar.svelte — Projects entry", () => {
-	it("with recentProjects: [], Projects renders disabled (no link)", async () => {
-		render(Sidebar, {
-			props: { team: null, recentProjects: [], projectCounts: emptyCounts },
-		});
-
-		await expect
-			.element(browserPage.getByText("Projects", { exact: true }))
-			.toBeInTheDocument();
-		expect(browserPage.getByRole("link", { name: "Projects" }).elements()).toHaveLength(0);
-	});
-
-	it("with a non-empty recentProjects, Projects links to /projects/{first.id}", async () => {
-		render(Sidebar, {
-			props: {
-				team: null,
-				recentProjects: [
-					makeRecentProject({ id: "proj-1" }),
-					makeRecentProject({ id: "proj-2" }),
-				],
-				projectCounts: emptyCounts,
-			},
-		});
-
-		await expect
-			.element(browserPage.getByRole("link", { name: "Projects" }))
-			.toHaveAttribute("href", "/projects/proj-1");
-	});
-});
-
 describe("Sidebar.svelte — RecentlyOpened", () => {
 	it("mounts RecentlyOpened and renders its empty-state copy for []", async () => {
 		render(Sidebar, {
-			props: { team: null, recentProjects: [], projectCounts: emptyCounts },
+			props: { team: null, recentProjects: [] },
 		});
 
 		await expect.element(browserPage.getByText("No projects opened yet.")).toBeInTheDocument();
@@ -145,7 +117,6 @@ describe("Sidebar.svelte — RecentlyOpened", () => {
 			props: {
 				team: null,
 				recentProjects: [makeRecentProject({ title: "Kata Redesign" })],
-				projectCounts: emptyCounts,
 			},
 		});
 
@@ -153,35 +124,16 @@ describe("Sidebar.svelte — RecentlyOpened", () => {
 	});
 });
 
-describe("Sidebar.svelte — badges", () => {
-	it("projectCounts flow into the NAV_VIEWS entries that declare a badge", async () => {
-		render(Sidebar, {
-			props: {
-				team: null,
-				recentProjects: [],
-				projectCounts: { backlog: 4, todo: 2, inProgress: 1, blocked: 0, done: 0 },
-			},
-		});
-
-		const backlogLink = browserPage.getByRole("link", { name: /Backlog/ });
-		await expect.element(backlogLink).toBeInTheDocument();
-		expect(backlogLink.element().querySelector(".nav-item-badge")?.textContent).toBe("4");
-
-		const todoLink = browserPage.getByRole("link", { name: /To do/ });
-		expect(todoLink.element().querySelector(".nav-item-badge")?.textContent).toBe("2");
-	});
-});
-
 describe("Sidebar.svelte — active nav state from $app/state", () => {
 	it("marks the nav item matching page.url.pathname as active", async () => {
-		setPathname("/backlog");
+		setPathname("/roadmap");
 
 		render(Sidebar, {
-			props: { team: null, recentProjects: [], projectCounts: emptyCounts },
+			props: { team: null, recentProjects: [] },
 		});
 
 		await expect
-			.element(browserPage.getByRole("link", { name: /Backlog/ }))
+			.element(browserPage.getByRole("link", { name: "Goals & Projects" }))
 			.toHaveAttribute("aria-current", "page");
 	});
 });
@@ -196,12 +148,12 @@ describe("Sidebar.svelte — narrow-screen drawer", () => {
 
 	it("is hidden until opened", async () => {
 		const { rerender } = render(Sidebar, {
-			props: { team: null, recentProjects: [], projectCounts: emptyCounts },
+			props: { team: null, recentProjects: [] },
 		});
-		const views = browserPage.getByRole("navigation", { name: "Views", includeHidden: true });
-		await expect.element(views).not.toBeVisible();
+		const planning = browserPage.getByRole("navigation", { name: "Planning", includeHidden: true });
+		await expect.element(planning).not.toBeVisible();
 
-		await rerender({ team: null, recentProjects: [], projectCounts: emptyCounts, open: true });
-		await expect.element(views).toBeVisible();
+		await rerender({ team: null, recentProjects: [], open: true });
+		await expect.element(planning).toBeVisible();
 	});
 });

@@ -4,7 +4,6 @@ import {
 	percent,
 	reqLine,
 	scopeToGoals,
-	sortProjects,
 	taskLine,
 	type Workspace
 } from './derive.js';
@@ -150,24 +149,5 @@ describe('line helpers', () => {
 	it('rounds progress and treats an empty total as zero', () => {
 		expect(percent(1, 3)).toBe(33);
 		expect(percent(0, 0)).toBe(0);
-	});
-});
-
-describe('sortProjects', () => {
-	const rows = [
-		{ project: project('a', { impact: 40, effort: 2, priority: 'low' }) },
-		{ project: project('b', { impact: 90, effort: 9, priority: 'urgent' }) },
-		{ project: project('c', { impact: 60, effort: 4, priority: 'high' }) }
-	];
-
-	it('orders by impact, least effort or priority', () => {
-		expect(sortProjects(rows, 'impact').map((r) => r.project.id)).toEqual(['b', 'c', 'a']);
-		expect(sortProjects(rows, 'effort').map((r) => r.project.id)).toEqual(['a', 'c', 'b']);
-		expect(sortProjects(rows, 'priority').map((r) => r.project.id)).toEqual(['b', 'c', 'a']);
-	});
-
-	it('does not mutate the input', () => {
-		sortProjects(rows, 'impact');
-		expect(rows.map((r) => r.project.id)).toEqual(['a', 'b', 'c']);
 	});
 });

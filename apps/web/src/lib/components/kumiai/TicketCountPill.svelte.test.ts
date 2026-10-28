@@ -41,20 +41,19 @@ describe("TicketCountPill.svelte — renders the real DOM (REQ-002 US-1)", () =>
 });
 
 // Smoke test only — proves the `$app/state` provision from vitest-setup-browser.ts works
-// end to end. Full Sidebar coverage (active nav state, badges, recently-opened) belongs to
+// end to end. Full Sidebar coverage (active nav state, recently-opened) belongs to
 // the ticket that owns Sidebar.svelte.test.ts, not this one.
 describe("$app/state provision — a component importing it renders in the browser project", () => {
 	it("Sidebar renders with page.url.pathname driving active nav state", async () => {
-		setPathname("/week");
+		setPathname("/roadmap");
 
 		render(Sidebar, {
 			props: {
 				team: null,
 				recentProjects: [],
-				projectCounts: { backlog: 0, todo: 0, inProgress: 0, blocked: 0, done: 0 },
 			},
 		});
 
-		await expect.element(page.getByRole("link", { name: "This week" })).toBeInTheDocument();
+		await expect.element(page.getByRole("link", { name: "Goals & Projects" })).toBeInTheDocument();
 	});
 });

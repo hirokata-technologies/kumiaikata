@@ -30,4 +30,4 @@ export { notchBar, NOTCH_SEGMENTS, NOTCH_ON, NOTCH_OFF } from './notch.js';
 
 export { approvalPill } from './approval.js';
 
-export { deriveTargetWindowLabel, formatTargetWindow, formatTargetWindowLong } from './target-window.js';
+export { deriveTargetWindowLabel, formatTargetWindow } from './target-window.js';

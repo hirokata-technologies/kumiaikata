@@ -34,7 +34,7 @@
 	);
 </script>
 
-<section class="proposal" aria-label="Proposed roadmap">
+<section class="proposal" aria-label="Proposed goals and projects">
 	<header>
 		<span class="eyebrow">Draft{version > 1 ? ` · revision ${version}` : ''}</span>
 		<p>Review and edit it. Nothing is created until you press Create.</p>

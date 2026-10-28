@@ -31,12 +31,6 @@ export async function saveProject(id: string, patch: UpdateProjectInput): Promis
 	}
 }
 
-/** Moves a project to a status. Leaving `blocked` clears the reason; entering it requires one. */
-export function statusPatch(status: Project['status'], blockedReason?: string): UpdateProjectInput {
-	if (status === 'blocked') return { status, blockedReason: blockedReason ?? null };
-	return { status, blockedReason: null };
-}
-
 export async function addProject(input: CreateProjectInput): Promise<Project> {
 	return createKumiaiProject(input);
 }

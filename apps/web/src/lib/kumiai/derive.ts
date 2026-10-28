@@ -114,19 +114,6 @@ export function percent(done: number, total: number): number {
 	return total ? Math.round((done / total) * 100) : 0;
 }
 
-const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
-
-export type BacklogSort = 'impact' | 'effort' | 'priority';
-
-/** Highest impact first, least effort first, or most urgent first. Does not mutate its input. */
-export function sortProjects<T extends { project: Project }>(rows: T[], sort: BacklogSort): T[] {
-	return rows.slice().sort((a, b) => {
-		if (sort === 'impact') return b.project.impact - a.project.impact;
-		if (sort === 'effort') return a.project.effort - b.project.effort;
-		return PRIORITY_RANK[a.project.priority] - PRIORITY_RANK[b.project.priority];
-	});
-}
-
 /** Short label for a project dot: "PRJ-007" -> "#7", anything else -> its first six characters. */
 export function shortId(id: string): string {
 	const m = /^PRJ-0*(\d+)$/.exec(id);

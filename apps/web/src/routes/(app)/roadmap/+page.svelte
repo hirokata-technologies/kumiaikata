@@ -115,14 +115,14 @@
 </script>
 
 <svelte:head>
-	<title>Roadmap — Kata</title>
+	<title>Goals & Projects — Kata</title>
 </svelte:head>
 
 {#if data.failed}<LoadError />{/if}
 
 <PageHeader
 	eyebrow="Direction"
-	title="Roadmap"
+	title="Goals & Projects"
 	sub="Goals, their projects, and how far the requirements under each have got."
 >
 	{#snippet actions()}
@@ -206,7 +206,7 @@
 {/each}
 
 {#if goals.length === 0 && !data.failed}
-	<p class="empty">No goals yet. Create the first one to start a roadmap.</p>
+	<p class="empty">No goals yet. Create the first one to start planning.</p>
 {/if}
 
 {#if planning}

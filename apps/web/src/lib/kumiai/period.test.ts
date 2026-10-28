@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
 	currentPeriod,
-	describePeriod,
 	isoWeek,
 	isoWeekStart,
 	matchesPeriod,
@@ -82,24 +81,5 @@ describe('currentPeriod / toTargetWindow', () => {
 
 	it('labels a selection the way the API stores it', () => {
 		expect(toTargetWindow({ kind: 'month', year: 2026, number: 10 }).label).toBe('October');
-	});
-});
-
-describe('describePeriod', () => {
-	it('spells out a week from Monday to Sunday', () => {
-		expect(describePeriod({ kind: 'week', year: 2026, number: 39 }).sub).toBe(
-			'Monday 21 – Sunday 27 September 2026'
-		);
-	});
-
-	it('names the starting month when a week crosses a month boundary', () => {
-		expect(describePeriod({ kind: 'week', year: 2026, number: 40 }).sub).toBe(
-			'Monday 28 September – Sunday 4 October 2026'
-		);
-	});
-
-	it('titles months and quarters with the year', () => {
-		expect(describePeriod({ kind: 'month', year: 2026, number: 10 }).title).toBe('October 2026');
-		expect(describePeriod({ kind: 'quarter', year: 2026, number: 4 }).title).toBe('Q4 2026');
 	});
 });

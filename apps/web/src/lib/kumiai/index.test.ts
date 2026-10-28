@@ -15,6 +15,5 @@ describe('kumiai barrel', () => {
 		expect(typeof kumiai.approvalPill).toBe('function');
 		expect(typeof kumiai.deriveTargetWindowLabel).toBe('function');
 		expect(typeof kumiai.formatTargetWindow).toBe('function');
-		expect(typeof kumiai.formatTargetWindowLong).toBe('function');
 	});
 });

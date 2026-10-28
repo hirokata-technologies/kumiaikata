@@ -1,21 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { NAV_PLANNING, NAV_VIEWS, isActive } from './nav-config.js';
-
-describe('NAV_VIEWS', () => {
-	it('has the four Views entries with the exact labels, routes and badges', () => {
-		expect(NAV_VIEWS.map((e) => [e.label, e.href, e.badge])).toEqual([
-			['This week', '/week', undefined],
-			['Backlog', '/backlog', 'backlog'],
-			['To do', '/todo', 'todo'],
-			['In progress', '/board', 'inProgress'],
-		]);
-	});
-});
+import { NAV_PLANNING, isActive } from './nav-config.js';
 
 describe('NAV_PLANNING', () => {
-	it('has the Impact & effort and Roadmap entries', () => {
+	it('has the Goals & Projects and Impact & effort entries', () => {
 		expect(NAV_PLANNING.map((e) => [e.label, e.href])).toEqual([
-			['Roadmap', '/roadmap'],
+			['Goals & Projects', '/roadmap'],
 			['Impact & effort', '/matrix'],
 		]);
 	});
@@ -23,7 +12,7 @@ describe('NAV_PLANNING', () => {
 
 describe('isActive', () => {
 	it('matches an exact path', () => {
-		expect(isActive('/week', '/week')).toBe(true);
+		expect(isActive('/roadmap', '/roadmap')).toBe(true);
 	});
 
 	it('matches a nested path under the href', () => {
@@ -31,15 +20,15 @@ describe('isActive', () => {
 	});
 
 	it('does not false-positive on a sibling route with a shared prefix', () => {
-		expect(isActive('/weekly', '/week')).toBe(false);
+		expect(isActive('/roadmaps', '/roadmap')).toBe(false);
 	});
 
 	it('does not match an unrelated route', () => {
-		expect(isActive('/board', '/week')).toBe(false);
+		expect(isActive('/matrix', '/roadmap')).toBe(false);
 	});
 
 	it('matches the root path only exactly', () => {
 		expect(isActive('/', '/')).toBe(true);
-		expect(isActive('/week', '/')).toBe(false);
+		expect(isActive('/roadmap', '/')).toBe(false);
 	});
 });

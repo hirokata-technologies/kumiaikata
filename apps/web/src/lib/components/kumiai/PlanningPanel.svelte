@@ -125,13 +125,13 @@
 		{#if page}
 			<header class="head page-head">
 				<button type="button" class="back" onclick={onclose} disabled={chat.creating}>
-					<ArrowLeft size={15} /> Roadmap
+					<ArrowLeft size={15} /> Goals &amp; Projects
 				</button>
 				<span class="eyebrow">Direction</span>
 				<h2 id="planning-title">Discuss Goals and Projects</h2>
 				<p class="sub">
-					Work out what comes next with the Project Manager and the Strategist. Drafts reach the
-					roadmap only when you create them.
+					Work out what comes next with the Project Manager and the Strategist. Drafts
+					reach Goals &amp; Projects only when you create them.
 				</p>
 			</header>
 		{:else}

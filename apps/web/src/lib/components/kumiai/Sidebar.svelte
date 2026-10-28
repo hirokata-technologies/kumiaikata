@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto, invalidateAll } from '$app/navigation';
-	import { NAV_VIEWS, NAV_PLANNING, NAV_PROJECTS_ENTRY, isActive } from './nav-config.js';
-	import type { ProjectCounts } from './nav-config.js';
+	import { NAV_PLANNING, isActive } from './nav-config.js';
 	import type { RecentProject } from '$lib/api/kumiai/types.js';
 	import type { TeamInfo } from '$lib/api/types.js';
 	import type { KumiaiWorkspace } from '$lib/kumiai/types.js';
@@ -17,29 +16,22 @@
 	let {
 		team,
 		recentProjects,
-		projectCounts,
 		workspaces = [],
 		activeWorkspaceId = null,
 		open = false
 	}: {
 		team: TeamInfo | null;
 		recentProjects: RecentProject[];
-		projectCounts: ProjectCounts;
 		workspaces?: KumiaiWorkspace[];
 		activeWorkspaceId?: string | null;
 		/** Drawer state on narrow screens; ignored on wide ones. */
 		open?: boolean;
 	} = $props();
 
-	// The "Projects" nav item has no static route — it opens the most recently opened
-	// project. With no history it renders disabled rather than linking nowhere.
-	const projectsHref = $derived(recentProjects[0] ? `/projects/${recentProjects[0].id}` : null);
-	const projectsActive = $derived(isActive(page.url.pathname, '/projects'));
-
 	async function enter(id: string) {
 		rememberWorkspace(id);
 		// A project belongs to one workspace, so its page makes no sense in another.
-		if (page.url.pathname.startsWith('/projects/')) await goto('/week', { invalidateAll: true });
+		if (page.url.pathname.startsWith('/projects/')) await goto('/roadmap', { invalidateAll: true });
 		else await invalidateAll();
 	}
 
@@ -72,28 +64,6 @@
 				label={entry.label}
 				href={entry.href}
 				icon={entry.icon}
-				active={isActive(page.url.pathname, entry.href)}
-			/>
-		{/each}
-		<NavItem
-			label={NAV_PROJECTS_ENTRY.label}
-			href={projectsHref}
-			icon={NAV_PROJECTS_ENTRY.icon}
-			active={projectsActive}
-			disabled={!projectsHref}
-		/>
-	</nav>
-
-	<div class="nav-divider"></div>
-
-	<nav class="nav-group" aria-label="Views">
-		<span class="eyebrow nav-group-label">Views</span>
-		{#each NAV_VIEWS as entry (entry.href)}
-			<NavItem
-				label={entry.label}
-				href={entry.href}
-				icon={entry.icon}
-				badge={entry.badge ? projectCounts[entry.badge] : undefined}
 				active={isActive(page.url.pathname, entry.href)}
 			/>
 		{/each}

@@ -43,7 +43,7 @@
 			</div>
 			<h4>{goal.value.title}</h4>
 			{#if goal.value.body}<p class="note">{goal.value.body}</p>{/if}
-			{@render actions('goal', goal.createdId, 'Add goal to roadmap', true)}
+			{@render actions('goal', goal.createdId, 'Add goal', true)}
 		</article>
 	{/if}
 
@@ -72,7 +72,7 @@
 					<EffortNotches effort={project.value.effort} />
 				</div>
 			</div>
-			{@render actions(i, project.createdId, 'Add project to roadmap', goalReady)}
+			{@render actions(i, project.createdId, 'Add project', goalReady)}
 		</article>
 	{/each}
 
@@ -86,7 +86,7 @@
 			<span class="added">Added as</span>
 			<span class="id">{displayId(createdId)}</span>
 			<span class="grow"></span>
-			<button type="button" class="link" onclick={onview}>View on roadmap</button>
+			<button type="button" class="link" onclick={onview}>View in Goals &amp; Projects</button>
 		{:else if ready}
 			<button
 				type="button"

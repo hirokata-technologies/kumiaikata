@@ -10,9 +10,9 @@ describe('onboarding/+page.server.ts', () => {
 		expect(() => run(null)).toThrowError(expect.objectContaining({ status: 303, location: '/login' }));
 	});
 
-	it('redirects 303 to /week when onboarding is already done', () => {
+	it('redirects 303 to /roadmap when onboarding is already done', () => {
 		expect(() => run({ id: 'u1', isOnboardingDone: true })).toThrowError(
-			expect.objectContaining({ status: 303, location: '/week' }),
+			expect.objectContaining({ status: 303, location: '/roadmap' }),
 		);
 	});
 
