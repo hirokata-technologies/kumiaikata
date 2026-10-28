@@ -70,7 +70,7 @@ function makeEvent(overrides: {
 		locals: { user: overrides.user },
 		fetch: overrides.fetch,
 		cookies: { get: (name: string) => (name === 'kumiai_workspace' ? overrides.workspaceCookie : undefined) },
-		url: { pathname: '/week' },
+		url: { pathname: '/roadmap' },
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	} as any;
 }

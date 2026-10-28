@@ -1,4 +1,4 @@
-import { MONTH_NAMES, deriveTargetWindowLabel } from './target-window.js';
+import { deriveTargetWindowLabel } from './target-window.js';
 import type { TargetWindow, TargetWindowKind } from './types.js';
 
 /** A concrete period the UI can ask about: ISO week 1-53, month 1-12 or quarter 1-4 of a year. */
@@ -107,26 +107,4 @@ export function toTargetWindow(period: PeriodSelection): TargetWindow {
 /** "Week 39 2026" | "October 2026" | "Q4 2026". */
 export function periodLabel(period: PeriodSelection): string {
 	return `${deriveTargetWindowLabel(period.kind, period.number)} ${period.year}`;
-}
-
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-/** Heading and one-line description for a period, e.g. "Week 39" / "Monday 21 – Sunday 27 September 2026". */
-export function describePeriod(period: PeriodSelection): { title: string; sub: string } {
-	if (period.kind === 'week') {
-		const start = isoWeekStart(period.year, period.number);
-		const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
-		const startMonth = start.getMonth() === end.getMonth() ? '' : ` ${MONTH_NAMES[start.getMonth()]}`;
-		return {
-			title: `Week ${period.number}`,
-			sub: `${WEEKDAYS[start.getDay()]} ${start.getDate()}${startMonth} – ${WEEKDAYS[end.getDay()]} ${end.getDate()} ${MONTH_NAMES[end.getMonth()]} ${end.getFullYear()}`
-		};
-	}
-	if (period.kind === 'month') {
-		return {
-			title: `${MONTH_NAMES[period.number - 1]} ${period.year}`,
-			sub: 'Everything targeted at the month, not a specific week'
-		};
-	}
-	return { title: `Q${period.number} ${period.year}`, sub: 'The quarter-level commitments' };
 }

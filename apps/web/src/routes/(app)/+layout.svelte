@@ -17,7 +17,6 @@
 	<Sidebar
 		team={data.team}
 		recentProjects={data.recentProjects}
-		projectCounts={data.stats.projectCounts}
 		workspaces={data.workspaces}
 		activeWorkspaceId={data.activeWorkspaceId}
 		open={navOpen}

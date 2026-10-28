@@ -60,7 +60,7 @@
 	<section class="not-found">
 		<h1>Project not found</h1>
 		<p>This project doesn't exist, or you don't have access to it.</p>
-		<a href="/roadmap">Back to the roadmap</a>
+		<a href="/roadmap">Back to Goals &amp; Projects</a>
 	</section>
 {:else}
 	{#if data.failed}<LoadError />{/if}

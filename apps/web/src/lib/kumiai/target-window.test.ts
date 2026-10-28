@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveTargetWindowLabel, formatTargetWindow, formatTargetWindowLong } from './target-window.js';
+import { deriveTargetWindowLabel, formatTargetWindow } from './target-window.js';
 import type { TargetWindow } from './types.js';
 
 describe('deriveTargetWindowLabel', () => {
@@ -38,12 +38,5 @@ describe('formatTargetWindow', () => {
 		[{ kind: 'quarter', label: 'Q4', year: 2026, number: 4 }, 'Q4']
 	] as const)('formats %o as %s', (tw, expected) => {
 		expect(formatTargetWindow(tw as TargetWindow)).toBe(expected);
-	});
-});
-
-describe('formatTargetWindowLong', () => {
-	it('appends the year to the bare label', () => {
-		const tw: TargetWindow = { kind: 'week', label: 'Week 39', year: 2026, number: 39 };
-		expect(formatTargetWindowLong(tw)).toBe('Week 39 2026');
 	});
 });

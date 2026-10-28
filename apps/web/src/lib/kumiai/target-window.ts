@@ -39,8 +39,3 @@ export function deriveTargetWindowLabel(kind: TargetWindowKind, num: number): st
 export function formatTargetWindow(tw: TargetWindow): string {
 	return tw.label || deriveTargetWindowLabel(tw.kind, tw.number);
 }
-
-/** "Week 39 2026" — the bare period name with the year appended. */
-export function formatTargetWindowLong(tw: TargetWindow): string {
-	return `${formatTargetWindow(tw)} ${tw.year}`;
-}

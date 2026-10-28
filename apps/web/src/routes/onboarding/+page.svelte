@@ -141,7 +141,7 @@
 			return;
 		}
 		await invalidateAll();
-		await goto('/week');
+		await goto('/roadmap');
 	}
 
 	function next() {
