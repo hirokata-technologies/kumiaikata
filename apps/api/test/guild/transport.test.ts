@@ -81,6 +81,61 @@ describe("guild REST with a session", () => {
 		expect(((await dup.json()) as { code: string }).code).toBe("CONFLICT");
 	});
 
+	it("renames a workspace, the default included, keeping its id and flag", async () => {
+		await signIn("rest-rename.com");
+		const [def] = ((await (await call("list_workspaces", {})).json()) as {
+			workspaces: Array<{ id: string; name: string; isDefault: boolean; updatedAt: string }>;
+		}).workspaces;
+		expect(def).toMatchObject({ name: "default", isDefault: true });
+
+		const res = await call("rename_workspace", { workspace: def!.id, name: "  Kumiaikata  " });
+
+		expect(res.status).toBe(200);
+		const renamed = (await res.json()) as { id: string; name: string; isDefault: boolean; updatedAt: string };
+		expect(renamed).toMatchObject({ id: def!.id, name: "Kumiaikata", isDefault: true });
+		expect(renamed.updatedAt >= def!.updatedAt).toBe(true);
+		const listed = (await (await call("list_workspaces", {})).json()) as { workspaces: Array<{ name: string }> };
+		expect(listed.workspaces.map((w) => w.name)).toEqual(["Kumiaikata"]);
+	});
+
+	it("renaming a workspace to its own name succeeds", async () => {
+		await signIn("rest-rename-same.com");
+		const created = (await (await call("create_workspace", { name: "guild" })).json()) as { id: string };
+
+		const res = await call("rename_workspace", { workspace: created.id, name: "guild" });
+
+		expect(res.status).toBe(200);
+		expect(((await res.json()) as { name: string }).name).toBe("guild");
+	});
+
+	it("refuses to rename a workspace to a name the team already uses (409)", async () => {
+		await signIn("rest-rename-dup.com");
+		const created = (await (await call("create_workspace", { name: "guild" })).json()) as { id: string };
+
+		const res = await call("rename_workspace", { workspace: created.id, name: "default" });
+
+		expect(res.status).toBe(409);
+		expect(((await res.json()) as { code: string }).code).toBe("CONFLICT");
+		const listed = (await (await call("list_workspaces", {})).json()) as { workspaces: Array<{ name: string }> };
+		expect(listed.workspaces.map((w) => w.name)).toEqual(["default", "guild"]);
+	});
+
+	it("does not rename a workspace of another team (403) and rejects an empty or long name (400)", async () => {
+		const other = await seedMember("rest-rename-other.com");
+		const foreign = await seedKumiaiWorkspace(other.team.id);
+		await signIn("rest-rename-mine.com");
+
+		const forbidden = await call("rename_workspace", { workspace: foreign.id, name: "stolen" });
+		expect(forbidden.status).toBe(403);
+		expect(((await forbidden.json()) as { code: string }).code).toBe("FORBIDDEN");
+
+		const mine = ((await (await call("list_workspaces", {})).json()) as { workspaces: Array<{ id: string }> })
+			.workspaces[0]!;
+		expect((await call("rename_workspace", { workspace: mine.id, name: "  " })).status).toBe(400);
+		expect((await call("rename_workspace", { workspace: mine.id, name: "x".repeat(61) })).status).toBe(400);
+		expect((await call("rename_workspace", { name: "no-workspace" })).status).toBe(400);
+	});
+
 	it("reads and upserts guild_state; the 'actor' key is ignored", async () => {
 		const { team } = await signIn("rest-state.com");
 		const ws = await seedKumiaiWorkspace(team.id);
